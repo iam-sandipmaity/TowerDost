@@ -60,4 +60,28 @@ interface SiteDao {
         LIMIT 50
     """)
     suspend fun searchFts(query: String): List<SiteEntity>
+
+    @Query("""
+        SELECT * FROM sites 
+        WHERE deleted_at IS NULL AND (
+            sap_id LIKE '%' || :query || '%' OR 
+            sap_norm LIKE '%' || :query || '%' OR 
+            name LIKE '%' || :query || '%' OR 
+            city LIKE '%' || :query || '%' OR 
+            district LIKE '%' || :query || '%' OR 
+            circle LIKE '%' || :query || '%'
+        )
+        ORDER BY sap_id ASC
+        LIMIT 50
+    """)
+    suspend fun searchDirect(query: String): List<SiteEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFts(items: List<app.telecom.sitetracker.data.entity.SiteFts>)
+
+    @Query("DELETE FROM site_search WHERE sap_norm = :sapNorm")
+    suspend fun deleteFts(sapNorm: String)
+
+    @Query("DELETE FROM site_search")
+    suspend fun clearFts()
 }

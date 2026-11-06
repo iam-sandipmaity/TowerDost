@@ -134,86 +134,86 @@ fun MainAppShell(
 
     var showMenu by remember { mutableStateOf(false) }
 
+    val isBottomBarDestination = Screen.bottomNavItems.any { it.route == currentRoute }
+    val showTopBar = isBottomBarDestination && currentRoute != Screen.Sites.route
+
     val currentScreen = Screen.bottomNavItems.find { it.route == currentRoute } ?: Screen.Home
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(currentScreen.titleRes),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+            if (showTopBar) {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(currentScreen.titleRes),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    actions = {
+                        IconButton(onClick = { navController.navigate(Screen.Search.route) }) {
+                            Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
+                        }
+                        IconButton(onClick = { showMenu = !showMenu }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Import Wizard") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.ImportWizard.route)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Search") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.Search.route)
+                                }
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
                     )
-                },
-                actions = {
-                    IconButton(onClick = { /* Open FTS Search in M1 */ }) {
-                        Icon(Icons.Default.Search, contentDescription = stringResource(R.string.action_search))
-                    }
-                    IconButton(onClick = { showMenu = !showMenu }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Menu")
-                    }
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Import Wizard") },
-                            onClick = {
-                                showMenu = false
-                                // Open Import Wizard in M1
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Export & Backup") },
-                            onClick = {
-                                showMenu = false
-                                // Open Backup in M4
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Settings") },
-                            onClick = {
-                                showMenu = false
-                                // Open Settings in M2
-                            }
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
-            )
+            }
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
-            ) {
-                for (screen in Screen.bottomNavItems) {
-                    val selected = currentRoute == screen.route
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            if (currentRoute != screen.route) {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
+            if (isBottomBarDestination) {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp
+                ) {
+                    for (screen in Screen.bottomNavItems) {
+                        val selected = currentRoute == screen.route
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                if (currentRoute != screen.route) {
+                                    navController.navigate(screen.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
                                     }
-                                    launchSingleTop = true
-                                    restoreState = true
                                 }
+                            },
+                            icon = {
+                                Icon(screen.icon, contentDescription = stringResource(screen.titleRes))
+                            },
+                            label = {
+                                Text(stringResource(screen.titleRes))
                             }
-                        },
-                        icon = {
-                            Icon(screen.icon, contentDescription = stringResource(screen.titleRes))
-                        },
-                        label = {
-                            Text(stringResource(screen.titleRes))
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }

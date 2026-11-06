@@ -19,6 +19,9 @@ class IncidentRepository(private val db: AppDatabase) {
     fun observeIncidentsForSite(sapId: String): Flow<List<IncidentEntity>> =
         incidentDao.getIncidentsForSite(sapId)
 
+    suspend fun getIncidentsForSite(sapId: String): List<IncidentEntity> =
+        incidentDao.getIncidentsListForSite(sapId)
+
     suspend fun getRecentIncidentsForSite(sapId: String, sinceMs: Long): List<IncidentEntity> =
         incidentDao.getRecentIncidentsForSite(sapId, sinceMs)
 

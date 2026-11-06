@@ -61,5 +61,7 @@ data class SiteEntity(
         fun normalize(raw: String): String {
             return raw.uppercase().replace(Regex("[^A-Z0-9]"), "")
         }
+
+        fun normalizeSapId(raw: String): String = normalize(raw)
     }
 }

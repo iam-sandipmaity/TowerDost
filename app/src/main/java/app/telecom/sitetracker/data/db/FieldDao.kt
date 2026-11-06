@@ -23,4 +23,7 @@ interface FieldDao {
 
     @Query("DELETE FROM site_fields WHERE sap_id = :sapId")
     suspend fun deleteFieldsForSite(sapId: String)
+
+    @Query("DELETE FROM site_fields WHERE sap_id IN (:sapIds)")
+    suspend fun deleteFieldsForSites(sapIds: List<String>)
 }

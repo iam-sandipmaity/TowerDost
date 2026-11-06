@@ -57,4 +57,48 @@
     <string name="status_in_progress">In Progress</string>
     <string name="status_resolved">Resolved</string>
     <string name="status_closed">Closed</string>
+
+    <!-- Import Wizard -->
+    <string name="import_title">Import Site Master</string>
+    <string name="import_step_1">1. Select File</string>
+    <string name="import_step_2">2. Sheet</string>
+    <string name="import_step_3">3. Map Columns</string>
+    <string name="import_step_4">4. Validate</string>
+    <string name="import_step_5">5. Import</string>
+    <string name="import_pick_file_prompt">Select an Excel (.xlsx), CSV, or JSON file</string>
+    <string name="import_pick_button">Pick File</string>
+    <string name="import_detected_format">Detected Format</string>
+    <string name="import_file_size">File Size</string>
+    <string name="import_unsupported_xls">Old Excel format (.xls) is not supported. Please open this file in Excel or Sheets and Save As .xlsx or .csv.</string>
+    <string name="import_sheet_prompt">Select sheet to import:</string>
+    <string name="import_mapping_prompt">Map columns from file to site attributes:</string>
+    <string name="import_sap_id_required">SAP ID mapping is required.</string>
+    <string name="import_preview_rows">Preview First 5 Rows</string>
+    <string name="import_validation_title">Validation Summary</string>
+    <string name="import_total_rows">Total Rows</string>
+    <string name="import_valid_sites">Valid Sites</string>
+    <string name="import_duplicate_saps">Duplicate SAP IDs</string>
+    <string name="import_existing_sites">Existing in DB</string>
+    <string name="import_new_sites">New Sites</string>
+    <string name="import_coord_warnings">Coordinate Warnings</string>
+    <string name="import_custom_specs">Equipment Specifications Found</string>
+    <string name="import_merge_policy">Merge Policy</string>
+    <string name="import_execute_button">Proceed to Import</string>
+    <string name="import_progress_title">Importing Sites</string>
+    <string name="import_success_title">Import Complete</string>
+
+    <!-- Site Master & Detail -->
+    <string name="site_list_title">Sites</string>
+    <string name="site_detail_title">Site Details</string>
+    <string name="site_specifications">Equipment Specs</string>
+    <string name="site_overview">Overview</string>
+    <string name="site_incidents">Incidents</string>
+    <string name="site_down_history">Down History</string>
+    <string name="action_navigate">Navigate</string>
+    <string name="action_call">Call</string>
+    <string name="action_copy">Copy</string>
+    <string name="near_me_title">Near Me</string>
+    <string name="near_me_permission_required">Location permission required to find nearby sites.</string>
+    <string name="search_placeholder">Search SAP ID, name, city, tech, specs...</string>
+    <string name="no_sites_found">No sites found. Import an Excel/CSV file or load sample data to begin.</string>
 </resources>
