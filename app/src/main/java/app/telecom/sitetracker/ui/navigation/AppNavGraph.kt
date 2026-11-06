@@ -16,6 +16,7 @@ import app.telecom.sitetracker.ui.importwizard.ImportWizardViewModel
 import app.telecom.sitetracker.ui.incident.LogIncidentScreen
 import app.telecom.sitetracker.ui.incident.LogIncidentViewModel
 import app.telecom.sitetracker.ui.insights.InsightsScreen
+import app.telecom.sitetracker.ui.insights.InsightsViewModel
 import app.telecom.sitetracker.ui.map.MapScreen
 import app.telecom.sitetracker.ui.outages.DownRegisterScreen
 import app.telecom.sitetracker.ui.outages.DownRegisterViewModel
@@ -164,6 +165,7 @@ fun AppNavGraph(
             val downRegisterViewModel: DownRegisterViewModel = viewModel {
                 DownRegisterViewModel(
                     outageRepository = app.outageRepository,
+                    incidentRepository = app.incidentRepository,
                     clock = app.clock
                 )
             }
@@ -180,9 +182,19 @@ fun AppNavGraph(
 
         // 8. Insights Screen
         composable(Screen.Insights.route) {
+            val insightsViewModel: InsightsViewModel = viewModel {
+                InsightsViewModel(
+                    statsRepository = app.statsRepository,
+                    outageRepository = app.outageRepository,
+                    incidentRepository = app.incidentRepository,
+                    siteRepository = app.siteRepository,
+                    clock = app.clock
+                )
+            }
             InsightsScreen(
-                onDayClick = { dayStartMs ->
-                    // Open Day view
+                viewModel = insightsViewModel,
+                onSiteClick = { sapId: String ->
+                    navController.navigate(Screen.SiteDetail.createRoute(sapId))
                 }
             )
         }

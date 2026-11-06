@@ -36,6 +36,8 @@ class SiteRepository(private val db: AppDatabase) {
 
     fun countActiveSites(): Flow<Int> = siteDao.countActiveSites()
 
+    suspend fun getAllSitesList(): List<SiteEntity> = siteDao.getAllActiveSitesList()
+
     fun getPagedSites(): Flow<PagingData<SiteEntity>> {
         return Pager(
             config = PagingConfig(pageSize = 30, enablePlaceholders = false),

@@ -1,6 +1,8 @@
 package app.telecom.sitetracker.data.repo
 
 import app.telecom.sitetracker.data.db.AppDatabase
+import app.telecom.sitetracker.data.db.CategoryParetoRow
+import app.telecom.sitetracker.data.db.SeverityCountRow
 import app.telecom.sitetracker.data.db.TopProblemSiteRow
 import app.telecom.sitetracker.util.AppClock
 import app.telecom.sitetracker.util.Dates
@@ -64,4 +66,19 @@ class StatsRepository(private val db: AppDatabase) {
         val newest = statsDao.getNewestRecordTimestamp()
         return Dates.isClockSkewed(clock.currentTimeMillis(), newest, buildYear = 2026)
     }
+
+    suspend fun getCategoryPareto(sinceEpochMs: Long, nowMs: Long): List<CategoryParetoRow> =
+        statsDao.getCategoryPareto(sinceEpochMs, nowMs)
+
+    suspend fun getSeverityCounts(sinceEpochMs: Long): List<SeverityCountRow> =
+        statsDao.getSeverityCounts(sinceEpochMs)
+
+    suspend fun getTotalDowntimeHoursSince(sinceEpochMs: Long, nowMs: Long): Double =
+        statsDao.getTotalDowntimeHoursSince(sinceEpochMs, nowMs)
+
+    suspend fun getTotalIncidentsCountSince(sinceEpochMs: Long): Int =
+        statsDao.getTotalIncidentsCountSince(sinceEpochMs)
+
+    suspend fun getAffectedSitesCountSince(sinceEpochMs: Long): Int =
+        statsDao.getAffectedSitesCountSince(sinceEpochMs)
 }

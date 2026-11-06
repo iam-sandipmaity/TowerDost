@@ -39,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,10 +49,14 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import app.telecom.sitetracker.data.export.Exporter
 import app.telecom.sitetracker.ui.home.HomeViewModel
 import app.telecom.sitetracker.ui.navigation.AppNavGraph
 import app.telecom.sitetracker.ui.navigation.Screen
 import app.telecom.sitetracker.ui.theme.TelecomSiteTrackerTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.PrintWriter
 import java.io.StringWriter
 
@@ -95,6 +100,7 @@ fun MainAppShell(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Home.route
+    val context = LocalContext.current
 
     var showMenu by remember { mutableStateOf(false) }
 
@@ -145,6 +151,34 @@ fun MainAppShell(
                                 onClick = {
                                     showMenu = false
                                     navController.navigate(Screen.Reasons.route)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export Register (.csv)") },
+                                onClick = {
+                                    showMenu = false
+                                    val app = (context.applicationContext as? SiteTrackerApp) ?: SiteTrackerApp.instance!!
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        try {
+                                            val list = app.incidentRepository.getAllIncidentsList()
+                                            val file = Exporter.exportRegisterCsv(context, list)
+                                            Exporter.shareCsvFile(context, file, "TowerDost Outage Register")
+                                        } catch (_: Exception) {}
+                                    }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export Sites (.csv)") },
+                                onClick = {
+                                    showMenu = false
+                                    val app = (context.applicationContext as? SiteTrackerApp) ?: SiteTrackerApp.instance!!
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        try {
+                                            val list = app.siteRepository.getAllSitesList()
+                                            val file = Exporter.exportSitesCsv(context, list)
+                                            Exporter.shareCsvFile(context, file, "TowerDost Master Sites")
+                                        } catch (_: Exception) {}
+                                    }
                                 }
                             )
                         }

@@ -54,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -63,8 +64,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.telecom.sitetracker.R
+import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
+import app.telecom.sitetracker.ui.theme.SeverityCritical
+import app.telecom.sitetracker.ui.theme.SeverityMajor
+import app.telecom.sitetracker.ui.theme.SeverityMinor
 import app.telecom.sitetracker.util.Dates
 import java.util.Locale
 
@@ -468,37 +473,119 @@ private fun IncidentsTab(
                 modifier = Modifier.weight(1f)
             ) {
                 items(incidents, key = { it.id }) { incident ->
+                    val isOutage = incident.isOutage == 1
+                    val isResolved = incident.status == "Resolved" || incident.status == "Closed"
+
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isOutage && !isResolved) Color(0xFFFFF7ED) else MaterialTheme.colorScheme.surface
+                        ),
+                        border = CardDefaults.outlinedCardBorder(),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
+                        Column(modifier = Modifier.padding(14.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = incident.severity,
-                                    fontWeight = FontWeight.Bold,
-                                    style = MaterialTheme.typography.labelSmall
-                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    // Severity
+                                    val sevColor = when (incident.severity) {
+                                        "Critical" -> SeverityCritical
+                                        "Major" -> SeverityMajor
+                                        "Minor" -> SeverityMinor
+                                        else -> Color(0xFF64748B)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(sevColor.copy(alpha = 0.15f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = incident.severity,
+                                            style = MaterialTheme.typography.labelSmall.copy(color = sevColor, fontWeight = FontWeight.Bold)
+                                        )
+                                    }
+
+                                    // Type badge
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isOutage) Color(0xFFFEF2F2) else MaterialTheme.colorScheme.primaryContainer)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isOutage) "OUTAGE" else "VISIT",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color = if (isOutage) SeverityCritical else MaterialTheme.colorScheme.onPrimaryContainer,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                    }
+
+                                    // Status badge
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isResolved) Color(0xFFDCFCE7) else Color(0xFFFEF3C7))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = incident.status,
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                color = if (isResolved) Color(0xFF15803D) else Color(0xFFB45309),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        )
+                                    }
+                                }
+
                                 Text(
                                     text = Dates.formatDateTime(incident.occurredAt),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
                             Text(
-                                text = incident.category,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
+                                text = incident.title,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
                             )
+
+                            Text(
+                                text = "Category: ${incident.category}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
                             if (!incident.description.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = incident.description,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+
+                            if (!incident.actionTaken.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Action: ${incident.actionTaken}",
                                     style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF15803D),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            if (!incident.engineer.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Tech: ${incident.engineer}",
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }

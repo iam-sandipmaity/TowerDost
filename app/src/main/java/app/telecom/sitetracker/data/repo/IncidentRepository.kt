@@ -100,4 +100,16 @@ class IncidentRepository(private val db: AppDatabase) {
     suspend fun attachOrphans(oldSapId: String, newSapId: String, updatedAt: Long) {
         incidentDao.attachOrphans(oldSapId, newSapId, updatedAt)
     }
+
+    fun observeAllIncidents(): Flow<List<IncidentEntity>> = incidentDao.getAllIncidentsStream()
+
+    suspend fun getAllIncidentsList(): List<IncidentEntity> = incidentDao.getAllIncidentsList()
+
+    suspend fun clearSampleIncidents() {
+        incidentDao.deleteSampleIncidents()
+    }
+
+    suspend fun clearAllIncidents() {
+        incidentDao.deleteAllIncidents()
+    }
 }

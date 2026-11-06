@@ -212,4 +212,37 @@ class Milestone2Test {
         assertEquals(2, search("").size)
         assertEquals(0, search("Kolkata").size)
     }
+
+    @Test
+    fun testDateTimeParsingAndIST() {
+        val parsed = Dates.parseDateTime("07/11/2026", "14:30")
+        assertNotNull(parsed)
+
+        // Verify formatted back in IST matches exactly
+        val formatted = Dates.formatDateTime(parsed)
+        assertEquals("07/11/2026 14:30", formatted)
+
+        // Invalid format returns null safely
+        assertNull(Dates.parseDateTime("invalid", "14:30"))
+        assertNull(Dates.parseDateTime("07/11/2026", "99:99"))
+    }
+
+    @Test
+    fun testNetworkAvailabilityFormula() {
+        // 100 sites over 30 days = 72,000 total site-hours
+        val totalSites = 100
+        val days = 30
+        val totalOperationalHours = totalSites * days * 24.0 // 72,000.0
+
+        // If 72 hours of total downtime occurred across all sites:
+        // Downtime fraction = 72 / 72,000 = 0.001 (0.1%)
+        // Availability = 99.90%
+        val downtimeHours = 72.0
+        val availability = (1.0 - (downtimeHours / totalOperationalHours)) * 100.0
+        assertEquals(99.90, availability, 0.001)
+
+        // Zero downtime = 100.0%
+        val zeroDowntimeAvail = (1.0 - (0.0 / totalOperationalHours)) * 100.0
+        assertEquals(100.0, zeroDowntimeAvail, 0.001)
+    }
 }

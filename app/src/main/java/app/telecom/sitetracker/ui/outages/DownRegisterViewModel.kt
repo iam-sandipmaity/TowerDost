@@ -1,9 +1,12 @@
 package app.telecom.sitetracker.ui.outages
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import app.telecom.sitetracker.data.entity.IncidentEntity
+import app.telecom.sitetracker.data.export.Exporter
+import app.telecom.sitetracker.data.repo.IncidentRepository
 import app.telecom.sitetracker.data.repo.OutageRepository
 import app.telecom.sitetracker.util.AppClock
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,11 +18,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class DownRegisterUiState(
-    val selectedTab: Int = 0, // 0 = Active Down, 1 = Restored, 2 = All
+    val selectedTab: Int = 0, // 0 = Active Down, 1 = All Incidents, 2 = Restored
     val searchQuery: String = "",
     val openOutages: List<IncidentEntity> = emptyList(),
+    val allIncidents: List<IncidentEntity> = emptyList(),
     val restoredOutages: List<IncidentEntity> = emptyList(),
-    val allOutages: List<IncidentEntity> = emptyList(),
     val userMessage: String? = null,
     val undoableIncidentId: String? = null,
     val undoableSapId: String? = null
@@ -33,6 +36,7 @@ private data class UndoNoticeState(
 
 class DownRegisterViewModel(
     private val outageRepository: OutageRepository,
+    private val incidentRepository: IncidentRepository,
     private val clock: AppClock
 ) : ViewModel() {
 
@@ -40,20 +44,20 @@ class DownRegisterViewModel(
     private val _searchQuery = MutableStateFlow("")
     private val _undoNotice = MutableStateFlow(UndoNoticeState())
 
-    private val outagesDataFlow = combine(
+    private val incidentsDataFlow = combine(
         outageRepository.observeOpenOutages(),
-        outageRepository.observeRestoredOutages(),
-        outageRepository.observeAllOutages()
-    ) { open, restored, all ->
-        Triple(open, restored, all)
+        incidentRepository.observeAllIncidents(),
+        outageRepository.observeRestoredOutages()
+    ) { open, all, restored ->
+        Triple(open, all, restored)
     }
 
     val uiState: StateFlow<DownRegisterUiState> = combine(
-        outagesDataFlow,
+        incidentsDataFlow,
         _selectedTab,
         _searchQuery,
         _undoNotice
-    ) { (open, restored, all), tab, query, notice ->
+    ) { (open, all, restored), tab, query, notice ->
         fun filterList(list: List<IncidentEntity>): List<IncidentEntity> {
             if (query.isBlank()) return list
             val q = query.trim().lowercase()
@@ -69,8 +73,8 @@ class DownRegisterViewModel(
             selectedTab = tab,
             searchQuery = query,
             openOutages = filterList(open),
+            allIncidents = filterList(all),
             restoredOutages = filterList(restored),
-            allOutages = filterList(all),
             userMessage = notice.message,
             undoableIncidentId = notice.incidentId,
             undoableSapId = notice.sapId
@@ -122,17 +126,56 @@ class DownRegisterViewModel(
         }
     }
 
+    fun clearSampleDummyData() {
+        viewModelScope.launch {
+            try {
+                incidentRepository.clearSampleIncidents()
+                _undoNotice.value = UndoNoticeState(message = "Sample/dummy records removed from register.")
+            } catch (e: Exception) {
+                _undoNotice.value = UndoNoticeState(message = "Error: ${e.message}")
+            }
+        }
+    }
+
+    fun clearAllRegisterData() {
+        viewModelScope.launch {
+            try {
+                incidentRepository.clearAllIncidents()
+                _undoNotice.value = UndoNoticeState(message = "Register cleared completely.")
+            } catch (e: Exception) {
+                _undoNotice.value = UndoNoticeState(message = "Error: ${e.message}")
+            }
+        }
+    }
+
+    fun exportRegister(context: Context) {
+        viewModelScope.launch {
+            try {
+                val list = incidentRepository.getAllIncidentsList()
+                if (list.isEmpty()) {
+                    _undoNotice.value = UndoNoticeState(message = "No records to export.")
+                    return@launch
+                }
+                val file = Exporter.exportRegisterCsv(context, list)
+                Exporter.shareCsvFile(context, file, "TowerDost Outage Register Export")
+            } catch (e: Exception) {
+                _undoNotice.value = UndoNoticeState(message = "Export failed: ${e.localizedMessage}")
+            }
+        }
+    }
+
     fun dismissMessage() {
         _undoNotice.update { it.copy(message = null) }
     }
 
     class Factory(
         private val outageRepository: OutageRepository,
+        private val incidentRepository: IncidentRepository,
         private val clock: AppClock
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return DownRegisterViewModel(outageRepository, clock) as T
+            return DownRegisterViewModel(outageRepository, incidentRepository, clock) as T
         }
     }
 }

@@ -17,13 +17,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -34,14 +42,20 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,7 +63,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.IncidentEntity
-import app.telecom.sitetracker.ui.theme.MetricMonoStyle
 import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.SeverityCritical
 import app.telecom.sitetracker.ui.theme.SeverityMajor
@@ -57,6 +70,7 @@ import app.telecom.sitetracker.ui.theme.SeverityMinor
 import app.telecom.sitetracker.ui.theme.TealPrimary
 import app.telecom.sitetracker.util.Dates
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownRegisterScreen(
     viewModel: DownRegisterViewModel,
@@ -65,7 +79,11 @@ fun DownRegisterScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    var showMenu by remember { mutableStateOf(false) }
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.userMessage) {
         uiState.userMessage?.let { msg ->
@@ -84,6 +102,51 @@ fun DownRegisterScreen(
     }
 
     Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.title_down_register), fontWeight = FontWeight.Bold) },
+                actions = {
+                    // Export Button
+                    IconButton(onClick = { viewModel.exportRegister(context) }) {
+                        Icon(Icons.Default.Share, contentDescription = "Export Register")
+                    }
+
+                    // Overflow Menu
+                    IconButton(onClick = { showMenu = !showMenu }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "More")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Export Register (.csv)") },
+                            onClick = {
+                                showMenu = false
+                                viewModel.exportRegister(context)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Remove Sample / Dummy Data") },
+                            onClick = {
+                                showMenu = false
+                                viewModel.clearSampleDummyData()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Clear All Register Records") },
+                            onClick = {
+                                showMenu = false
+                                showClearConfirmDialog = true
+                            }
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            )
+        },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onLogOutageClick,
@@ -109,7 +172,7 @@ fun DownRegisterScreen(
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
-                placeholder = { Text("Search down register (SAP ID, Title, Tech)...") },
+                placeholder = { Text("Search by SAP ID, Title, Category, Tech...") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -118,7 +181,7 @@ fun DownRegisterScreen(
                 shape = RoundedCornerShape(8.dp)
             )
 
-            // Tabs: Active Down, Restored, All
+            // Tabs: Active Down, All Incidents, Restored
             TabRow(
                 selectedTabIndex = uiState.selectedTab,
                 containerColor = MaterialTheme.colorScheme.surface
@@ -135,14 +198,14 @@ fun DownRegisterScreen(
                     selected = uiState.selectedTab == 1,
                     onClick = { viewModel.onTabSelected(1) },
                     text = {
-                        Text("Restored (${uiState.restoredOutages.size})")
+                        Text("All Incidents (${uiState.allIncidents.size})", fontWeight = if (uiState.selectedTab == 1) FontWeight.Bold else FontWeight.Normal)
                     }
                 )
                 Tab(
                     selected = uiState.selectedTab == 2,
                     onClick = { viewModel.onTabSelected(2) },
                     text = {
-                        Text("All (${uiState.allOutages.size})")
+                        Text("Restored (${uiState.restoredOutages.size})")
                     }
                 )
             }
@@ -150,8 +213,8 @@ fun DownRegisterScreen(
             // Current List
             val currentList = when (uiState.selectedTab) {
                 0 -> uiState.openOutages
-                1 -> uiState.restoredOutages
-                else -> uiState.allOutages
+                1 -> uiState.allIncidents
+                else -> uiState.restoredOutages
             }
 
             if (currentList.isEmpty()) {
@@ -163,9 +226,9 @@ fun DownRegisterScreen(
                 ) {
                     Text(
                         text = when (uiState.selectedTab) {
-                            0 -> if (uiState.searchQuery.isNotBlank()) "No open outages match your search." else "All sites are operational! No active outages."
-                            1 -> "No restored outages recorded."
-                            else -> "No outages recorded in register."
+                            0 -> if (uiState.searchQuery.isNotBlank()) "No open outages match your search." else "All sites are operational! No active outages recorded."
+                            1 -> if (uiState.searchQuery.isNotBlank()) "No incidents match your search." else "No incidents recorded. Tap '+ Log Outage' below to record one."
+                            else -> "No restored outages recorded."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -190,6 +253,30 @@ fun DownRegisterScreen(
             }
         }
     }
+
+    // Confirmation Dialog for Clearing All Register Data
+    if (showClearConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmDialog = false },
+            title = { Text("Clear All Register Records?") },
+            text = { Text("This will remove all logged incidents and outages. Master site specs and equipment data will not be affected. You will have a clean, fresh register.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirmDialog = false
+                        viewModel.clearAllRegisterData()
+                    }
+                ) {
+                    Text("Clear All", color = SeverityCritical, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirmDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -198,7 +285,8 @@ private fun OutageRegisterCard(
     onSiteClick: () -> Unit,
     onRestore: () -> Unit
 ) {
-    val isStillDown = outage.restoredAt == null && outage.isOutage == 1
+    val isOutage = outage.isOutage == 1
+    val isStillDown = isOutage && outage.restoredAt == null && outage.status != "Resolved" && outage.status != "Closed"
     val now = System.currentTimeMillis()
 
     val runningHours = if (outage.downAt != null) {
@@ -227,7 +315,7 @@ private fun OutageRegisterCard(
                     style = SapIdStyle.copy(fontSize = 18.sp, color = TealPrimary)
                 )
 
-                // Still Down or Resolved badge
+                // Status & Duration badge
                 if (isStillDown) {
                     Box(
                         modifier = Modifier
@@ -243,7 +331,7 @@ private fun OutageRegisterCard(
                             )
                         )
                     }
-                } else {
+                } else if (isOutage) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -255,6 +343,21 @@ private fun OutageRegisterCard(
                             style = MaterialTheme.typography.labelSmall.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF15803D)
+                            )
+                        )
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = outage.status.uppercase(),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                         )
                     }
@@ -279,6 +382,16 @@ private fun OutageRegisterCard(
                 )
             }
 
+            if (!outage.actionTaken.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Action: ${outage.actionTaken}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF15803D),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // Metadata row
@@ -288,6 +401,22 @@ private fun OutageRegisterCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // Type pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isOutage) Color(0xFFFEF2F2) else MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isOutage) "OUTAGE" else "VISIT",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = if (isOutage) SeverityCritical else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+
                     // Severity pill
                     val sevColor = when (outage.severity) {
                         "Critical" -> SeverityCritical
@@ -322,7 +451,7 @@ private fun OutageRegisterCard(
                 }
 
                 Text(
-                    text = "Down: ${Dates.formatDateTime(outage.downAt)}",
+                    text = Dates.formatDateTime(outage.downAt ?: outage.occurredAt),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

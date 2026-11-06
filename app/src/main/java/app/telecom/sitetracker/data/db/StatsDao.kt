@@ -13,6 +13,17 @@ data class TopProblemSiteRow(
     val ninety_day_count: Int
 )
 
+data class CategoryParetoRow(
+    val category: String,
+    val count: Int,
+    val downtime_hours: Double
+)
+
+data class SeverityCountRow(
+    val severity: String,
+    val count: Int
+)
+
 @Dao
 interface StatsDao {
     @Query("SELECT COUNT(*) FROM sites WHERE deleted_at IS NULL")
@@ -85,4 +96,42 @@ interface StatsDao {
         LIMIT 10
     """)
     fun getTopProblemSites(sinceEpochMs: Long): Flow<List<TopProblemSiteRow>>
+
+    @Query("""
+        SELECT category,
+               COUNT(*) as count,
+               COALESCE(SUM((COALESCE(restored_at, :nowMs) - down_at) / 3600000.0), 0.0) as downtime_hours
+        FROM incidents
+        WHERE occurred_at >= :sinceEpochMs AND deleted_at IS NULL
+        GROUP BY category
+        ORDER BY count DESC
+    """)
+    suspend fun getCategoryPareto(sinceEpochMs: Long, nowMs: Long): List<CategoryParetoRow>
+
+    @Query("""
+        SELECT severity, COUNT(*) as count
+        FROM incidents
+        WHERE occurred_at >= :sinceEpochMs AND deleted_at IS NULL
+        GROUP BY severity
+    """)
+    suspend fun getSeverityCounts(sinceEpochMs: Long): List<SeverityCountRow>
+
+    @Query("""
+        SELECT COALESCE(SUM((COALESCE(restored_at, :nowMs) - down_at) / 3600000.0), 0.0)
+        FROM incidents
+        WHERE is_outage = 1 AND occurred_at >= :sinceEpochMs AND deleted_at IS NULL
+    """)
+    suspend fun getTotalDowntimeHoursSince(sinceEpochMs: Long, nowMs: Long): Double
+
+    @Query("""
+        SELECT COUNT(*) FROM incidents
+        WHERE occurred_at >= :sinceEpochMs AND deleted_at IS NULL
+    """)
+    suspend fun getTotalIncidentsCountSince(sinceEpochMs: Long): Int
+
+    @Query("""
+        SELECT COUNT(DISTINCT sap_id) FROM incidents
+        WHERE occurred_at >= :sinceEpochMs AND deleted_at IS NULL
+    """)
+    suspend fun getAffectedSitesCountSince(sinceEpochMs: Long): Int
 }

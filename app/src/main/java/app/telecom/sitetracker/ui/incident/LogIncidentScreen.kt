@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -117,6 +118,9 @@ fun LogIncidentScreen(
 
     var cameraCaptureUri by remember { mutableStateOf<Uri?>(null) }
     var cameraCaptureFile by remember { mutableStateOf<File?>(null) }
+
+    var showDownAtPicker by remember { mutableStateOf(false) }
+    var showRestoredAtPicker by remember { mutableStateOf(false) }
 
     // Camera Launcher
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -417,22 +421,66 @@ fun LogIncidentScreen(
 
             // 7. Time & Restored Checkbox
             Text(
-                if (uiState.isOutage) "Outage Start Time" else "Incident Timestamp",
+                if (uiState.isOutage) "Outage Start Time *" else "Incident Timestamp *",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
             )
-            Row(
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = CardDefaults.outlinedCardBorder()
             ) {
-                Text(
-                    text = Dates.formatDateTime(uiState.downAtMs),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                OutlinedButton(onClick = { viewModel.setDownAtMs(System.currentTimeMillis()) }) {
-                    Text("Set to Now")
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Selected Start Time (IST)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = Dates.formatDateTime(uiState.downAtMs),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TealPrimary
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedButton(onClick = { showDownAtPicker = true }) {
+                                Text("Set Date/Time")
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Quick adjustment chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val nowMs = System.currentTimeMillis()
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.setDownAtMs(nowMs) },
+                            label = { Text("Now", fontSize = 11.sp) }
+                        )
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.setDownAtMs(nowMs - 3600000L) },
+                            label = { Text("-1 hr", fontSize = 11.sp) }
+                        )
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.setDownAtMs(nowMs - (3 * 3600000L)) },
+                            label = { Text("-3 hrs", fontSize = 11.sp) }
+                        )
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.setDownAtMs(nowMs - 86400000L) },
+                            label = { Text("Yesterday", fontSize = 11.sp) }
+                        )
+                    }
                 }
             }
 
@@ -450,21 +498,55 @@ fun LogIncidentScreen(
                 }
 
                 if (uiState.isRestored) {
-                    Row(
+                    Card(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                        border = CardDefaults.outlinedCardBorder()
                     ) {
-                        Column {
-                            Text("Restored At", style = MaterialTheme.typography.labelMedium)
-                            Text(
-                                text = Dates.formatDateTime(uiState.restoredAtMs),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                        OutlinedButton(onClick = { viewModel.setRestoredAtMs(System.currentTimeMillis()) }) {
-                            Text("Set to Now")
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text("Restoration Time (IST)", style = MaterialTheme.typography.labelSmall, color = Color(0xFF166534))
+                                    Text(
+                                        text = Dates.formatDateTime(uiState.restoredAtMs),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF15803D)
+                                    )
+                                }
+                                OutlinedButton(onClick = { showRestoredAtPicker = true }) {
+                                    Text("Set Date/Time")
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Quick adjustment chips for restore
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                val nowMs = System.currentTimeMillis()
+                                FilterChip(
+                                    selected = false,
+                                    onClick = { viewModel.setRestoredAtMs(nowMs) },
+                                    label = { Text("Now", fontSize = 11.sp) }
+                                )
+                                FilterChip(
+                                    selected = false,
+                                    onClick = { viewModel.setRestoredAtMs(uiState.downAtMs + 3600000L) },
+                                    label = { Text("+1h after down", fontSize = 11.sp) }
+                                )
+                                FilterChip(
+                                    selected = false,
+                                    onClick = { viewModel.setRestoredAtMs(uiState.downAtMs + (3 * 3600000L)) },
+                                    label = { Text("+3h after down", fontSize = 11.sp) }
+                                )
+                            }
                         }
                     }
                 }
@@ -645,6 +727,161 @@ fun LogIncidentScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
+
+    // Date & Time Picker Dialogs
+    if (showDownAtPicker) {
+        DateTimePickerDialog(
+            title = if (uiState.isOutage) "Set Outage Start Time" else "Set Incident Time",
+            initialEpochMs = uiState.downAtMs,
+            onConfirm = {
+                viewModel.setDownAtMs(it)
+                showDownAtPicker = false
+            },
+            onDismiss = { showDownAtPicker = false }
+        )
+    }
+
+    if (showRestoredAtPicker) {
+        DateTimePickerDialog(
+            title = "Set Restoration Time",
+            initialEpochMs = uiState.restoredAtMs,
+            onConfirm = {
+                viewModel.setRestoredAtMs(it)
+                showRestoredAtPicker = false
+            },
+            onDismiss = { showRestoredAtPicker = false }
+        )
+    }
+}
+
+@Composable
+fun DateTimePickerDialog(
+    title: String,
+    initialEpochMs: Long,
+    onConfirm: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val initialDateStr = remember(initialEpochMs) { Dates.formatDate(initialEpochMs) }
+    val initialTimeStr = remember(initialEpochMs) { Dates.formatTime(initialEpochMs) }
+
+    var dateText by remember { mutableStateOf(initialDateStr) }
+    var timeText by remember { mutableStateOf(initialTimeStr) }
+    var errorText by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+            ) {
+                Text(
+                    text = "Enter date & time in Indian Standard Time (IST):",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = dateText,
+                    onValueChange = { dateText = it; errorText = null },
+                    label = { Text("Date (dd/MM/yyyy)") },
+                    placeholder = { Text("e.g. 07/11/2026") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = timeText,
+                    onValueChange = { timeText = it; errorText = null },
+                    label = { Text("Time (24-hour HH:mm)") },
+                    placeholder = { Text("e.g. 14:30") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (errorText != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(errorText!!, color = SeverityCritical, style = MaterialTheme.typography.bodySmall)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text("Quick Presets:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val now = System.currentTimeMillis()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            dateText = Dates.formatDate(now)
+                            timeText = Dates.formatTime(now)
+                            errorText = null
+                        },
+                        label = { Text("Now", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            val oneHrAgo = now - 3600000L
+                            dateText = Dates.formatDate(oneHrAgo)
+                            timeText = Dates.formatTime(oneHrAgo)
+                            errorText = null
+                        },
+                        label = { Text("-1h", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            val threeHrAgo = now - (3 * 3600000L)
+                            dateText = Dates.formatDate(threeHrAgo)
+                            timeText = Dates.formatTime(threeHrAgo)
+                            errorText = null
+                        },
+                        label = { Text("-3h", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = false,
+                        onClick = {
+                            val yesterday = now - 86400000L
+                            dateText = Dates.formatDate(yesterday)
+                            timeText = Dates.formatTime(yesterday)
+                            errorText = null
+                        },
+                        label = { Text("Yesterday", fontSize = 11.sp) }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val parsed = Dates.parseDateTime(dateText, timeText)
+                    if (parsed != null) {
+                        onConfirm(parsed)
+                    } else {
+                        errorText = "Invalid format. Please use dd/MM/yyyy (e.g. 07/11/2026) and HH:mm (e.g. 14:30)."
+                    }
+                }
+            ) {
+                Text("Set Time", fontWeight = FontWeight.Bold, color = TealPrimary)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

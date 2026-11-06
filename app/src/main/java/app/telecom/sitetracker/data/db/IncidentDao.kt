@@ -83,4 +83,16 @@ interface IncidentDao {
 
     @Query("UPDATE incidents SET sap_id = :newSapId, updated_at = :updatedAt WHERE sap_id = :oldSapId")
     suspend fun attachOrphans(oldSapId: String, newSapId: String, updatedAt: Long)
+
+    @Query("SELECT * FROM incidents WHERE deleted_at IS NULL ORDER BY occurred_at DESC LIMIT 500")
+    fun getAllIncidentsStream(): Flow<List<IncidentEntity>>
+
+    @Query("SELECT * FROM incidents WHERE deleted_at IS NULL ORDER BY occurred_at DESC")
+    suspend fun getAllIncidentsList(): List<IncidentEntity>
+
+    @Query("DELETE FROM incidents WHERE sap_id LIKE 'DEL-9%' OR sap_id LIKE 'MUM-9%' OR sap_id LIKE 'KOL-9%' OR sap_id LIKE 'CHN-9%' OR sap_id LIKE 'BLR-9%'")
+    suspend fun deleteSampleIncidents()
+
+    @Query("DELETE FROM incidents")
+    suspend fun deleteAllIncidents()
 }

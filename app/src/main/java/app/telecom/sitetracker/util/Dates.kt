@@ -81,6 +81,19 @@ object Dates {
     }
 
     /**
+     * Parses dd/MM/yyyy and HH:mm in IST timezone to epoch milliseconds.
+     */
+    fun parseDateTime(dateStr: String, timeStr: String): Long? {
+        return try {
+            val d = LocalDate.parse(dateStr.trim(), DATE_FORMATTER)
+            val t = java.time.LocalTime.parse(timeStr.trim(), TIME_FORMATTER)
+            LocalDateTime.of(d, t).atZone(IST_ZONE).toInstant().toEpochMilli()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Calculates duration in hours between down and restored/now.
      */
     fun calculateDurationHours(downAt: Long, restoredAt: Long?, nowMs: Long): Double {

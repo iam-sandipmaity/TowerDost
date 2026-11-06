@@ -33,6 +33,19 @@ class SiteDetailViewModel(
 
     init {
         loadSiteDetails()
+        observeIncidents()
+    }
+
+    private fun observeIncidents() {
+        viewModelScope.launch {
+            incidentRepository.observeIncidentsForSite(sapId).collect { incidentList ->
+                _uiState.update { it.copy(incidents = incidentList) }
+            }
+        }
+    }
+
+    fun reload() {
+        loadSiteDetails()
     }
 
     private fun loadSiteDetails() {
@@ -40,8 +53,9 @@ class SiteDetailViewModel(
             _uiState.update { it.copy(isLoading = true) }
             try {
                 val site = siteRepository.getSiteBySapId(sapId)
-                val fields = siteRepository.getFieldsForSite(sapId)
-                val incidents = incidentRepository.getIncidentsForSite(sapId)
+                    ?: siteRepository.getSiteBySapNorm(SiteEntity.normalize(sapId))
+                val actualSapId = site?.sapId ?: sapId
+                val fields = siteRepository.getFieldsForSite(actualSapId)
 
                 // Detect contact phone number from specs
                 val phoneField = fields.firstOrNull { field ->
@@ -59,8 +73,7 @@ class SiteDetailViewModel(
                         isLoading = false,
                         site = site,
                         groupedSpecs = grouped,
-                        contactPhone = phone,
-                        incidents = incidents
+                        contactPhone = phone
                     )
                 }
             } catch (e: Exception) {
