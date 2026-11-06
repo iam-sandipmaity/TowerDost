@@ -1,0 +1,681 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "bd480c58a1a3f5e16326458f04d4da9a",
+    "entities": [
+      {
+        "tableName": "sites",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`sap_id` TEXT NOT NULL, `sap_norm` TEXT NOT NULL, `name` TEXT, `lat` REAL, `lng` REAL, `circle` TEXT, `region` TEXT, `state` TEXT, `district` TEXT, `city` TEXT, `technology` TEXT, `site_type` TEXT, `status` TEXT, `address` TEXT, `tags` TEXT, `notes` TEXT, `source_file` TEXT, `created_at` INTEGER, `updated_at` INTEGER, `deleted_at` INTEGER, PRIMARY KEY(`sap_id`))",
+        "fields": [
+          {
+            "fieldPath": "sapId",
+            "columnName": "sap_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sapNorm",
+            "columnName": "sap_norm",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "lat",
+            "columnName": "lat",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "lng",
+            "columnName": "lng",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "circle",
+            "columnName": "circle",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "region",
+            "columnName": "region",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "district",
+            "columnName": "district",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "city",
+            "columnName": "city",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "technology",
+            "columnName": "technology",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "siteType",
+            "columnName": "site_type",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "address",
+            "columnName": "address",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "notes",
+            "columnName": "notes",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sourceFile",
+            "columnName": "source_file",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "deletedAt",
+            "columnName": "deleted_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "sap_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_sites_norm",
+            "unique": false,
+            "columnNames": [
+              "sap_norm"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_sites_norm` ON `${TABLE_NAME}` (`sap_norm`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "site_fields",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sap_id` TEXT NOT NULL, `field_key` TEXT NOT NULL, `field_value` TEXT, `group_name` TEXT, `sort_order` INTEGER, FOREIGN KEY(`sap_id`) REFERENCES `sites`(`sap_id`) ON UPDATE CASCADE ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sapId",
+            "columnName": "sap_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fieldKey",
+            "columnName": "field_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fieldValue",
+            "columnName": "field_value",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "groupName",
+            "columnName": "group_name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sort_order",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_fields_sap",
+            "unique": false,
+            "columnNames": [
+              "sap_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_fields_sap` ON `${TABLE_NAME}` (`sap_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "sites",
+            "onDelete": "CASCADE",
+            "onUpdate": "CASCADE",
+            "columns": [
+              "sap_id"
+            ],
+            "referencedColumns": [
+              "sap_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "reasons",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `label` TEXT NOT NULL, `group_name` TEXT, `category` TEXT, `counts_toward_downtime` INTEGER NOT NULL DEFAULT 1, `sort_order` INTEGER, `is_hidden` INTEGER NOT NULL DEFAULT 0, `is_seeded` INTEGER NOT NULL DEFAULT 0, `updated_at` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "label",
+            "columnName": "label",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "groupName",
+            "columnName": "group_name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "countsTowardDowntime",
+            "columnName": "counts_toward_downtime",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sort_order",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "isHidden",
+            "columnName": "is_hidden",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "isSeeded",
+            "columnName": "is_seeded",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "incidents",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `sap_id` TEXT NOT NULL, `occurred_at` INTEGER NOT NULL, `reported_at` INTEGER, `attended_at` INTEGER, `category` TEXT NOT NULL, `reason_id` TEXT, `severity` TEXT NOT NULL, `status` TEXT NOT NULL, `is_outage` INTEGER NOT NULL DEFAULT 0, `down_at` INTEGER, `restored_at` INTEGER, `title` TEXT NOT NULL, `description` TEXT, `action_taken` TEXT, `engineer` TEXT, `ticket_ref` TEXT, `tags` TEXT, `gps_lat` REAL, `gps_lng` REAL, `gps_accuracy_m` REAL, `gps_distance_from_site_m` REAL, `created_at` INTEGER, `updated_at` INTEGER, `updated_by` TEXT, `deleted_at` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sapId",
+            "columnName": "sap_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "occurredAt",
+            "columnName": "occurred_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reportedAt",
+            "columnName": "reported_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "attendedAt",
+            "columnName": "attended_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reasonId",
+            "columnName": "reason_id",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "severity",
+            "columnName": "severity",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isOutage",
+            "columnName": "is_outage",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "downAt",
+            "columnName": "down_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "restoredAt",
+            "columnName": "restored_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "actionTaken",
+            "columnName": "action_taken",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "engineer",
+            "columnName": "engineer",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "ticketRef",
+            "columnName": "ticket_ref",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "tags",
+            "columnName": "tags",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "gpsLat",
+            "columnName": "gps_lat",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "gpsLng",
+            "columnName": "gps_lng",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "gpsAccuracyM",
+            "columnName": "gps_accuracy_m",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "gpsDistanceFromSiteM",
+            "columnName": "gps_distance_from_site_m",
+            "affinity": "REAL",
+            "notNull": false
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "updatedBy",
+            "columnName": "updated_by",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "deletedAt",
+            "columnName": "deleted_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "idx_inc_sap_date",
+            "unique": false,
+            "columnNames": [
+              "sap_id",
+              "occurred_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_inc_sap_date` ON `${TABLE_NAME}` (`sap_id`, `occurred_at`)"
+          },
+          {
+            "name": "idx_inc_outage",
+            "unique": false,
+            "columnNames": [
+              "is_outage",
+              "down_at",
+              "restored_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_inc_outage` ON `${TABLE_NAME}` (`is_outage`, `down_at`, `restored_at`)"
+          },
+          {
+            "name": "idx_inc_reason",
+            "unique": false,
+            "columnNames": [
+              "reason_id",
+              "down_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_inc_reason` ON `${TABLE_NAME}` (`reason_id`, `down_at`)"
+          },
+          {
+            "name": "idx_inc_status",
+            "unique": false,
+            "columnNames": [
+              "status",
+              "severity"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `idx_inc_status` ON `${TABLE_NAME}` (`status`, `severity`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "incident_history",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `incident_id` TEXT NOT NULL, `changed_at` INTEGER NOT NULL, `changed_by` TEXT, `field` TEXT NOT NULL, `old_value` TEXT, `new_value` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "incidentId",
+            "columnName": "incident_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "changedAt",
+            "columnName": "changed_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "changedBy",
+            "columnName": "changed_by",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "field",
+            "columnName": "field",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "oldValue",
+            "columnName": "old_value",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "newValue",
+            "columnName": "new_value",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "incident_photos",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `incident_id` TEXT NOT NULL, `sap_id` TEXT NOT NULL, `rel_path` TEXT NOT NULL, `caption` TEXT, `taken_at` INTEGER, `bytes` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "incidentId",
+            "columnName": "incident_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sapId",
+            "columnName": "sap_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relPath",
+            "columnName": "rel_path",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "caption",
+            "columnName": "caption",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "takenAt",
+            "columnName": "taken_at",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "bytes",
+            "columnName": "bytes",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "ftsVersion": "FTS4",
+        "ftsOptions": {
+          "tokenizer": "simple",
+          "tokenizerArgs": [],
+          "contentTable": "",
+          "languageIdColumnName": "",
+          "matchInfo": "FTS4",
+          "notIndexedColumns": [],
+          "prefixSizes": [],
+          "preferredOrder": "ASC"
+        },
+        "contentSyncTriggers": [],
+        "tableName": "site_search",
+        "createSql": "CREATE VIRTUAL TABLE IF NOT EXISTS `${TABLE_NAME}` USING FTS4(`sap_norm` TEXT NOT NULL, `name` TEXT, `address` TEXT, `field_text` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "sapNorm",
+            "columnName": "sap_norm",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "address",
+            "columnName": "address",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "fieldText",
+            "columnName": "field_text",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "rowid"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      }
+    ],
+    "views": [
+      {
+        "viewName": "v_orphan_incidents",
+        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT i.* FROM incidents i LEFT JOIN sites s ON s.sap_id = i.sap_id WHERE s.sap_id IS NULL AND i.deleted_at IS NULL"
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bd480c58a1a3f5e16326458f04d4da9a')"
+    ]
+  }
+}
