@@ -31,6 +31,7 @@ sealed class Screen(
     object Search : Screen("search", R.string.action_search, Icons.Default.Search)
 
     companion object {
-        val bottomNavItems = listOf(Home, Sites, Map, Register, Insights)
+        val bottomNavItems: List<Screen>
+            get() = listOfNotNull(Home, Sites, Map, Register, Insights)
     }
 }
