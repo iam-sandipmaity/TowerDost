@@ -13,9 +13,14 @@ import app.telecom.sitetracker.ui.home.HomeScreen
 import app.telecom.sitetracker.ui.home.HomeUiState
 import app.telecom.sitetracker.ui.importwizard.ImportWizardScreen
 import app.telecom.sitetracker.ui.importwizard.ImportWizardViewModel
+import app.telecom.sitetracker.ui.incident.LogIncidentScreen
+import app.telecom.sitetracker.ui.incident.LogIncidentViewModel
 import app.telecom.sitetracker.ui.insights.InsightsScreen
 import app.telecom.sitetracker.ui.map.MapScreen
 import app.telecom.sitetracker.ui.outages.DownRegisterScreen
+import app.telecom.sitetracker.ui.outages.DownRegisterViewModel
+import app.telecom.sitetracker.ui.reasons.ReasonCatalogueScreen
+import app.telecom.sitetracker.ui.reasons.ReasonCatalogueViewModel
 import app.telecom.sitetracker.ui.search.SearchScreen
 import app.telecom.sitetracker.ui.search.SearchViewModel
 import app.telecom.sitetracker.ui.sitedetail.SiteDetailScreen
@@ -45,12 +50,21 @@ fun AppNavGraph(
                 uiState = homeUiState,
                 onSeedSampleData = onSeedSampleData,
                 onLogIncidentClick = {
-                    // Navigate to log incident sheet in M2
+                    navController.navigate(Screen.LogIncident.createRoute())
                 },
                 onSiteClick = { sapId ->
                     navController.navigate(Screen.SiteDetail.createRoute(sapId))
                 },
-                onDismissMessage = onDismissHomeMessage
+                onDismissMessage = onDismissHomeMessage,
+                onTotalSitesClick = {
+                    navController.navigate(Screen.Sites.route)
+                },
+                onSitesDownClick = {
+                    navController.navigate(Screen.Register.route)
+                },
+                onOpenIncidentsClick = {
+                    navController.navigate(Screen.Register.route)
+                }
             )
         }
 
@@ -94,8 +108,8 @@ fun AppNavGraph(
             SiteDetailScreen(
                 viewModel = siteDetailViewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onLogIncident = {
-                    // M2 incident flow
+                onLogIncident = { siteSapId ->
+                    navController.navigate(Screen.LogIncident.createRoute(siteSapId))
                 }
             )
         }
@@ -147,9 +161,19 @@ fun AppNavGraph(
 
         // 7. Down Register Screen
         composable(Screen.Register.route) {
+            val downRegisterViewModel: DownRegisterViewModel = viewModel {
+                DownRegisterViewModel(
+                    outageRepository = app.outageRepository,
+                    clock = app.clock
+                )
+            }
             DownRegisterScreen(
-                onOutageClick = { id ->
-                    // Open outage detail
+                viewModel = downRegisterViewModel,
+                onSiteClick = { sapId ->
+                    navController.navigate(Screen.SiteDetail.createRoute(sapId))
+                },
+                onLogOutageClick = {
+                    navController.navigate(Screen.LogIncident.createRoute())
                 }
             )
         }
@@ -160,6 +184,48 @@ fun AppNavGraph(
                 onDayClick = { dayStartMs ->
                     // Open Day view
                 }
+            )
+        }
+
+        // 9. Log Incident / Outage Screen
+        composable(
+            route = Screen.LogIncident.route,
+            arguments = listOf(
+                navArgument("sapId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStackEntry ->
+            val sapId = backStackEntry.arguments?.getString("sapId")
+            val logIncidentViewModel: LogIncidentViewModel = viewModel(key = "log_$sapId") {
+                LogIncidentViewModel(
+                    initialSapId = sapId,
+                    siteRepository = app.siteRepository,
+                    incidentRepository = app.incidentRepository,
+                    outageRepository = app.outageRepository,
+                    reasonRepository = app.reasonRepository,
+                    clock = app.clock
+                )
+            }
+            LogIncidentScreen(
+                viewModel = logIncidentViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onIncidentSaved = { targetSapId, incidentId ->
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        // 10. Root Cause Catalogue Screen
+        composable(Screen.Reasons.route) {
+            val reasonViewModel: ReasonCatalogueViewModel = viewModel {
+                ReasonCatalogueViewModel(app.reasonRepository)
+            }
+            ReasonCatalogueScreen(
+                viewModel = reasonViewModel,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

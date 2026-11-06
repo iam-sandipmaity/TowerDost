@@ -28,6 +28,20 @@ interface OutageDao {
     fun getOpenOutages(): Flow<List<IncidentEntity>>
 
     @Query("""
+        SELECT * FROM incidents
+        WHERE is_outage = 1 AND restored_at IS NOT NULL AND deleted_at IS NULL
+        ORDER BY restored_at DESC LIMIT 100
+    """)
+    fun getRecentRestoredOutages(): Flow<List<IncidentEntity>>
+
+    @Query("""
+        SELECT * FROM incidents
+        WHERE is_outage = 1 AND deleted_at IS NULL
+        ORDER BY down_at DESC LIMIT 200
+    """)
+    fun getAllOutages(): Flow<List<IncidentEntity>>
+
+    @Query("""
         SELECT COUNT(DISTINCT sap_id) FROM incidents
         WHERE is_outage = 1 AND restored_at IS NULL AND deleted_at IS NULL
     """)

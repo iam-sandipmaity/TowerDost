@@ -140,6 +140,13 @@ fun MainAppShell(
                                     navController.navigate(Screen.Search.route)
                                 }
                             )
+                            DropdownMenuItem(
+                                text = { Text("Root Cause Catalogue") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.Reasons.route)
+                                }
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -161,12 +168,13 @@ fun MainAppShell(
                             selected = selected,
                             onClick = {
                                 if (currentRoute != screen.route) {
+                                    val isTargetStart = screen.route == Screen.Home.route
                                     navController.navigate(screen.route) {
                                         popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
+                                            saveState = !isTargetStart
                                         }
                                         launchSingleTop = true
-                                        restoreState = true
+                                        restoreState = !isTargetStart
                                     }
                                 }
                             },

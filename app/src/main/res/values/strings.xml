@@ -101,4 +101,18 @@
     <string name="near_me_permission_required">Location permission required to find nearby sites.</string>
     <string name="search_placeholder">Search SAP ID, name, city, tech, specs...</string>
     <string name="no_sites_found">No sites found. Import an Excel/CSV file or load sample data to begin.</string>
+
+    <!-- Milestone 2: Incidents, Outages & Reasons -->
+    <string name="title_log_incident">Log Incident / Outage</string>
+    <string name="title_reason_catalogue">Root Cause Catalogue</string>
+    <string name="title_down_register">Down Register</string>
+    <string name="action_add_reason">Add Reason</string>
+    <string name="action_edit_reason">Edit Reason</string>
+    <string name="action_restore_site">Restore Site</string>
+    <string name="action_stamp_gps">Stamp GPS Location</string>
+    <string name="action_take_photo">Take Photo</string>
+    <string name="action_pick_photo">Pick Photo</string>
+    <string name="incident_logged_success">Incident logged successfully.</string>
+    <string name="site_restored_success">Site marked restored.</string>
+    <string name="undo_restored">Outage re-opened.</string>
 </resources>

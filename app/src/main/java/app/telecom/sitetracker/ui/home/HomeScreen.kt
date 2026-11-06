@@ -58,6 +58,9 @@ fun HomeScreen(
     onLogIncidentClick: () -> Unit,
     onSiteClick: (String) -> Unit,
     onDismissMessage: () -> Unit,
+    onTotalSitesClick: () -> Unit = {},
+    onSitesDownClick: () -> Unit = {},
+    onOpenIncidentsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -94,7 +97,8 @@ fun HomeScreen(
                 TodayStrip(
                     sitesDownNow = uiState.kpis.sitesDownNow,
                     stillDownCount = uiState.openOutages.size,
-                    yesterdayDowntimeHours = uiState.kpis.yesterdayDowntimeHours
+                    yesterdayDowntimeHours = uiState.kpis.yesterdayDowntimeHours,
+                    onClick = onSitesDownClick
                 )
             }
 
@@ -149,7 +153,12 @@ fun HomeScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                KpiGrid(kpis = uiState.kpis)
+                KpiGrid(
+                    kpis = uiState.kpis,
+                    onTotalSitesClick = onTotalSitesClick,
+                    onOpenIncidentsClick = onOpenIncidentsClick,
+                    onCriticalOpenClick = onSitesDownClick
+                )
             }
 
             // Open Outages Section
@@ -214,10 +223,12 @@ fun HomeScreen(
 fun TodayStrip(
     sitesDownNow: Int,
     stillDownCount: Int,
-    yesterdayDowntimeHours: Double
+    yesterdayDowntimeHours: Double,
+    onClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        onClick = onClick,
         colors = CardDefaults.cardColors(
             containerColor = if (sitesDownNow > 0) Color(0xFFFEF2F2) else Color(0xFFF0FDF4)
         ),
@@ -273,7 +284,12 @@ fun TodayStrip(
 }
 
 @Composable
-fun KpiGrid(kpis: app.telecom.sitetracker.data.repo.HomeKpiData) {
+fun KpiGrid(
+    kpis: app.telecom.sitetracker.data.repo.HomeKpiData,
+    onTotalSitesClick: () -> Unit = {},
+    onOpenIncidentsClick: () -> Unit = {},
+    onCriticalOpenClick: () -> Unit = {}
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -282,13 +298,15 @@ fun KpiGrid(kpis: app.telecom.sitetracker.data.repo.HomeKpiData) {
             KpiCard(
                 title = "Total Master Sites",
                 value = Dates.formatIndianNumber(kpis.totalSites.toLong()),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                onClick = onTotalSitesClick
             )
             KpiCard(
                 title = "Sites with Open Incidents",
                 value = kpis.openIncidentsCount.toString(),
                 modifier = Modifier.weight(1f),
-                valueColor = if (kpis.openIncidentsCount > 0) SeverityMajor else Color.Unspecified
+                valueColor = if (kpis.openIncidentsCount > 0) SeverityMajor else Color.Unspecified,
+                onClick = onOpenIncidentsClick
             )
         }
         Row(
@@ -299,7 +317,8 @@ fun KpiGrid(kpis: app.telecom.sitetracker.data.repo.HomeKpiData) {
                 title = "Critical Open",
                 value = kpis.criticalOpenCount.toString(),
                 modifier = Modifier.weight(1f),
-                valueColor = if (kpis.criticalOpenCount > 0) SeverityCritical else Color.Unspecified
+                valueColor = if (kpis.criticalOpenCount > 0) SeverityCritical else Color.Unspecified,
+                onClick = onCriticalOpenClick
             )
             KpiCard(
                 title = "Average MTTR (90d)",
@@ -315,10 +334,13 @@ fun KpiCard(
     title: String,
     value: String,
     modifier: Modifier = Modifier,
-    valueColor: Color = Color.Unspecified
+    valueColor: Color = Color.Unspecified,
+    onClick: (() -> Unit)? = null
 ) {
     Card(
         modifier = modifier,
+        onClick = onClick ?: {},
+        enabled = onClick != null,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = CardDefaults.outlinedCardBorder()
     ) {

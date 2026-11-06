@@ -10,6 +10,7 @@ import app.telecom.sitetracker.data.repo.StatsRepository
 import app.telecom.sitetracker.util.AppClock
 import app.telecom.sitetracker.util.CrashLog
 import app.telecom.sitetracker.util.SystemAppClock
+import kotlinx.coroutines.launch
 
 class SiteTrackerApp : Application() {
 
@@ -60,6 +61,15 @@ class SiteTrackerApp : Application() {
         incidentRepository = IncidentRepository(database)
         outageRepository = OutageRepository(database)
         statsRepository = StatsRepository(database)
+
+        // Seed default Indian telecom reasons catalogue if empty
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+            try {
+                reasonRepository.ensureDefaultReasonsSeeded(clock)
+            } catch (_: Throwable) {
+                // Defensive against initial storage lock
+            }
+        }
     }
 
     companion object {

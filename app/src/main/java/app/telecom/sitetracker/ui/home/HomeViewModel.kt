@@ -9,6 +9,7 @@ import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.repo.HomeKpiData
 import app.telecom.sitetracker.data.seed.SampleDataSeeder
 import app.telecom.sitetracker.util.Dates
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -38,7 +39,7 @@ class HomeViewModel(private val app: SiteTrackerApp) : ViewModel() {
     }
 
     fun refreshCalculatedMetrics() {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
                 val now = app.clock.currentTimeMillis()
                 val ninetyDaysAgo = now - (90L * Dates.MS_PER_DAY)
@@ -86,7 +87,7 @@ class HomeViewModel(private val app: SiteTrackerApp) : ViewModel() {
         )
     }.stateIn(
         scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
+        started = SharingStarted.Lazily,
         initialValue = HomeUiState()
     )
 

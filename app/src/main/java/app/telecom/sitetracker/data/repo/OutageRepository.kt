@@ -23,6 +23,10 @@ class OutageRepository(private val db: AppDatabase) {
 
     fun observeOpenOutages(): Flow<List<IncidentEntity>> = outageDao.getOpenOutages()
 
+    fun observeRestoredOutages(): Flow<List<IncidentEntity>> = outageDao.getRecentRestoredOutages()
+
+    fun observeAllOutages(): Flow<List<IncidentEntity>> = outageDao.getAllOutages()
+
     fun countSitesDownNow(): Flow<Int> = outageDao.countSitesDownNow()
 
     suspend fun markDown(
@@ -99,6 +103,48 @@ class OutageRepository(private val db: AppDatabase) {
                 )
             )
 
+            Result.success(Unit)
+        }
+    }
+
+    suspend fun undoRestore(incidentId: String): Result<Unit> {
+        return db.withTransaction {
+            val incident = incidentDao.getIncidentById(incidentId)
+                ?: return@withTransaction Result.failure(IllegalArgumentException("Incident not found: $incidentId"))
+
+            val updated = incident.copy(
+                status = "Open",
+                restoredAt = null,
+                updatedAt = System.currentTimeMillis()
+            )
+            incidentDao.updateIncident(updated)
+            Result.success(Unit)
+        }
+    }
+
+    suspend fun tombstoneIncident(incidentId: String): Result<Unit> {
+        return db.withTransaction {
+            val incident = incidentDao.getIncidentById(incidentId)
+                ?: return@withTransaction Result.failure(IllegalArgumentException("Incident not found: $incidentId"))
+
+            val updated = incident.copy(
+                deletedAt = System.currentTimeMillis()
+            )
+            incidentDao.updateIncident(updated)
+            Result.success(Unit)
+        }
+    }
+
+    suspend fun untombstoneIncident(incidentId: String): Result<Unit> {
+        return db.withTransaction {
+            val incident = incidentDao.getIncidentById(incidentId)
+                ?: return@withTransaction Result.failure(IllegalArgumentException("Incident not found: $incidentId"))
+
+            val updated = incident.copy(
+                deletedAt = null,
+                updatedAt = System.currentTimeMillis()
+            )
+            incidentDao.updateIncident(updated)
             Result.success(Unit)
         }
     }

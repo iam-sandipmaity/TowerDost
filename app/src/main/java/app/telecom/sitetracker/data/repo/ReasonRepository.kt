@@ -20,4 +20,11 @@ class ReasonRepository(private val db: AppDatabase) {
     suspend fun setReasonHidden(id: String, hidden: Boolean, updatedAt: Long) {
         reasonDao.setReasonHidden(id, if (hidden) 1 else 0, updatedAt)
     }
+
+    suspend fun ensureDefaultReasonsSeeded(clock: app.telecom.sitetracker.util.AppClock) {
+        if (reasonDao.getReasonCount() == 0) {
+            val defaults = app.telecom.sitetracker.data.seed.SampleDataSeeder.getDefaultReasons(clock.currentTimeMillis())
+            reasonDao.insertReasons(defaults)
+        }
+    }
 }
