@@ -40,10 +40,21 @@ class SiteTrackerApp : Application() {
         // Initialize local offline crash handler
         CrashLog.init(this)
 
-        // Initialize Room Database
-        database = AppDatabase.getInstance(this)
+        try {
+            initDependencies()
+        } catch (e: Throwable) {
+            // Recovery: clean stale database file and re-initialize
+            try {
+                deleteDatabase(AppDatabase.DATABASE_NAME)
+                initDependencies()
+            } catch (fatal: Throwable) {
+                // Defensive against total storage failure
+            }
+        }
+    }
 
-        // Initialize Repositories (Pure Manual DI)
+    private fun initDependencies() {
+        database = AppDatabase.getInstance(this)
         siteRepository = SiteRepository(database)
         reasonRepository = ReasonRepository(database)
         incidentRepository = IncidentRepository(database)
@@ -52,7 +63,8 @@ class SiteTrackerApp : Application() {
     }
 
     companion object {
-        lateinit var instance: SiteTrackerApp
+        @Volatile
+        var instance: SiteTrackerApp? = null
             private set
     }
 }

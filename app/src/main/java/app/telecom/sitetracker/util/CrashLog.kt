@@ -2,6 +2,7 @@ package app.telecom.sitetracker.util
 
 import android.content.Context
 import android.os.Build
+import app.telecom.sitetracker.ui.crash.CrashActivity
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -10,22 +11,32 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Captures uncaught exceptions to a persistent local crash log file in app-private storage.
- * Designed for offline field operation where no crash-reporting SDK or Play Console is present.
+ * Captures uncaught exceptions to a persistent local crash log file in app-private storage
+ * and automatically displays CrashActivity to prevent silent closing.
  */
 object CrashLog {
     private const val LOG_FILE_NAME = "telecom_crash_log.txt"
 
     fun init(context: Context) {
-        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        val appContext = context.applicationContext
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
-                writeCrashToFile(context.applicationContext, thread, throwable)
-            } catch (t: Throwable) {
+                writeCrashToFile(appContext, thread, throwable)
+
+                // Launch crash diagnostic activity
+                val title = "${throwable::class.java.simpleName}: ${throwable.message ?: "Unexpected failure"}"
+                val sw = StringWriter()
+                throwable.printStackTrace(PrintWriter(sw))
+                val details = sw.toString()
+
+                CrashActivity.launch(appContext, title, details)
+            } catch (_: Throwable) {
                 // Defensive against secondary failure
-            } finally {
-                defaultHandler?.uncaughtException(thread, throwable)
             }
+
+            // Terminate the crashing process cleanly
+            android.os.Process.killProcess(android.os.Process.myPid())
+            System.exit(10)
         }
     }
 
@@ -51,29 +62,21 @@ object CrashLog {
             appendLine()
         }
 
-        // Keep last 100 KB max by truncating if needed
         if (file.exists() && file.length() > 100_000) {
             file.delete()
         }
         file.appendText(report)
     }
 
-    fun getLogFile(context: Context): File {
-        return File(context.filesDir, LOG_FILE_NAME)
+    fun getLatestCrashLog(context: Context): String? {
+        val file = File(context.filesDir, LOG_FILE_NAME)
+        return if (file.exists() && file.length() > 0) {
+            file.readText()
+        } else null
     }
 
-    fun hasLog(context: Context): Boolean {
-        val file = getLogFile(context)
-        return file.exists() && file.length() > 0
-    }
-
-    fun readLog(context: Context): String {
-        val file = getLogFile(context)
-        return if (file.exists()) file.readText() else "No crashes recorded."
-    }
-
-    fun clearLog(context: Context): Boolean {
-        val file = getLogFile(context)
-        return if (file.exists()) file.delete() else true
+    fun clearCrashLog(context: Context) {
+        val file = File(context.filesDir, LOG_FILE_NAME)
+        if (file.exists()) file.delete()
     }
 }

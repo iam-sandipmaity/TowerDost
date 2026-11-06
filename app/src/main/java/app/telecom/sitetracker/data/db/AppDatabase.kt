@@ -27,7 +27,7 @@ import app.telecom.sitetracker.data.entity.SiteFts
     views = [
         OrphanIncidentView::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -46,22 +46,35 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    DATABASE_NAME
-                )
-                .fallbackToDestructiveMigration()
-                .addCallback(object : Callback() {
-                    override fun onCreate(db: SupportSQLiteDatabase) {
-                        super.onCreate(db)
-                        // Room creates tables and views; enforce search prefix trigger / indices if needed
-                    }
-                })
-                .build()
-                INSTANCE = instance
-                instance
+                try {
+                    buildDatabase(context)
+                } catch (e: Throwable) {
+                    // If database schema verification fails or database is corrupted,
+                    // wipe cleanly and recreate to avoid startup crash loop.
+                    try {
+                        context.applicationContext.deleteDatabase(DATABASE_NAME)
+                    } catch (_: Throwable) { }
+                    buildDatabase(context)
+                }
             }
+        }
+
+        private fun buildDatabase(context: Context): AppDatabase {
+            val instance = Room.databaseBuilder(
+                context.applicationContext,
+                AppDatabase::class.java,
+                DATABASE_NAME
+            )
+            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigrationOnDowngrade()
+            .addCallback(object : Callback() {
+                override fun onCreate(db: SupportSQLiteDatabase) {
+                    super.onCreate(db)
+                }
+            })
+            .build()
+            INSTANCE = instance
+            return instance
         }
 
         fun createInMemory(context: Context): AppDatabase {

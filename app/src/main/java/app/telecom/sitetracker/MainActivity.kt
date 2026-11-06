@@ -58,7 +58,7 @@ import java.io.StringWriter
 class MainActivity : ComponentActivity() {
 
     private val homeViewModel: HomeViewModel by viewModels {
-        val app = (applicationContext as? SiteTrackerApp) ?: SiteTrackerApp.instance
+        val app = (applicationContext as? SiteTrackerApp) ?: SiteTrackerApp.instance!!
         HomeViewModel.Factory(app)
     }
 
@@ -72,51 +72,15 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-            var uncaughtError by remember { mutableStateOf<String?>(null) }
+            TelecomSiteTrackerTheme {
+                val navController = rememberNavController()
+                val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
 
-            if (uncaughtError != null) {
-                // On-device Diagnostic Screen: Never auto-close, show exact reason
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0xFF0F172A))
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        Text(
-                            text = "TowerDost Diagnostic Mode",
-                            color = Color(0xFFF87171),
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = uncaughtError ?: "Unknown error",
-                            color = Color.White,
-                            fontSize = 13.sp
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Button(onClick = { uncaughtError = null }) {
-                            Text("Retry Launch")
-                        }
-                    }
-                }
-            } else {
-                TelecomSiteTrackerTheme {
-                    val navController = rememberNavController()
-                    val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
-
-                    MainAppShell(
-                        navController = navController,
-                        homeViewModel = homeViewModel,
-                        homeUiState = homeUiState
-                    )
-                }
+                MainAppShell(
+                    navController = navController,
+                    homeViewModel = homeViewModel,
+                    homeUiState = homeUiState
+                )
             }
         }
     }

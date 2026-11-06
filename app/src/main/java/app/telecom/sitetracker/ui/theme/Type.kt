@@ -8,17 +8,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import app.telecom.sitetracker.R
 
-val IbmPlexSansFamily = FontFamily(
-    Font(R.font.ibm_plex_sans_regular, FontWeight.Normal),
-    Font(R.font.ibm_plex_sans_medium, FontWeight.Medium),
-    Font(R.font.ibm_plex_sans_bold, FontWeight.Bold)
-)
-
-val IbmPlexMonoFamily = FontFamily(
-    Font(R.font.ibm_plex_mono_regular, FontWeight.Normal),
-    Font(R.font.ibm_plex_mono_medium, FontWeight.Medium),
-    Font(R.font.ibm_plex_mono_bold, FontWeight.Bold)
-)
+val IbmPlexSansFamily = FontFamily.SansSerif
+val IbmPlexMonoFamily = FontFamily.Monospace
 
 val AppTypography = Typography(
     headlineLarge = TextStyle(

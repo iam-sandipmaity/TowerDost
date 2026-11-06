@@ -31,7 +31,8 @@ fun AppNavGraph(
     onDismissHomeMessage: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val app = SiteTrackerApp.instance
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val app = (context.applicationContext as? SiteTrackerApp) ?: SiteTrackerApp.instance!!
 
     NavHost(
         navController = navController,
