@@ -5,11 +5,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,10 +36,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -40,27 +52,71 @@ import app.telecom.sitetracker.ui.home.HomeViewModel
 import app.telecom.sitetracker.ui.navigation.AppNavGraph
 import app.telecom.sitetracker.ui.navigation.Screen
 import app.telecom.sitetracker.ui.theme.TelecomSiteTrackerTheme
+import java.io.PrintWriter
+import java.io.StringWriter
 
 class MainActivity : ComponentActivity() {
 
     private val homeViewModel: HomeViewModel by viewModels {
-        HomeViewModel.Factory(application as SiteTrackerApp)
+        val app = (applicationContext as? SiteTrackerApp) ?: SiteTrackerApp.instance
+        HomeViewModel.Factory(app)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        try {
+            enableEdgeToEdge()
+        } catch (_: Throwable) {
+            // Defensive: non-fatal fallback on custom vendor ROMs
+        }
+
         super.onCreate(savedInstanceState)
 
         setContent {
-            TelecomSiteTrackerTheme {
-                val navController = rememberNavController()
-                val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+            var uncaughtError by remember { mutableStateOf<String?>(null) }
 
-                MainAppShell(
-                    navController = navController,
-                    homeViewModel = homeViewModel,
-                    homeUiState = homeUiState
-                )
+            if (uncaughtError != null) {
+                // On-device Diagnostic Screen: Never auto-close, show exact reason
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFF0F172A))
+                        .padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = "TowerDost Diagnostic Mode",
+                            color = Color(0xFFF87171),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = uncaughtError ?: "Unknown error",
+                            color = Color.White,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(onClick = { uncaughtError = null }) {
+                            Text("Retry Launch")
+                        }
+                    }
+                }
+            } else {
+                TelecomSiteTrackerTheme {
+                    val navController = rememberNavController()
+                    val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
+
+                    MainAppShell(
+                        navController = navController,
+                        homeViewModel = homeViewModel,
+                        homeUiState = homeUiState
+                    )
+                }
             }
         }
     }

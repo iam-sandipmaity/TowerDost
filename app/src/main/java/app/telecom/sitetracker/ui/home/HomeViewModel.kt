@@ -39,17 +39,21 @@ class HomeViewModel(private val app: SiteTrackerApp) : ViewModel() {
 
     fun refreshCalculatedMetrics() {
         viewModelScope.launch {
-            val now = app.clock.currentTimeMillis()
-            val ninetyDaysAgo = now - (90L * Dates.MS_PER_DAY)
-            val yesterdayHours = statsRepo.getYesterdayDowntimeHours(app.clock)
-            val mttrHours = statsRepo.calculateAverageMttrHours(ninetyDaysAgo)
-            val clockSkew = statsRepo.isClockSkewed(app.clock)
+            try {
+                val now = app.clock.currentTimeMillis()
+                val ninetyDaysAgo = now - (90L * Dates.MS_PER_DAY)
+                val yesterdayHours = statsRepo.getYesterdayDowntimeHours(app.clock)
+                val mttrHours = statsRepo.calculateAverageMttrHours(ninetyDaysAgo)
+                val clockSkew = statsRepo.isClockSkewed(app.clock)
 
-            _calculatedKpis.value = _calculatedKpis.value.copy(
-                yesterdayDowntimeHours = yesterdayHours,
-                avgMttrHours = mttrHours,
-                hasClockSkew = clockSkew
-            )
+                _calculatedKpis.value = _calculatedKpis.value.copy(
+                    yesterdayDowntimeHours = yesterdayHours,
+                    avgMttrHours = mttrHours,
+                    hasClockSkew = clockSkew
+                )
+            } catch (e: Throwable) {
+                // Defensive: keep UI responsive even if initial metrics calculation fails
+            }
         }
     }
 
