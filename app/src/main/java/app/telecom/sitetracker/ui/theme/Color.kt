@@ -25,18 +25,18 @@ val TealContainer = BrandPrimaryContainer
 val OnTealContainer = OnBrandPrimaryContainer
 
 // Industrial Dark Palette (Primary Field Engineering Mode)
-val GroundDark = Color(0xFF0A0E17)          // Deep space slate
-val SurfaceDark = Color(0xFF141C2B)         // High-density industrial slate
-val SurfaceElevatedDark = Color(0xFF1C273A) // Elevated inset / input slate
-val BorderDark = Color(0xFF2D3D56)          // 1dp crisp structural border
+val GroundDark = Color(0xFF0B0F19)          // Deep obsidian slate
+val SurfaceDark = Color(0xFF131B2B)         // High-density enterprise panel
+val SurfaceElevatedDark = Color(0xFF1A2438) // Elevated inset / input surface
+val BorderDark = Color(0xFF1F293D)          // 1dp crisp structural hairline
 val TextPrimaryDark = Color(0xFFF8FAFC)     // 100% stark white
 val TextSecondaryDark = Color(0xFF94A3B8)   // Legible mute slate (>=65% opacity)
 
 // High Noon Light Palette (Stark Outdoor Sunlight Mode)
-val GroundLight = Color(0xFFF4F6F9)         // Crisp architectural paper
+val GroundLight = Color(0xFFF8FAFC)         // Crisp architectural paper
 val SurfaceLight = Color(0xFFFFFFFF)        // Pure white card
-val SurfaceElevatedLight = Color(0xFFEAEFF5)// Inset input surface
-val BorderLight = Color(0xFFCBD5E1)         // 1dp slate structural divider
+val SurfaceElevatedLight = Color(0xFFF1F5F9)// Inset input surface
+val BorderLight = Color(0xFFE2E8F0)         // 1dp slate structural divider
 val TextPrimaryLight = Color(0xFF0F172A)    // High-contrast deep slate (100%)
 val TextSecondaryLight = Color(0xFF475569)  // Secondary slate
 
@@ -45,6 +45,8 @@ val BackgroundDark = GroundDark
 val BackgroundLight = GroundLight
 val CardBorderDark = BorderDark
 val CardBorderLight = BorderLight
+val BorderHairline = BorderDark
+val BorderHairlineLight = BorderLight
 
 // Semantic Status Colors (High-Luminance Outdoor Standards)
 val StatusDownRed = Color(0xFFEF4444)       // Outage Down emergency red
