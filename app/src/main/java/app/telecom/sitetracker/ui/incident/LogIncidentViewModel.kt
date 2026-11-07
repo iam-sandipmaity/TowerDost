@@ -298,9 +298,12 @@ class LogIncidentViewModel(
             return
         }
 
-        if (current.title.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Please enter an incident summary or select a reason.") }
-            return
+        val resolvedTitle = current.title.trim().ifBlank {
+            current.description.trim().take(50).ifBlank {
+                current.actionTaken.trim().take(50).ifBlank {
+                    "${current.category} Log"
+                }
+            }
         }
 
         viewModelScope.launch {
@@ -322,7 +325,7 @@ class LogIncidentViewModel(
                     isOutage = if (current.isOutage) 1 else 0,
                     downAt = if (current.isOutage) current.downAtMs else null,
                     restoredAt = if (current.isOutage && current.isRestored) current.restoredAtMs else null,
-                    title = current.title.trim(),
+                    title = resolvedTitle,
                     description = current.description.trim().ifBlank { null },
                     actionTaken = current.actionTaken.trim().ifBlank { null },
                     engineer = current.engineer.trim().ifBlank { null },

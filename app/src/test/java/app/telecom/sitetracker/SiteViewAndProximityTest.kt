@@ -1,8 +1,10 @@
 package app.telecom.sitetracker
 
+import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.repo.SiteWithDistance
 import app.telecom.sitetracker.ui.sitedetail.SiteDetailUiState
+import app.telecom.sitetracker.ui.sitelist.SiteSearchResult
 import app.telecom.sitetracker.util.Geo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -86,5 +88,63 @@ class SiteViewAndProximityTest {
         assertTrue(list[0].distanceKm < 1.0)
         assertTrue(list[1].distanceKm in 5.0..15.0)
         assertTrue(list[2].distanceKm > 100.0)
+    }
+
+    @Test
+    fun testSearchQueryPreservedWithNearMeDistanceOrdering() {
+        val userLat = 28.6139
+        val userLng = 77.2090
+
+        // 3 sites matching search query "Noida"
+        val siteNear = SiteEntity(sapId = "DEL-NOI-01", sapNorm = "DELNOI01", name = "Noida Sec 62", lat = 28.6250, lng = 77.2150)
+        val siteFar = SiteEntity(sapId = "DEL-NOI-02", sapNorm = "DELNOI02", name = "Noida Expressway", lat = 28.5000, lng = 77.3800)
+        val siteNoGps = SiteEntity(sapId = "DEL-NOI-03", sapNorm = "DELNOI03", name = "Noida Warehouse", lat = null, lng = null)
+
+        val matchingResults = listOf(siteFar, siteNoGps, siteNear)
+
+        // When Near Me is active alongside text search, distance is computed without clearing the query
+        val ordered = matchingResults.map { site ->
+            if (site.lat != null && site.lng != null) {
+                val dist = Geo.haversineDistanceKm(userLat, userLng, site.lat, site.lng)
+                val fmt = Geo.formatDistanceAndBearing(userLat, userLng, site.lat, site.lng)
+                SiteSearchResult(site, fmt, dist)
+            } else {
+                SiteSearchResult(site, null, Double.MAX_VALUE)
+            }
+        }.sortedBy { it.distanceKm }
+
+        // Closest matching site must come first
+        assertEquals("DEL-NOI-01", ordered[0].site.sapId)
+        assertNotNull(ordered[0].distanceInfo)
+        assertTrue(ordered[0].distanceInfo!!.contains("km") || ordered[0].distanceInfo!!.contains("m"))
+
+        // Farthest site second
+        assertEquals("DEL-NOI-02", ordered[1].site.sapId)
+
+        // Site without GPS appears at the end
+        assertEquals("DEL-NOI-03", ordered[2].site.sapId)
+        assertNull(ordered[2].distanceInfo)
+    }
+
+    @Test
+    fun testActionTakenFieldInIncidentEntity() {
+        val incWithAction = IncidentEntity(
+            id = "test-inc-1",
+            sapId = "DEL-NOI-01",
+            occurredAt = 1000L,
+            reportedAt = 1000L,
+            attendedAt = 1000L,
+            category = "Maintenance",
+            title = "Routine Battery Service",
+            description = "Conducted discharge test",
+            actionTaken = "Replaced 2 bad cells in Amaron string",
+            createdAt = 1000L,
+            updatedAt = 1000L
+        )
+
+        assertEquals("Replaced 2 bad cells in Amaron string", incWithAction.actionTaken)
+
+        val incOptionalBlankAction = incWithAction.copy(actionTaken = null)
+        assertNull(incOptionalBlankAction.actionTaken)
     }
 }

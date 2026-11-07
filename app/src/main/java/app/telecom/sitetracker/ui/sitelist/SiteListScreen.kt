@@ -96,7 +96,6 @@ fun SiteListScreen(
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
     val isNearMeActive by viewModel.isNearMeActive.collectAsStateWithLifecycle()
-    val nearbyResults by viewModel.nearbyResults.collectAsStateWithLifecycle()
     val userMessage by viewModel.userMessage.collectAsStateWithLifecycle()
     val filterState by viewModel.filterState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -126,7 +125,8 @@ fun SiteListScreen(
             EnterpriseTopBar(
                 title = stringResource(R.string.site_list_title),
                 subtitle = when {
-                    isNearMeActive -> "${nearbyResults.size} nearby towers (GPS)"
+                    isNearMeActive && isSearchActive -> "${searchResults.size} matches • Nearest First (GPS)"
+                    isNearMeActive -> "${searchResults.size} nearby towers (GPS)"
                     isSearchActive -> "${searchResults.size} matches"
                     else -> "$activeCount active towers"
                 },
@@ -218,54 +218,30 @@ fun SiteListScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                if (isNearMeActive) {
-                    // Near Me GPS Mode: Display sites sorted by real distance
-                    if (nearbyResults.isEmpty() && !isSearching) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No towers found with GPS coordinates near your location.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp)
-                        ) {
-                            items(nearbyResults, key = { it.site.sapId }) { item ->
-                                SiteCard(
-                                    site = item.site,
-                                    distanceInfo = item.formattedDistance,
-                                    onClick = { onSiteClick(item.site.sapId) },
-                                    onCopyCoordinates = { lat, lng ->
-                                        copyToClipboard(context, "Coordinates", "$lat, $lng")
-                                    }
-                                )
-                            }
-                        }
-                    }
-                } else if (isSearchActive) {
-                    // Search Mode: Display direct search results
+                val isFilterActive = isNearMeActive || isSearchActive
+                if (isFilterActive) {
                     if (searchResults.isEmpty() && !isSearching) {
                         EmptySearchResultsView(
-                            query = searchQuery,
-                            onClear = { viewModel.clearSearch() }
+                            query = when {
+                                isNearMeActive && isSearchActive -> "$searchQuery (Near Me)"
+                                isNearMeActive -> "Near Me"
+                                else -> searchQuery
+                            },
+                            onClear = {
+                                viewModel.clearSearch()
+                                viewModel.clearNearMe()
+                            }
                         )
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp)
                         ) {
-                            items(searchResults, key = { it.sapId }) { site ->
+                            items(searchResults, key = { it.site.sapId }) { item ->
                                 SiteCard(
-                                    site = site,
-                                    onClick = { onSiteClick(site.sapId) },
+                                    site = item.site,
+                                    distanceInfo = item.distanceInfo,
+                                    onClick = { onSiteClick(item.site.sapId) },
                                     onCopyCoordinates = { lat, lng ->
                                         copyToClipboard(context, "Coordinates", "$lat, $lng")
                                     }

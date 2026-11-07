@@ -94,11 +94,11 @@ import app.telecom.sitetracker.util.BitmapUtils
 import app.telecom.sitetracker.util.Dates
 import java.io.File
 
-private enum class LogType(val categoryName: String, val label: String, val icon: String, val textColor: Color, val bgColor: Color) {
-    ISSUE("Issue", "Issue / Fault", "⚠️", TagIssueColor, TagIssueBg),
-    MAINTENANCE("Maintenance", "Maintenance", "🔧", TagMaintColor, TagMaintBg),
-    VISIT("Visit", "Site Visit", "📋", TagVisitColor, TagVisitBg),
-    NOTE("Note", "General Note", "📝", TagNoteColor, TagNoteBg)
+private enum class LogType(val categoryName: String, val label: String, val textColor: Color, val bgColor: Color) {
+    ISSUE("Issue", "Issue / Fault", TagIssueColor, TagIssueBg),
+    MAINTENANCE("Maintenance", "Maintenance", TagMaintColor, TagMaintBg),
+    VISIT("Visit", "Site Visit", TagVisitColor, TagVisitBg),
+    NOTE("Note", "General Note", TagNoteColor, TagNoteBg)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -325,42 +325,116 @@ fun LogIncidentScreen(
                 }
             }
 
-            // 2. Log Type (4 clear, simple chips)
+            // 2. Log Category (2x2 Grid with generous width so "Maintenance" never folds)
             Column {
                 Text("Log Category", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    for (type in LogType.values()) {
-                        val isSelected = selectedType == type
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = {
-                                selectedType = type
-                                viewModel.setCategory(type.categoryName)
-                            },
-                            label = {
-                                Text(
-                                    text = "${type.icon} ${type.categoryName}",
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 12.sp
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = type.bgColor,
-                                selectedLabelColor = type.textColor
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
+
+                val types = LogType.values()
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Row 1: Issue / Fault & Maintenance
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (type in listOf(types[0], types[1])) {
+                            val isSelected = selectedType == type
+                            Surface(
+                                onClick = {
+                                    selectedType = type
+                                    viewModel.setCategory(type.categoryName)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) type.bgColor else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) type.textColor else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(type.textColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = type.label,
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            fontSize = 13.sp,
+                                            color = if (isSelected) type.textColor else MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Row 2: Site Visit & General Note
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        for (type in listOf(types[2], types[3])) {
+                            val isSelected = selectedType == type
+                            Surface(
+                                onClick = {
+                                    selectedType = type
+                                    viewModel.setCategory(type.categoryName)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) type.bgColor else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) type.textColor else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(type.textColor)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = type.label,
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            fontSize = 13.sp,
+                                            color = if (isSelected) type.textColor else MaterialTheme.colorScheme.onSurface
+                                        ),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
 
             // 3. What happened / Note Details
             Column {
-                Text("Details / Remarks *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text("Details / Remarks", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
                     value = uiState.description,
@@ -371,11 +445,32 @@ fun LogIncidentScreen(
                         }
                     },
                     placeholder = {
-                        Text("Describe what happened, actions taken, or observations at this site (e.g. EB fault, replaced SMPS module, battery backup 2.5 hrs, fuel filled)...")
+                        Text("Describe what happened or observations at this site (e.g. EB fault, battery backup test, fuel level, periodic audit)...")
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    minLines = 4,
-                    maxLines = 8,
+                    minLines = 3,
+                    maxLines = 6,
+                    shape = RoundedCornerShape(8.dp)
+                )
+            }
+
+            // 4. Action Taken / Resolution (Optional)
+            Column {
+                Text(
+                    text = "Action Taken (Optional)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = uiState.actionTaken,
+                    onValueChange = { viewModel.setActionTaken(it) },
+                    placeholder = {
+                        Text("Action taken to service or resolve the site (e.g. replaced RM module, reset breaker, spliced fiber core, fuel top-up)...")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 5,
                     shape = RoundedCornerShape(8.dp)
                 )
             }
