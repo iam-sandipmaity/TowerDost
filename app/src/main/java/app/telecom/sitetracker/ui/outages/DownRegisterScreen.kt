@@ -233,7 +233,6 @@ fun DownRegisterScreen(
                 onSelect = { viewModel.onTabSelected(it) },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
             )
-            }
 
             // Multi-Select Action Bar
             if (uiState.isMultiSelectMode && uiState.selectedTab == 0) {
@@ -781,7 +780,6 @@ private fun OutageRegisterCard(
             }
         }
     }
-}
 }
 
 @Composable

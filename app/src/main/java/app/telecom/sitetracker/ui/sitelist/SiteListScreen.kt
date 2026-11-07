@@ -306,8 +306,6 @@ fun SiteCard(
             }
         }
     }
-        }
-    }
 }
 
 @Composable
