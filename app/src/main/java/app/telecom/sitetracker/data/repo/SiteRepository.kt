@@ -56,13 +56,13 @@ class SiteRepository(private val db: AppDatabase) {
             val sanitized = trimmed.replace("\"", "\"\"")
             val results = siteDao.searchFts("*$sanitized*")
             if (results.isNotEmpty()) {
-                results
+                results.distinctBy { it.sapId }
             } else {
-                siteDao.searchDirect(trimmed)
+                siteDao.searchDirect(trimmed).distinctBy { it.sapId }
             }
         } catch (_: Exception) {
             // If FTS fails (e.g. SQLite syntax query error with dashes or asterisks), fallback
-            siteDao.searchDirect(trimmed)
+            siteDao.searchDirect(trimmed).distinctBy { it.sapId }
         }
     }
 

@@ -174,7 +174,7 @@ fun SiteListScreen(
                             count = pagedSites.itemCount,
                             key = { index ->
                                 val item = pagedSites[index]
-                                item?.sapId ?: index
+                                if (item != null) "${item.sapId}_$index" else index
                             }
                         ) { index ->
                             val site = pagedSites[index]

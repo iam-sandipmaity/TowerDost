@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -191,7 +192,7 @@ fun SearchScreen(
                                 .fillMaxSize()
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            items(uiState.results, key = { it.site.sapId }) { item ->
+                            itemsIndexed(uiState.results, key = { index, item -> "${item.site.sapId}_$index" }) { _, item ->
                                 SearchResultCard(
                                     item = item,
                                     onClick = { onSiteClick(item.site.sapId) }

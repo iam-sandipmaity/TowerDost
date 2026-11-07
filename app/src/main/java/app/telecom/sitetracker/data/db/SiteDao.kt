@@ -54,7 +54,7 @@ interface SiteDao {
     suspend fun restoreTombstonedSite(sapId: String, restoreTime: Long)
 
     @Query("""
-        SELECT s.* FROM sites s
+        SELECT DISTINCT s.* FROM sites s
         JOIN site_search ss ON s.sap_norm = ss.sap_norm
         WHERE site_search MATCH :query AND s.deleted_at IS NULL
         LIMIT 50

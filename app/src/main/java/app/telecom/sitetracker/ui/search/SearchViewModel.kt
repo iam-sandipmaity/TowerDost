@@ -69,7 +69,7 @@ class SearchViewModel(
                 _uiState.update {
                     it.copy(
                         isSearching = false,
-                        results = sites.map { site -> SearchResultItem(site = site) }
+                        results = sites.distinctBy { s -> s.sapId }.map { site -> SearchResultItem(site = site) }
                     )
                 }
             } catch (e: Exception) {

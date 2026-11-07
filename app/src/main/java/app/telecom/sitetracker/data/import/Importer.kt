@@ -293,6 +293,9 @@ class Importer(
                 }
                 if (sapIdsInChunk.isNotEmpty()) {
                     fieldDao.deleteFieldsForSites(sapIdsInChunk)
+                    for (sapId in sapIdsInChunk) {
+                        siteDao.deleteFts(SiteEntity.normalize(sapId))
+                    }
                 }
                 if (fieldEntities.isNotEmpty()) {
                     fieldDao.insertFields(fieldEntities)
