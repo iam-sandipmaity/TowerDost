@@ -76,12 +76,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.ReasonEntity
+import app.telecom.sitetracker.ui.components.EnterpriseListRow
+import app.telecom.sitetracker.ui.components.EnterpriseSegmentedControl
+import app.telecom.sitetracker.ui.components.EnterpriseTopBar
+import app.telecom.sitetracker.ui.components.MetricTile
+import app.telecom.sitetracker.ui.components.SearchCapsule
+import app.telecom.sitetracker.ui.components.StatusDotBadge
 import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.SeverityCritical
 import app.telecom.sitetracker.ui.theme.SeverityMajor
 import app.telecom.sitetracker.ui.theme.SeverityMinor
+import app.telecom.sitetracker.ui.theme.StatusDownRed
 import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
-import app.telecom.sitetracker.ui.theme.TealPrimary
+import app.telecom.sitetracker.ui.theme.TelecomAmber
 import app.telecom.sitetracker.util.Dates
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -120,8 +127,9 @@ fun DownRegisterScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.title_down_register), fontWeight = FontWeight.Bold) },
+            EnterpriseTopBar(
+                title = stringResource(R.string.title_down_register),
+                subtitle = "${uiState.openOutages.size} active outages",
                 actions = {
                     // Multi-select toggle
                     IconButton(onClick = { viewModel.toggleMultiSelectMode() }) {
@@ -174,18 +182,15 @@ fun DownRegisterScreen(
                             }
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                }
             )
         },
         floatingActionButton = {
             if (!uiState.isMultiSelectMode) {
                 FloatingActionButton(
                     onClick = onLogOutageClick,
-                    containerColor = TealPrimary,
-                    contentColor = Color.White
+                    containerColor = TelecomAmber,
+                    contentColor = Color(0xFF0F172A)
                 ) {
                     Row(modifier = Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Add, contentDescription = "Log Outage")
@@ -204,53 +209,30 @@ fun DownRegisterScreen(
                 .padding(innerPadding)
         ) {
             // Search Input
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = { viewModel.onSearchQueryChanged(it) },
-                placeholder = { Text("Search by SAP ID, Title, Reason, Tech...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                singleLine = true,
-                shape = RoundedCornerShape(8.dp)
-            )
-
-            // Tabs: 0 = Down Now, 1 = Day View, 2 = All Incidents, 3 = Restored
-            ScrollableTabRow(
-                selectedTabIndex = uiState.selectedTab,
-                containerColor = MaterialTheme.colorScheme.surface,
-                edgePadding = 16.dp
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
             ) {
-                Tab(
-                    selected = uiState.selectedTab == 0,
-                    onClick = { viewModel.onTabSelected(0) },
-                    text = {
-                        val count = uiState.openOutages.size
-                        Text("Down Now ($count)", fontWeight = if (uiState.selectedTab == 0) FontWeight.Bold else FontWeight.Normal)
-                    }
+                SearchCapsule(
+                    query = uiState.searchQuery,
+                    onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                    placeholder = "Search by SAP ID, Title, Reason..."
                 )
-                Tab(
-                    selected = uiState.selectedTab == 1,
-                    onClick = { viewModel.onTabSelected(1) },
-                    text = {
-                        Text("Day View", fontWeight = if (uiState.selectedTab == 1) FontWeight.Bold else FontWeight.Normal)
-                    }
-                )
-                Tab(
-                    selected = uiState.selectedTab == 2,
-                    onClick = { viewModel.onTabSelected(2) },
-                    text = {
-                        Text("All Incidents (${uiState.allIncidents.size})", fontWeight = if (uiState.selectedTab == 2) FontWeight.Bold else FontWeight.Normal)
-                    }
-                )
-                Tab(
-                    selected = uiState.selectedTab == 3,
-                    onClick = { viewModel.onTabSelected(3) },
-                    text = {
-                        Text("Restored (${uiState.restoredOutages.size})")
-                    }
-                )
+            }
+
+            // Enterprise Segmented Control (Pill-slider tabs)
+            EnterpriseSegmentedControl(
+                options = listOf(
+                    "Down (${uiState.openOutages.size})",
+                    "Day View",
+                    "All (${uiState.allIncidents.size})",
+                    "Restored"
+                ),
+                selectedIndex = uiState.selectedTab,
+                onSelect = { viewModel.onTabSelected(it) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+            )
             }
 
             // Multi-Select Action Bar
@@ -344,10 +326,8 @@ fun DownRegisterScreen(
                     }
                 } else {
                     LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 72.dp)
                     ) {
                         items(currentList, key = { it.id }) { outage ->
                             val isSelected = uiState.selectedIncidentIds.contains(outage.id)
@@ -483,54 +463,32 @@ private fun DayViewContent(
             }
         }
 
-        // Daily Summary KPI Card
-        Card(
+        // Daily Summary KPI Row
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            border = CardDefaults.outlinedCardBorder()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "$sitesDownCount",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = if (sitesDownCount > 0) app.telecom.sitetracker.ui.theme.StatusDownRed else app.telecom.sitetracker.ui.theme.StatusRestoredGreen
-                    )
-                    Text("Sites Down", style = MaterialTheme.typography.labelSmall)
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = Dates.formatHours(totalDowntimeHours),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = if (totalDowntimeHours > 0) app.telecom.sitetracker.ui.theme.StatusDownRed else app.telecom.sitetracker.ui.theme.StatusRestoredGreen
-                    )
-                    Text("Daily Downtime (0..24h)", style = MaterialTheme.typography.labelSmall)
-                }
-
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    val statusText = if (sitesDownCount == 0) "100% SLA" else "${items.size} Outage${if (items.size > 1) "s" else ""}"
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = if (sitesDownCount == 0) app.telecom.sitetracker.ui.theme.StatusRestoredGreen else app.telecom.sitetracker.ui.theme.StatusMaintAmber
-                    )
-                    Text("Day Status", style = MaterialTheme.typography.labelSmall)
-                }
-            }
+            MetricTile(
+                label = "Sites Down",
+                value = "$sitesDownCount",
+                valueColor = if (sitesDownCount > 0) StatusDownRed else StatusRestoredGreen,
+                modifier = Modifier.weight(1f)
+            )
+            MetricTile(
+                label = "Daily Loss",
+                value = Dates.formatHours(totalDowntimeHours),
+                valueColor = if (totalDowntimeHours > 0) StatusDownRed else StatusRestoredGreen,
+                modifier = Modifier.weight(1f)
+            )
+            val statusText = if (sitesDownCount == 0) "100% SLA" else "${items.size} Outage${if (items.size > 1) "s" else ""}"
+            MetricTile(
+                label = "Day Status",
+                value = statusText,
+                valueColor = if (sitesDownCount == 0) StatusRestoredGreen else TelecomAmber,
+                modifier = Modifier.weight(1f)
+            )
         }
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -551,10 +509,8 @@ private fun DayViewContent(
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 72.dp)
             ) {
                 items(items, key = { it.incident.id }) { item ->
                     DayOutageCard(
@@ -564,7 +520,6 @@ private fun DayViewContent(
                         onChangeReason = { onChangeReason(item.incident.id, item.incident.reasonId) }
                     )
                 }
-                item { Spacer(modifier = Modifier.height(72.dp)) }
             }
         }
     }
@@ -580,106 +535,84 @@ private fun DayOutageCard(
     val outage = item.incident
     val isStillDown = outage.restoredAt == null && outage.status != "Resolved" && outage.status != "Closed"
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onSiteClick,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = CardDefaults.outlinedCardBorder()
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = outage.sapId,
-                    style = SapIdStyle.copy(fontSize = 18.sp, color = app.telecom.sitetracker.ui.theme.TelecomAmber)
-                )
-
-                // Clipped Downtime Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (isStillDown) app.telecom.sitetracker.ui.theme.StatusDownRed else MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = "${Dates.formatHours(item.clippedHours)} on this day",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = if (isStillDown) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
+    EnterpriseListRow(onClick = onSiteClick) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = outage.title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                text = outage.sapId,
+                style = SapIdStyle.copy(fontSize = 16.sp, color = TelecomAmber)
             )
+            StatusDotBadge(
+                text = if (isStillDown) "STILL DOWN" else "RESTORED",
+                color = if (isStillDown) StatusDownRed else StatusRestoredGreen
+            )
+        }
 
-            Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
-            // Editable Reason Code Badge
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+        Text(
+            text = outage.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .clickable { onChangeReason() }
+                .padding(horizontal = 7.dp, vertical = 3.dp)
+        ) {
+            Icon(Icons.Default.Edit, contentDescription = "Edit Reason", modifier = Modifier.size(12.dp), tint = TelecomAmber)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = item.reasonLabel,
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Down: ${Dates.formatDateTime(outage.downAt ?: outage.occurredAt)}",
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "${Dates.formatHours(item.clippedHours)} on date",
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isStillDown) StatusDownRed else StatusRestoredGreen
+            )
+        }
+
+        if (isStillDown) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = onRestore,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
-                    .clickable { onChangeReason() }
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .fillMaxWidth()
+                    .height(44.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = StatusRestoredGreen),
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit Reason", modifier = Modifier.size(14.dp), tint = TealPrimary)
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = item.reasonLabel,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Timeline row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Down: ${Dates.formatDateTime(outage.downAt ?: outage.occurredAt)}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Text(
-                    text = if (isStillDown) "Status: STILL DOWN" else "Restored: ${Dates.formatDateTime(outage.restoredAt)}",
-                    style = MaterialTheme.typography.labelSmall.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = if (isStillDown) SeverityCritical else StatusRestoredGreen
-                    )
-                )
-            }
-
-            if (isStillDown) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Button(
-                    onClick = onRestore,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(38.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusRestoredGreen),
-                    shape = RoundedCornerShape(6.dp)
-                ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("1-Tap Restore Site", fontWeight = FontWeight.Bold, color = Color.White)
-                }
+                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("1-Tap Restore Site", fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }
@@ -706,29 +639,19 @@ private fun OutageRegisterCard(
 
     val daysDown = if (runningHours > 0) (runningHours / 24.0).toInt() + 1 else 1
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = { if (isMultiSelect) onToggleSelect() else onSiteClick() },
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(
-            1.dp,
-            if (isStillDown) SeverityCritical.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant
-        )
+    EnterpriseListRow(
+        onClick = { if (isMultiSelect) onToggleSelect() else onSiteClick() }
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top
         ) {
             if (isMultiSelect) {
                 Checkbox(
                     checked = isSelected,
-                    onCheckedChange = { onToggleSelect() }
+                    onCheckedChange = { onToggleSelect() },
+                    modifier = Modifier.padding(end = 8.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
             }
 
             Column(modifier = Modifier.weight(1f)) {
@@ -739,68 +662,38 @@ private fun OutageRegisterCard(
                 ) {
                     Text(
                         text = outage.sapId,
-                        style = SapIdStyle.copy(fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+                        style = SapIdStyle.copy(fontSize = 16.sp, color = TelecomAmber)
                     )
 
-                    // Status & Duration badge
                     if (isStillDown) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(SeverityCritical)
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = if (daysDown > 1) "STILL DOWN • DAY $daysDown" else "DOWN • ${Dates.formatHours(runningHours)}",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            )
-                        }
+                        StatusDotBadge(
+                            text = if (daysDown > 1) "DOWN • DAY $daysDown" else "DOWN • ${Dates.formatHours(runningHours)}",
+                            color = StatusDownRed
+                        )
                     } else if (isOutage) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(StatusRestoredGreen.copy(alpha = 0.15f))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = "RESTORED (${Dates.formatHours(runningHours)})",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = StatusRestoredGreen
-                                )
-                            )
-                        }
+                        StatusDotBadge(
+                            text = "RESTORED (${Dates.formatHours(runningHours)})",
+                            color = StatusRestoredGreen
+                        )
                     } else {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = outage.status.uppercase(),
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            )
-                        }
+                        StatusDotBadge(
+                            text = outage.status.uppercase(),
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = outage.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 if (!outage.description.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = outage.description,
                         style = MaterialTheme.typography.bodySmall,
@@ -810,7 +703,7 @@ private fun OutageRegisterCard(
                 }
 
                 if (!outage.actionTaken.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = "Action: ${outage.actionTaken}",
                         style = MaterialTheme.typography.bodySmall,
@@ -819,9 +712,8 @@ private fun OutageRegisterCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-                // Metadata row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -831,66 +723,48 @@ private fun OutageRegisterCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Type pill
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(if (isOutage) SeverityCritical.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier.clickable { onChangeReason() }
                         ) {
                             Text(
-                                text = if (isOutage) "OUTAGE" else "VISIT",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    color = if (isOutage) SeverityCritical else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                text = "${outage.category} ✎",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurface),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
 
-                        // Severity pill
                         val sevColor = when (outage.severity) {
-                            "Critical" -> SeverityCritical
+                            "Critical" -> StatusDownRed
                             "Major" -> SeverityMajor
                             "Minor" -> SeverityMinor
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(sevColor.copy(alpha = 0.15f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        Surface(
+                            color = sevColor.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(1.dp, sevColor.copy(alpha = 0.35f))
                         ) {
                             Text(
                                 text = outage.severity,
-                                style = MaterialTheme.typography.labelSmall.copy(color = sevColor, fontWeight = FontWeight.Bold)
-                            )
-                        }
-
-                        // Category / Reason edit trigger
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable { onChangeReason() }
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "${outage.category} ✎",
-                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = sevColor),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
 
                     Text(
                         text = Dates.formatDateTime(outage.downAt ?: outage.occurredAt),
+                        fontFamily = FontFamily.Monospace,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
-                // Restore Site Button (Only for open outages)
                 if (isStillDown && !isMultiSelect) {
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = onRestore,
                         modifier = Modifier
@@ -900,13 +774,14 @@ private fun OutageRegisterCard(
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text("1-Tap Restore Site Now", fontWeight = FontWeight.SemiBold, color = Color.White)
                     }
                 }
             }
         }
     }
+}
 }
 
 @Composable
