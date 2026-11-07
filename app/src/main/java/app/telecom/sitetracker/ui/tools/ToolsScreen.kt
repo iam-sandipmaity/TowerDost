@@ -83,6 +83,7 @@ import app.telecom.sitetracker.data.import.LogColumnMapping
 import app.telecom.sitetracker.data.import.LogImporter
 import app.telecom.sitetracker.data.import.MergePolicy
 import app.telecom.sitetracker.data.import.XlsxReader
+import app.telecom.sitetracker.ui.components.EnterpriseTopBar
 import app.telecom.sitetracker.ui.theme.BorderDark
 import app.telecom.sitetracker.ui.theme.StatusDownRed
 import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
@@ -220,7 +221,7 @@ fun ToolsScreen(
 
     Scaffold(
         topBar = {
-            app.telecom.sitetracker.ui.components.EnterpriseTopBar(
+            EnterpriseTopBar(
                 title = "Tools & Migration",
                 subtitle = "Database & Master Tools"
             )

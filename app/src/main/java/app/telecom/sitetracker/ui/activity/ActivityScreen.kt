@@ -82,6 +82,8 @@ import app.telecom.sitetracker.data.import.LogColumnMapper
 import app.telecom.sitetracker.data.import.LogColumnMapping
 import app.telecom.sitetracker.data.import.LogImporter
 import app.telecom.sitetracker.data.import.XlsxReader
+import app.telecom.sitetracker.ui.components.EnterpriseSearchBar
+import app.telecom.sitetracker.ui.components.EnterpriseTopBar
 import app.telecom.sitetracker.ui.theme.BorderDark
 import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.StatusDownRed
@@ -195,7 +197,7 @@ fun ActivityScreen(
 
     Scaffold(
         topBar = {
-            app.telecom.sitetracker.ui.components.EnterpriseTopBar(
+            EnterpriseTopBar(
                 title = "Site Logs",
                 subtitle = if (uiState.allLogs.isEmpty()) "No activity yet" else "${uiState.allLogs.size} recorded entries",
                 actions = {
@@ -252,7 +254,7 @@ fun ActivityScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
-                app.telecom.sitetracker.ui.components.EnterpriseSearchBar(
+                EnterpriseSearchBar(
                     query = uiState.searchQuery,
                     onQueryChange = { viewModel.onSearchQueryChanged(it) },
                     placeholder = "Search logs by SAP ID, notes, technician...",
