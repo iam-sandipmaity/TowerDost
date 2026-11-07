@@ -4,13 +4,17 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.Image
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,27 +24,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -48,7 +52,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -60,8 +63,8 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.ui.components.EnterpriseListRow
+import app.telecom.sitetracker.ui.components.EnterpriseSearchBar
 import app.telecom.sitetracker.ui.components.EnterpriseTopBar
-import app.telecom.sitetracker.ui.components.SearchCapsule
 import app.telecom.sitetracker.ui.components.StatusDotBadge
 import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.StatusDownRed
@@ -81,13 +84,19 @@ fun SiteListScreen(
 ) {
     val pagedSites = viewModel.pagedSites.collectAsLazyPagingItems()
     val activeCount by viewModel.activeSitesCount.collectAsStateWithLifecycle(initialValue = 0)
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
+    val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+    val filterState by viewModel.filterState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    val isSearchActive = searchQuery.isNotBlank()
 
     Scaffold(
         topBar = {
             EnterpriseTopBar(
                 title = stringResource(R.string.site_list_title),
-                subtitle = "$activeCount active towers",
+                subtitle = if (isSearchActive) "${searchResults.size} matches" else "$activeCount active towers",
                 actions = {
                     IconButton(onClick = onImportClick) {
                         Icon(
@@ -106,18 +115,66 @@ fun SiteListScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Instant Search Trigger Capsule
+            // Live Interactive Search Bar
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .clickable(onClick = onSearchClick)
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
-                SearchCapsule(
-                    query = "",
-                    onQueryChange = {},
-                    placeholder = "Search by SAP ID, site name, JC...",
-                    modifier = Modifier.fillMaxWidth()
+                EnterpriseSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                    placeholder = "Search SAP ID, name, city, circle...",
+                    onClear = { viewModel.clearSearch() }
+                )
+            }
+
+            // Quick Filter Chips Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FilterPill(
+                    label = "🔴 Down Only",
+                    isSelected = filterState.filterDownOnly,
+                    onClick = { viewModel.onToggleDownFilter() }
+                )
+                FilterPill(
+                    label = "⚡ 4G",
+                    isSelected = filterState.selectedTech == "4G",
+                    onClick = { viewModel.onTechSelected("4G") }
+                )
+                FilterPill(
+                    label = "🚀 5G",
+                    isSelected = filterState.selectedTech == "5G",
+                    onClick = { viewModel.onTechSelected("5G") }
+                )
+                FilterPill(
+                    label = "Kolkata",
+                    isSelected = filterState.selectedCircle == "Kolkata",
+                    onClick = { viewModel.onCircleSelected("Kolkata") }
+                )
+                FilterPill(
+                    label = "West Bengal",
+                    isSelected = filterState.selectedCircle == "West Bengal",
+                    onClick = { viewModel.onCircleSelected("West Bengal") }
+                )
+            }
+
+            AnimatedVisibility(
+                visible = isSearching,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp),
+                    color = TelecomAmber
                 )
             }
 
@@ -126,60 +183,90 @@ fun SiteListScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                when {
-                    pagedSites.loadState.refresh is LoadState.Loading -> {
-                        Column(
-                            modifier = Modifier.fillMaxSize(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator(strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text("Loading sites directory...", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                    pagedSites.itemCount == 0 && pagedSites.loadState.refresh !is LoadState.Loading -> {
-                        EmptySitesView(
-                            onImportClick = onImportClick,
-                            onSeedClick = onSeedSampleData
+                if (isSearchActive) {
+                    // Search Mode: Display direct search results
+                    if (searchResults.isEmpty() && !isSearching) {
+                        EmptySearchResultsView(
+                            query = searchQuery,
+                            onClear = { viewModel.clearSearch() }
                         )
-                    }
-                    else -> {
+                    } else {
+                        val filteredResults = searchResults.filter { site ->
+                            val matchDown = !filterState.filterDownOnly || site.status?.equals("down", ignoreCase = true) == true
+                            val matchCircle = filterState.selectedCircle == null || site.circle?.contains(filterState.selectedCircle!!, ignoreCase = true) == true
+                            val matchTech = filterState.selectedTech == null || site.technology?.contains(filterState.selectedTech!!, ignoreCase = true) == true
+                            matchDown && matchCircle && matchTech
+                        }
+
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                top = 4.dp,
-                                bottom = 80.dp
-                            )
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
                         ) {
-                            items(
-                                count = pagedSites.itemCount,
-                                key = { index ->
-                                    val item = pagedSites[index]
-                                    if (item != null) "${item.sapId}_$index" else index
-                                }
-                            ) { index ->
-                                val site = pagedSites[index]
-                                if (site != null) {
-                                    SiteCard(
-                                        site = site,
-                                        onClick = { onSiteClick(site.sapId) },
-                                        onCopyCoordinates = { lat, lng ->
-                                            copyToClipboard(context, "Coordinates", "$lat, $lng")
-                                        }
-                                    )
-                                }
+                            items(filteredResults, key = { it.sapId }) { site ->
+                                SiteCard(
+                                    site = site,
+                                    onClick = { onSiteClick(site.sapId) },
+                                    onCopyCoordinates = { lat, lng ->
+                                        copyToClipboard(context, "Coordinates", "$lat, $lng")
+                                    }
+                                )
                             }
+                        }
+                    }
+                } else {
+                    // Standard Directory Mode: Display Paged Sites
+                    when {
+                        pagedSites.loadState.refresh is LoadState.Loading -> {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(strokeWidth = 2.dp, color = TelecomAmber)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text("Loading sites directory...", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                        pagedSites.itemCount == 0 && pagedSites.loadState.refresh !is LoadState.Loading -> {
+                            EmptySitesView(
+                                onImportClick = onImportClick,
+                                onSeedClick = onSeedSampleData
+                            )
+                        }
+                        else -> {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
+                            ) {
+                                items(
+                                    count = pagedSites.itemCount,
+                                    key = { index ->
+                                        val item = pagedSites[index]
+                                        if (item != null) "${item.sapId}_$index" else index
+                                    }
+                                ) { index ->
+                                    val site = pagedSites[index]
+                                    if (site != null) {
+                                        SiteCard(
+                                            site = site,
+                                            onClick = { onSiteClick(site.sapId) },
+                                            onCopyCoordinates = { lat, lng ->
+                                                copyToClipboard(context, "Coordinates", "$lat, $lng")
+                                            }
+                                        )
+                                    }
+                                }
 
-                            if (pagedSites.loadState.append is LoadState.Loading) {
-                                item {
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(16.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                if (pagedSites.loadState.append is LoadState.Loading) {
+                                    item {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(16.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = TelecomAmber)
+                                        }
                                     }
                                 }
                             }
@@ -187,6 +274,38 @@ fun SiteListScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FilterPill(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = if (isSelected) TelecomAmber.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(8.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            if (isSelected) TelecomAmber else MaterialTheme.colorScheme.outlineVariant
+        ),
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .height(32.dp)
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
         }
     }
 }
@@ -202,7 +321,7 @@ fun SiteCard(
         onClick = onClick,
         modifier = modifier
     ) {
-        // Row 1: SAP ID + Status
+        // Row 1: SAP ID + Status Dot Badge
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -222,7 +341,7 @@ fun SiteCard(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Row 2: Name & Circle / District
+        // Row 2: Site Name
         if (!site.name.isNullOrBlank()) {
             Text(
                 text = site.name,
@@ -232,18 +351,31 @@ fun SiteCard(
             )
         }
 
+        // Location Breadcrumbs
         val locationParts = listOfNotNull(site.city, site.district, site.circle)
         if (locationParts.isNotEmpty()) {
-            Text(
-                text = locationParts.joinToString(" • "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 2.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    modifier = Modifier.size(12.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(
+                    text = locationParts.joinToString(" • "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Row 3: Coordinates + Badges
+        // Row 3: Coordinates + Tech Badges
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -252,7 +384,10 @@ fun SiteCard(
             if (site.lat != null && site.lng != null) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { onCopyCoordinates(site.lat, site.lng) }
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable { onCopyCoordinates(site.lat, site.lng) }
+                        .padding(vertical = 2.dp)
                 ) {
                     Text(
                         text = "${site.lat.format(4)}, ${site.lng.format(4)}",
@@ -272,7 +407,7 @@ fun SiteCard(
                 Text(
                     text = "No GPS recorded",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
             }
 
@@ -285,7 +420,7 @@ fun SiteCard(
                     ) {
                         Text(
                             text = site.technology,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TelecomAmber),
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -304,6 +439,48 @@ fun SiteCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EmptySearchResultsView(
+    query: String,
+    onClear: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.Search,
+            contentDescription = null,
+            modifier = Modifier.size(56.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "No Towers Found",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "No towers matched \"$query\". Check SAP ID spelling or search by district/city.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onClear,
+            colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text("Clear Search", color = Color(0xFF0F172A), fontWeight = FontWeight.Bold)
         }
     }
 }

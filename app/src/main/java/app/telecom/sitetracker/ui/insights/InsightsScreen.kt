@@ -132,7 +132,7 @@ fun InsightsScreen(
 
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -290,7 +290,7 @@ fun InsightsScreen(
                 item {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -311,7 +311,7 @@ fun InsightsScreen(
                 item {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -393,7 +393,7 @@ fun InsightsScreen(
                 item {
                     Surface(
                         color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .fillMaxWidth()

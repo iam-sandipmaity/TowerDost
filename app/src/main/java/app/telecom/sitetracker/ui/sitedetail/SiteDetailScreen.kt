@@ -163,7 +163,7 @@ fun SiteDetailScreen(
                             Button(
                                 onClick = { onLogIncident(site.sapId) },
                                 colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .weight(1.3f)
                                     .height(44.dp)
@@ -186,7 +186,7 @@ fun SiteDetailScreen(
                             if (site.lat != null && site.lng != null) {
                                 OutlinedButton(
                                     onClick = { launchNavigation(context, site.lat, site.lng, site.sapId) },
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(44.dp)
@@ -204,7 +204,7 @@ fun SiteDetailScreen(
                             if (!uiState.contactPhone.isNullOrBlank()) {
                                 OutlinedButton(
                                     onClick = { launchCall(context, uiState.contactPhone!!) },
-                                    shape = RoundedCornerShape(8.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(44.dp)
@@ -660,7 +660,7 @@ private fun SpecsTab(
 
             OutlinedButton(
                 onClick = onAddSpecClick,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                 modifier = Modifier.height(44.dp)
             ) {
@@ -898,7 +898,7 @@ private fun OverviewTab(
         ) {
             Surface(
                 color = TagMaintBg,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1062,7 +1062,7 @@ private fun OverviewTab(
         ) {
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(12.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {

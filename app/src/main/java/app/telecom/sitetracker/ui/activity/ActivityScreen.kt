@@ -50,6 +50,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -194,17 +195,9 @@ fun ActivityScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text("Site Logs", fontWeight = FontWeight.Bold)
-                        Text(
-                            text = if (uiState.allLogs.isEmpty()) "No activity yet" else "${uiState.allLogs.size} recorded entries",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
+            app.telecom.sitetracker.ui.components.EnterpriseTopBar(
+                title = "Site Logs",
+                subtitle = if (uiState.allLogs.isEmpty()) "No activity yet" else "${uiState.allLogs.size} recorded entries",
                 actions = {
                     IconButton(onClick = { logFilePickerLauncher.launch(arrayOf("*/*")) }) {
                         Icon(Icons.Default.FileUpload, contentDescription = "Import Logs", tint = TelecomAmber)
@@ -226,10 +219,7 @@ fun ActivityScreen(
                     }) {
                         Icon(Icons.Default.Share, contentDescription = "Export Logs")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                }
             )
         },
         floatingActionButton = {
@@ -256,37 +246,53 @@ fun ActivityScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Search Input
-            OutlinedTextField(
-                value = uiState.searchQuery,
-                onValueChange = { viewModel.onSearchQueryChanged(it) },
-                placeholder = { Text("Search logs by SAP ID, notes, technician...") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            // Live Interactive Search Bar
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                singleLine = true,
-                shape = RoundedCornerShape(8.dp)
-            )
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                app.telecom.sitetracker.ui.components.EnterpriseSearchBar(
+                    query = uiState.searchQuery,
+                    onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                    placeholder = "Search logs by SAP ID, notes, technician...",
+                    onClear = { viewModel.onSearchQueryChanged("") }
+                )
+            }
 
             // Category Filter Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 for (filter in filters) {
                     val isSelected = uiState.selectedFilter == filter
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.onFilterSelected(filter) },
-                        label = { Text(filter, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = TelecomAmber.copy(alpha = 0.2f),
-                            selectedLabelColor = TelecomAmber
-                        )
-                    )
+                    Surface(
+                        color = if (isSelected) TelecomAmber.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) TelecomAmber else MaterialTheme.colorScheme.outlineVariant
+                        ),
+                        modifier = Modifier
+                            .clickable { viewModel.onFilterSelected(filter) }
+                            .height(32.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.padding(horizontal = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = filter,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+                    }
                 }
             }
 
@@ -427,8 +433,9 @@ private fun SiteLogFeedCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder()
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             // Header Row: SAP ID + Tag + Timestamp

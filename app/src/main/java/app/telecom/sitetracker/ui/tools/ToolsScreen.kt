@@ -220,30 +220,9 @@ fun ToolsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_towerdost_logo),
-                            contentDescription = "TowerDost Logo",
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text("Tools & Migration", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            Text(
-                                text = "Database & Master Tools",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+            app.telecom.sitetracker.ui.components.EnterpriseTopBar(
+                title = "Tools & Migration",
+                subtitle = "Database & Master Tools"
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -260,8 +239,9 @@ fun ToolsScreen(
             // Header Info Card (Industrial Slate with crisp border)
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = CardDefaults.outlinedCardBorder()
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Row(
                     modifier = Modifier
@@ -442,8 +422,9 @@ fun ToolsScreen(
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = CardDefaults.outlinedCardBorder()
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -669,8 +650,9 @@ private fun StatCard(
 ) {
     Card(
         modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder()
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Icon(icon, contentDescription = null, tint = TelecomAmber, modifier = Modifier.size(22.dp))
@@ -696,8 +678,9 @@ private fun ToolActionCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder()
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier

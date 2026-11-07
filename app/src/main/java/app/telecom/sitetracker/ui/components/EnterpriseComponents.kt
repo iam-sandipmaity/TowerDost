@@ -20,7 +20,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -29,6 +30,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,11 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.telecom.sitetracker.R
@@ -51,7 +52,7 @@ import app.telecom.sitetracker.ui.theme.TelecomAmber
 
 /**
  * Clean Modern Enterprise Top Bar.
- * Compact 52dp height, hairline bottom divider, app emblem, and 100% offline indicator.
+ * Compact height, hairline bottom divider, app emblem, and 100% offline indicator.
  */
 @Composable
 fun EnterpriseTopBar(
@@ -68,8 +69,8 @@ fun EnterpriseTopBar(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
-                    .padding(horizontal = 14.dp),
+                    .height(56.dp)
+                    .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -80,7 +81,7 @@ fun EnterpriseTopBar(
                     if (onBack != null) {
                         IconButton(
                             onClick = onBack,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(40.dp)
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
@@ -94,10 +95,10 @@ fun EnterpriseTopBar(
                             painter = painterResource(id = R.drawable.ic_towerdost_logo),
                             contentDescription = "TowerDost Logo",
                             modifier = Modifier
-                                .size(28.dp)
-                                .clip(RoundedCornerShape(6.dp))
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                     }
 
                     Column {
@@ -127,10 +128,10 @@ fun EnterpriseTopBar(
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(6.dp))
                             .background(StatusRestoredGreen.copy(alpha = 0.12f))
-                            .border(1.dp, StatusRestoredGreen.copy(alpha = 0.35f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                            .border(1.dp, StatusRestoredGreen.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 7.dp, vertical = 3.dp)
                     ) {
                         Box(
                             modifier = Modifier
@@ -152,8 +153,6 @@ fun EnterpriseTopBar(
                     actions()
                 }
             }
-
-            // 1dp Hairline divider
             HorizontalDivider(
                 thickness = 1.dp,
                 color = MaterialTheme.colorScheme.outlineVariant
@@ -163,8 +162,7 @@ fun EnterpriseTopBar(
 }
 
 /**
- * Enterprise Segmented Control (Pill-slider tabs).
- * Used for view switching (e.g. Live Down | Register Day View | Monthly Matrix).
+ * Segmented Tab Slider Control with haptic selection feel.
  */
 @Composable
 fun EnterpriseSegmentedControl(
@@ -175,11 +173,11 @@ fun EnterpriseSegmentedControl(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(10.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp)
+            .height(44.dp)
     ) {
         Row(
             modifier = Modifier
@@ -197,13 +195,13 @@ fun EnterpriseSegmentedControl(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(6.dp))
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(8.dp))
                         .then(
                             if (isSelected) {
                                 Modifier
                                     .background(MaterialTheme.colorScheme.surface)
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
                             } else {
                                 Modifier.clickable { onSelect(index) }
                             }
@@ -235,10 +233,10 @@ fun StatusDotBadge(
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(color.copy(alpha = 0.12f))
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(4.dp))
-            .padding(horizontal = 7.dp, vertical = 2.5.dp),
+            .clip(RoundedCornerShape(6.dp))
+            .background(color.copy(alpha = 0.14f))
+            .border(1.dp, color.copy(alpha = 0.40f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -247,7 +245,7 @@ fun StatusDotBadge(
                 .clip(CircleShape)
                 .background(color)
         )
-        Spacer(modifier = Modifier.width(5.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = text.uppercase(),
             style = MaterialTheme.typography.labelSmall.copy(
@@ -260,7 +258,7 @@ fun StatusDotBadge(
 }
 
 /**
- * Flat Cardless Enterprise Data Row with 1dp bottom hairline divider.
+ * Elevated Enterprise Card Data Row with rounded corners and subtle border.
  */
 @Composable
 fun EnterpriseListRow(
@@ -270,28 +268,25 @@ fun EnterpriseListRow(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = modifier
             .fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 5.dp)
             .clickable(onClick = onClick)
     ) {
-        Column {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 13.dp),
-                content = content
-            )
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
-        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            content = content
+        )
     }
 }
 
 /**
  * Executive Metric Stat Tile.
- * Big bold tabular numeral with label and optional status bar.
+ * Big bold tabular numeral with label and status color.
  */
 @Composable
 fun MetricTile(
@@ -304,7 +299,7 @@ fun MetricTile(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = modifier
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
@@ -344,7 +339,8 @@ fun MetricTile(
 }
 
 /**
- * Search Capsule with 1dp hairline border and 1-tap clear button.
+ * Fully functional, rock-solid Enterprise Search Bar.
+ * Uses OutlinedTextField for 100% reliable focus, typing, soft keyboard, and clear button.
  */
 @Composable
 fun SearchCapsule(
@@ -354,61 +350,73 @@ fun SearchCapsule(
     modifier: Modifier = Modifier,
     onClear: () -> Unit = { onQueryChange("") }
 ) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = modifier
-            .fillMaxWidth()
-            .height(44.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
+    EnterpriseSearchBar(
+        query = query,
+        onQueryChange = onQueryChange,
+        placeholder = placeholder,
+        modifier = modifier,
+        onClear = onClear
+    )
+}
+
+@Composable
+fun EnterpriseSearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    onClear: () -> Unit = { onQueryChange("") },
+    onSearchAction: (() -> Unit)? = null
+) {
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        placeholder = {
+            Text(
+                text = placeholder,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                maxLines = 1
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            Box(modifier = Modifier.weight(1f)) {
-                if (query.isEmpty()) {
-                    Text(
-                        text = placeholder,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                BasicTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    singleLine = true,
-                    textStyle = TextStyle(
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 14.sp,
-                        fontFamily = FontFamily.SansSerif
-                    ),
-                    cursorBrush = SolidColor(TelecomAmber),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search",
+                tint = TelecomAmber,
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        trailingIcon = {
             if (query.isNotEmpty()) {
                 IconButton(
                     onClick = onClear,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
-                        Icons.Default.Close,
+                        imageVector = Icons.Default.Close,
                         contentDescription = "Clear search",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
-        }
-    }
+        },
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = TelecomAmber,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+            cursorColor = TelecomAmber
+        ),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSearchAction?.invoke() }),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp)
+    )
 }

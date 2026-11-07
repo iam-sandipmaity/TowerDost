@@ -104,16 +104,18 @@ fun MainAppShell(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(56.dp),
+                                .height(60.dp)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             for (screen in Screen.bottomNavItems) {
                                 val selected = currentRoute == screen.route
                                 val tint = if (selected) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant
-                                Column(
+                                Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .fillMaxHeight()
+                                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
                                         .clickable {
                                             if (currentRoute != screen.route) {
                                                 val isTargetStart = screen.route == Screen.Sites.route
@@ -125,33 +127,37 @@ fun MainAppShell(
                                                     restoreState = !isTargetStart
                                                 }
                                             }
-                                        },
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
-                                ) {
-                                    Icon(
-                                        screen.icon,
-                                        contentDescription = stringResource(screen.titleRes),
-                                        modifier = Modifier.size(20.dp),
-                                        tint = tint
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = stringResource(screen.titleRes),
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            fontSize = 11.sp,
-                                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                            color = tint
+                                        }
+                                        .then(
+                                            if (selected) {
+                                                Modifier.background(TelecomAmber.copy(alpha = 0.12f))
+                                            } else {
+                                                Modifier
+                                            }
                                         ),
-                                        maxLines = 1
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .size(4.dp)
-                                            .clip(CircleShape)
-                                            .background(if (selected) TelecomAmber else Color.Transparent)
-                                    )
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            screen.icon,
+                                            contentDescription = stringResource(screen.titleRes),
+                                            modifier = Modifier.size(20.dp),
+                                            tint = tint
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = stringResource(screen.titleRes),
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontSize = 11.sp,
+                                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                                color = tint
+                                            ),
+                                            maxLines = 1
+                                        )
+                                    }
                                 }
                             }
                         }
