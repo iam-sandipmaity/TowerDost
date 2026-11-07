@@ -27,11 +27,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Warning
@@ -59,6 +61,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.IncidentEntity
+import kotlinx.coroutines.launch
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.ui.components.EnterpriseListRow
@@ -105,12 +109,23 @@ fun SiteDetailScreen(
     var specFilterQuery by remember { mutableStateOf("") }
     var logToDelete by remember { mutableStateOf<IncidentEntity?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(uiState.userMessage, uiState.errorMessage) {
         val msg = uiState.userMessage ?: uiState.errorMessage
         if (msg != null) {
             snackbarHostState.showSnackbar(msg)
             viewModel.dismissUserMessage()
+        }
+    }
+
+    LaunchedEffect(uiState.site) {
+        val site = uiState.site
+        if (site?.lat != null && site.lng != null) {
+            val loc = app.telecom.sitetracker.util.Geo.getLastKnownLocation(context)
+            if (loc != null) {
+                viewModel.updateCurrentLocation(loc.latitude, loc.longitude)
+            }
         }
     }
 
@@ -121,6 +136,36 @@ fun SiteDetailScreen(
                 subtitle = listOfNotNull(uiState.site?.name, uiState.site?.city).joinToString(" • ").ifBlank { null },
                 onBack = onNavigateBack,
                 actions = {
+                    // Tactile View Only vs Edit Mode Toggle
+                    Surface(
+                        onClick = { viewModel.toggleEditMode() },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (uiState.isEditMode) TelecomAmber.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.isEditMode) TelecomAmber else MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isEditMode) Icons.Default.Edit else Icons.Default.Lock,
+                                contentDescription = if (uiState.isEditMode) "Switch to View Only" else "Switch to Edit Mode",
+                                tint = if (uiState.isEditMode) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = if (uiState.isEditMode) "Edit" else "View",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = if (uiState.isEditMode) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            )
+                        }
+                    }
+
                     IconButton(
                         onClick = { viewModel.exportSingleSiteReport(context) }
                     ) {
@@ -253,7 +298,10 @@ fun SiteDetailScreen(
                     .padding(innerPadding)
             ) {
                 // Pinned Telemetry Header Banner
-                SiteHeaderBanner(site = site)
+                SiteHeaderBanner(
+                    site = site,
+                    distanceInfo = uiState.distanceInfo
+                )
 
                 // Segmented Tabs: 0 = Specs, 1 = Site Logs, 2 = Overview
                 val specCount = uiState.groupedSpecs.values.sumOf { it.size }
@@ -269,18 +317,25 @@ fun SiteDetailScreen(
                     0 -> SpecsTab(
                         groupedSpecs = uiState.groupedSpecs,
                         filterQuery = specFilterQuery,
+                        isEditMode = uiState.isEditMode,
                         onFilterChange = { specFilterQuery = it },
                         onAddSpecClick = { viewModel.startAddingSpec() },
-                        onEditSpecClick = { spec -> viewModel.startEditingSpec(spec) }
+                        onEditSpecClick = { spec -> viewModel.startEditingSpec(spec) },
+                        onCopySpec = { key, value ->
+                            copyToClipboard(context, key, value)
+                            scope.launch { snackbarHostState.showSnackbar("Copied $key to clipboard") }
+                        }
                     )
                     1 -> SiteLogsTab(
                         logs = uiState.incidents,
+                        isEditMode = uiState.isEditMode,
                         onAddLogClick = { onLogIncident(site.sapId) },
                         onEditLogClick = { incId -> onEditLog(site.sapId, incId) },
                         onDeleteLogClick = { logToDelete = it }
                     )
                     2 -> OverviewTab(
                         site = site,
+                        isEditMode = uiState.isEditMode,
                         isEditing = uiState.isEditingOverview,
                         draft = uiState.draftOverview ?: site,
                         onStartEdit = { viewModel.startEditingOverview() },
@@ -415,7 +470,8 @@ fun SiteDetailScreen(
 
 @Composable
 private fun SiteHeaderBanner(
-    site: SiteEntity
+    site: SiteEntity,
+    distanceInfo: String? = null
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -470,13 +526,45 @@ private fun SiteHeaderBanner(
 
                 if (site.lat != null && site.lng != null) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "GPS: ${site.lat.format(5)}, ${site.lng.format(5)}",
-                        style = MetricMonoStyle.copy(
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "GPS: ${site.lat.format(5)}, ${site.lng.format(5)}",
+                            style = MetricMonoStyle.copy(
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
-                    )
+                        if (!distanceInfo.isNullOrBlank()) {
+                            Surface(
+                                color = TelecomAmber.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(4.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, TelecomAmber.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.NearMe,
+                                        contentDescription = null,
+                                        tint = TelecomAmber,
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "$distanceInfo away",
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = TelecomAmber
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
             HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
@@ -487,6 +575,7 @@ private fun SiteHeaderBanner(
 @Composable
 private fun SiteLogsTab(
     logs: List<IncidentEntity>,
+    isEditMode: Boolean,
     onAddLogClick: () -> Unit,
     onEditLogClick: (String) -> Unit,
     onDeleteLogClick: (IncidentEntity) -> Unit
@@ -536,7 +625,7 @@ private fun SiteLogsTab(
                         else -> Pair(log.category.uppercase().ifBlank { "NOTE" }, TagNoteColor)
                     }
 
-                    EnterpriseListRow(onClick = { onEditLogClick(log.id) }) {
+                    EnterpriseListRow(onClick = { if (isEditMode) onEditLogClick(log.id) }) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -600,31 +689,33 @@ private fun SiteLogsTab(
                                 Spacer(modifier = Modifier.width(1.dp))
                             }
 
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconButton(
-                                    onClick = { onEditLogClick(log.id) },
-                                    modifier = Modifier.size(32.dp)
+                            if (isEditMode) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Edit,
-                                        contentDescription = "Edit Log",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { onDeleteLogClick(log) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete Log",
-                                        tint = TagIssueColor,
-                                        modifier = Modifier.size(15.dp)
-                                    )
+                                    IconButton(
+                                        onClick = { onEditLogClick(log.id) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Edit Log",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { onDeleteLogClick(log) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Log",
+                                            tint = TagIssueColor,
+                                            modifier = Modifier.size(15.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -640,9 +731,11 @@ private fun SiteLogsTab(
 private fun SpecsTab(
     groupedSpecs: Map<String, List<SiteFieldEntity>>,
     filterQuery: String,
+    isEditMode: Boolean,
     onFilterChange: (String) -> Unit,
     onAddSpecClick: () -> Unit,
-    onEditSpecClick: (SiteFieldEntity) -> Unit
+    onEditSpecClick: (SiteFieldEntity) -> Unit,
+    onCopySpec: (String, String) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -659,15 +752,17 @@ private fun SpecsTab(
                 modifier = Modifier.weight(1f)
             )
 
-            OutlinedButton(
-                onClick = onAddSpecClick,
-                shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                modifier = Modifier.height(44.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Add Spec", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            if (isEditMode) {
+                OutlinedButton(
+                    onClick = onAddSpecClick,
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.height(44.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Spec", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
             }
         }
 
@@ -721,7 +816,9 @@ private fun SpecsTab(
                     items(fields, key = { "${it.groupName}_${it.fieldKey}" }) { field ->
                         EnterpriseSpecRow(
                             field = field,
-                            onEdit = { onEditSpecClick(field) }
+                            isEditMode = isEditMode,
+                            onEdit = { onEditSpecClick(field) },
+                            onCopy = { onCopySpec(field.fieldKey, field.fieldValue ?: "") }
                         )
                     }
                 }
@@ -734,13 +831,15 @@ private fun SpecsTab(
 @Composable
 private fun EnterpriseSpecRow(
     field: SiteFieldEntity,
-    onEdit: () -> Unit
+    isEditMode: Boolean,
+    onEdit: () -> Unit,
+    onCopy: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEdit)
+            .clickable(onClick = if (isEditMode) onEdit else onCopy)
     ) {
         Column {
             Row(
@@ -767,16 +866,30 @@ private fun EnterpriseSpecRow(
                     modifier = Modifier.weight(1f)
                 )
 
-                IconButton(
-                    onClick = onEdit,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit ${field.fieldKey}",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(15.dp)
-                    )
+                if (isEditMode) {
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit ${field.fieldKey}",
+                            tint = TelecomAmber,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                } else {
+                    IconButton(
+                        onClick = onCopy,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy ${field.fieldKey}",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
                 }
             }
             HorizontalDivider(
@@ -882,6 +995,7 @@ private fun SpecEditDialog(
 @Composable
 private fun OverviewTab(
     site: SiteEntity,
+    isEditMode: Boolean,
     isEditing: Boolean,
     draft: SiteEntity,
     onStartEdit: () -> Unit,
@@ -1079,21 +1193,21 @@ private fun OverviewTab(
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Lock,
+                            imageVector = if (isEditMode) Icons.Default.Edit else Icons.Default.Lock,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = if (isEditMode) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
-                                text = "Site Overview Protected",
+                                text = if (isEditMode) "Overview Editable" else "View Only Inspection",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Locked against accidental edits",
+                                text = if (isEditMode) "Tap Edit Details to modify site metadata" else "Locked against accidental edits",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1108,7 +1222,7 @@ private fun OverviewTab(
                     ) {
                         Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Edit Details", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(if (isEditMode) "Edit Details" else "Unlock to Edit", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

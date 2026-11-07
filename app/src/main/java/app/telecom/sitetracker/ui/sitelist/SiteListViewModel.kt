@@ -1,5 +1,6 @@
 package app.telecom.sitetracker.ui.sitelist
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
@@ -8,6 +9,8 @@ import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.repo.IncidentRepository
 import app.telecom.sitetracker.data.repo.OutageRepository
 import app.telecom.sitetracker.data.repo.SiteRepository
+import app.telecom.sitetracker.data.repo.SiteWithDistance
+import app.telecom.sitetracker.util.Geo
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -42,6 +45,15 @@ class SiteListViewModel(
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
 
+    private val _isNearMeActive = MutableStateFlow(false)
+    val isNearMeActive: StateFlow<Boolean> = _isNearMeActive.asStateFlow()
+
+    private val _nearbyResults = MutableStateFlow<List<SiteWithDistance>>(emptyList())
+    val nearbyResults: StateFlow<List<SiteWithDistance>> = _nearbyResults.asStateFlow()
+
+    private val _userMessage = MutableStateFlow<String?>(null)
+    val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
+
     val pagedSites: Flow<PagingData<SiteEntity>> = siteRepository.getPagedSites()
         .cachedIn(viewModelScope)
 
@@ -60,6 +72,12 @@ class SiteListViewModel(
             return
         }
 
+        // Deactivate Near Me if user begins explicit text search
+        if (_isNearMeActive.value) {
+            _isNearMeActive.value = false
+            _nearbyResults.value = emptyList()
+        }
+
         searchJob = viewModelScope.launch {
             _isSearching.value = true
             // Debounce slightly to keep typing buttery smooth
@@ -72,6 +90,42 @@ class SiteListViewModel(
 
     fun clearSearch() {
         onSearchQueryChanged("")
+    }
+
+    fun onNearMeClicked(context: Context) {
+        val location = Geo.getLastKnownLocation(context)
+        if (location == null) {
+            _userMessage.value = "GPS location unavailable. Ensure GPS is enabled."
+            return
+        }
+
+        _searchQuery.value = ""
+        _searchResults.value = emptyList()
+        _isNearMeActive.value = true
+        _isSearching.value = true
+
+        viewModelScope.launch {
+            try {
+                val nearby = siteRepository.searchNearby(location.latitude, location.longitude)
+                _nearbyResults.value = nearby
+                if (nearby.isEmpty()) {
+                    _userMessage.value = "No nearby sites with GPS coordinates found."
+                }
+            } catch (e: Exception) {
+                _userMessage.value = "Near Me error: ${e.message}"
+            } finally {
+                _isSearching.value = false
+            }
+        }
+    }
+
+    fun clearNearMe() {
+        _isNearMeActive.value = false
+        _nearbyResults.value = emptyList()
+    }
+
+    fun dismissUserMessage() {
+        _userMessage.value = null
     }
 
     fun onCircleSelected(circle: String?) {

@@ -1,12 +1,16 @@
 package app.telecom.sitetracker.ui.sitelist
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,9 +31,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -41,10 +47,14 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -85,8 +95,29 @@ fun SiteListScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+    val isNearMeActive by viewModel.isNearMeActive.collectAsStateWithLifecycle()
+    val nearbyResults by viewModel.nearbyResults.collectAsStateWithLifecycle()
+    val userMessage by viewModel.userMessage.collectAsStateWithLifecycle()
     val filterState by viewModel.filterState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(userMessage) {
+        userMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.dismissUserMessage()
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.onNearMeClicked(context)
+        } else {
+            Toast.makeText(context, "Location permission needed for Near Me radar", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val isSearchActive = searchQuery.isNotBlank()
 
@@ -94,7 +125,11 @@ fun SiteListScreen(
         topBar = {
             EnterpriseTopBar(
                 title = stringResource(R.string.site_list_title),
-                subtitle = if (isSearchActive) "${searchResults.size} matches" else "$activeCount active towers",
+                subtitle = when {
+                    isNearMeActive -> "${nearbyResults.size} nearby towers (GPS)"
+                    isSearchActive -> "${searchResults.size} matches"
+                    else -> "$activeCount active towers"
+                },
                 actions = {
                     IconButton(onClick = onImportClick) {
                         Icon(
@@ -106,6 +141,7 @@ fun SiteListScreen(
                 }
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { innerPadding ->
         Column(
@@ -113,18 +149,55 @@ fun SiteListScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Live Interactive Search Bar with respectful margins
-            Box(
+            // Live Search Bar + Near Me GPS Quick Action Row
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                EnterpriseSearchBar(
-                    query = searchQuery,
-                    onQueryChange = { viewModel.onSearchQueryChanged(it) },
-                    placeholder = "Search SAP ID, site name, city, circle...",
-                    onClear = { viewModel.clearSearch() }
-                )
+                Box(modifier = Modifier.weight(1f)) {
+                    EnterpriseSearchBar(
+                        query = searchQuery,
+                        onQueryChange = { viewModel.onSearchQueryChanged(it) },
+                        placeholder = "Search SAP ID, site name, city, circle...",
+                        onClear = { viewModel.clearSearch() }
+                    )
+                }
+
+                Surface(
+                    onClick = {
+                        if (isNearMeActive) {
+                            viewModel.clearNearMe()
+                        } else {
+                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isNearMeActive) TelecomAmber else MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, if (isNearMeActive) TelecomAmber else MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.height(48.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isNearMeActive) Icons.Default.Close else Icons.Default.NearMe,
+                            contentDescription = if (isNearMeActive) "Clear Near Me" else "Near Me GPS",
+                            tint = if (isNearMeActive) Color(0xFF0F172A) else TelecomAmber,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isNearMeActive) "Clear" else "Near Me",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = if (isNearMeActive) Color(0xFF0F172A) else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
             }
 
             AnimatedVisibility(
@@ -145,7 +218,39 @@ fun SiteListScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                if (isSearchActive) {
+                if (isNearMeActive) {
+                    // Near Me GPS Mode: Display sites sorted by real distance
+                    if (nearbyResults.isEmpty() && !isSearching) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No towers found with GPS coordinates near your location.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp)
+                        ) {
+                            items(nearbyResults, key = { it.site.sapId }) { item ->
+                                SiteCard(
+                                    site = item.site,
+                                    distanceInfo = item.formattedDistance,
+                                    onClick = { onSiteClick(item.site.sapId) },
+                                    onCopyCoordinates = { lat, lng ->
+                                        copyToClipboard(context, "Coordinates", "$lat, $lng")
+                                    }
+                                )
+                            }
+                        }
+                    }
+                } else if (isSearchActive) {
                     // Search Mode: Display direct search results
                     if (searchResults.isEmpty() && !isSearching) {
                         EmptySearchResultsView(
@@ -236,6 +341,7 @@ fun SiteListScreen(
 @Composable
 fun SiteCard(
     site: SiteEntity,
+    distanceInfo: String? = null,
     onClick: () -> Unit,
     onCopyCoordinates: (Double, Double) -> Unit,
     modifier: Modifier = Modifier
@@ -244,7 +350,7 @@ fun SiteCard(
         onClick = onClick,
         modifier = modifier
     ) {
-        // Row 1: SAP ID + Status Dot Badge
+        // Row 1: SAP ID + (Distance Tag + Status Dot Badge)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -255,11 +361,46 @@ fun SiteCard(
                 style = SapIdStyle.copy(fontSize = 16.sp, color = TelecomAmber)
             )
 
-            val statusText = site.status ?: "Active"
-            val isDown = statusText.equals("down", ignoreCase = true)
-            val badgeColor = if (isDown) StatusDownRed else StatusRestoredGreen
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (!distanceInfo.isNullOrBlank()) {
+                    Surface(
+                        color = TelecomAmber.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(4.dp),
+                        border = BorderStroke(1.dp, TelecomAmber.copy(alpha = 0.35f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.NearMe,
+                                contentDescription = null,
+                                tint = TelecomAmber,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = distanceInfo,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontSize = 11.sp,
+                                    color = TelecomAmber
+                                )
+                            )
+                        }
+                    }
+                }
 
-            StatusDotBadge(text = statusText, color = badgeColor)
+                val statusText = site.status ?: "Active"
+                val isDown = statusText.equals("down", ignoreCase = true)
+                val badgeColor = if (isDown) StatusDownRed else StatusRestoredGreen
+
+                StatusDotBadge(text = statusText, color = badgeColor)
+            }
         }
 
         Spacer(modifier = Modifier.height(4.dp))

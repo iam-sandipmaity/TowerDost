@@ -11,6 +11,7 @@ import app.telecom.sitetracker.data.repo.IncidentRepository
 import app.telecom.sitetracker.data.repo.OutageRepository
 import app.telecom.sitetracker.data.repo.SiteRepository
 import app.telecom.sitetracker.util.Dates
+import app.telecom.sitetracker.util.Geo
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +31,9 @@ data class SiteDetailUiState(
     val recommendation: String? = null,
     val errorMessage: String? = null,
     val userMessage: String? = null,
+    // Mode toggle & GPS distance
+    val isEditMode: Boolean = false,
+    val distanceInfo: String? = null,
     // Overview edit & safeguards
     val isEditingOverview: Boolean = false,
     val draftOverview: SiteEntity? = null,
@@ -119,12 +123,42 @@ class SiteDetailViewModel(
         _uiState.update { it.copy(userMessage = null, errorMessage = null) }
     }
 
+    // --- View Only vs Edit Mode & GPS Location ---
+
+    fun toggleEditMode() {
+        _uiState.update { current ->
+            val newMode = !current.isEditMode
+            current.copy(
+                isEditMode = newMode,
+                isEditingOverview = if (!newMode) false else current.isEditingOverview
+            )
+        }
+    }
+
+    fun setEditMode(enabled: Boolean) {
+        _uiState.update { current ->
+            current.copy(
+                isEditMode = enabled,
+                isEditingOverview = if (!enabled) false else current.isEditingOverview
+            )
+        }
+    }
+
+    fun updateCurrentLocation(lat: Double, lng: Double) {
+        val site = _uiState.value.site ?: return
+        if (site.lat != null && site.lng != null) {
+            val distFormatted = Geo.formatDistanceAndBearing(lat, lng, site.lat, site.lng)
+            _uiState.update { it.copy(distanceInfo = distFormatted) }
+        }
+    }
+
     // --- Overview Edit & Accidental Modification Safeguards ---
 
     fun startEditingOverview() {
         val currentSite = _uiState.value.site ?: return
         _uiState.update {
             it.copy(
+                isEditMode = true,
                 isEditingOverview = true,
                 draftOverview = currentSite.copy(),
                 confirmSaveOverview = false
