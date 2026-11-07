@@ -160,4 +160,79 @@ object Dates {
         val currentYear = Instant.ofEpochMilli(clockMs).atZone(IST_ZONE).year
         return currentYear < buildYear
     }
+
+    private val FLEXIBLE_DATE_TIME_PATTERNS = listOf(
+        "dd/MM/yyyy HH:mm:ss",
+        "dd/MM/yyyy HH:mm",
+        "dd-MM-yyyy HH:mm:ss",
+        "dd-MM-yyyy HH:mm",
+        "yyyy-MM-dd HH:mm:ss",
+        "yyyy-MM-dd'T'HH:mm:ss",
+        "yyyy-MM-dd HH:mm",
+        "dd MMM yyyy, HH:mm",
+        "dd MMM yyyy HH:mm",
+        "d MMM yyyy, HH:mm",
+        "d MMM yyyy HH:mm",
+        "yyyy/MM/dd HH:mm:ss",
+        "yyyy/MM/dd HH:mm"
+    )
+
+    private val FLEXIBLE_DATE_PATTERNS = listOf(
+        "dd/MM/yyyy",
+        "dd-MM-yyyy",
+        "yyyy-MM-dd",
+        "dd MMM yyyy",
+        "d MMM yyyy"
+    )
+
+    /**
+     * Flexibly parses an arbitrary date/time string from CSV, Excel, or JSON exports into epoch milliseconds (IST).
+     * Supports various separators, 12/24 hour variations, ISO formats, and raw epoch strings.
+     */
+    fun parseFlexibleDateTime(raw: String?): Long? {
+        if (raw.isNullOrBlank()) return null
+        val clean = raw.trim()
+
+        // 1. Raw epoch digits
+        if (clean.all { it.isDigit() }) {
+            return try {
+                val num = clean.toLong()
+                if (clean.length == 10) num * 1000L else num
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        // 2. Try date-time patterns
+        for (pattern in FLEXIBLE_DATE_TIME_PATTERNS) {
+            try {
+                val formatter = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH)
+                val ldt = LocalDateTime.parse(clean, formatter)
+                return ldt.atZone(IST_ZONE).toInstant().toEpochMilli()
+            } catch (_: Exception) {
+                // Continue to next pattern
+            }
+        }
+
+        // 3. Try date-only patterns (fallback to IST start of day 00:00:00)
+        for (pattern in FLEXIBLE_DATE_PATTERNS) {
+            try {
+                val formatter = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH)
+                val ld = LocalDate.parse(clean, formatter)
+                return ld.atStartOfDay(IST_ZONE).toInstant().toEpochMilli()
+            } catch (_: Exception) {
+                // Continue to next pattern
+            }
+        }
+
+        return null
+    }
+
+    /**
+     * Checks if two timestamps are within a 60-second window (same minute) for deduplication.
+     */
+    fun isWithinMinute(ms1: Long?, ms2: Long?): Boolean {
+        if (ms1 == null || ms2 == null) return false
+        return Math.abs(ms1 - ms2) <= 60000L
+    }
 }

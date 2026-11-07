@@ -105,4 +105,58 @@ class DatesTest {
         val year2020Ms = Instant.parse("2020-01-01T00:00:00Z").toEpochMilli()
         assertTrue(Dates.isClockSkewed(year2020Ms, null, buildYear = 2026))
     }
+
+    @Test
+    fun testParseFlexibleDateTime_variousFormats() {
+        // dd/MM/yyyy HH:mm
+        val t1 = Dates.parseFlexibleDateTime("15/08/2026 14:30")
+        assertTrue(t1 != null && t1 > 0)
+
+        // dd/MM/yyyy HH:mm:ss
+        val t2 = Dates.parseFlexibleDateTime("15/08/2026 14:30:45")
+        assertTrue(t2 != null && t2 > 0)
+
+        // yyyy-MM-dd HH:mm:ss
+        val t3 = Dates.parseFlexibleDateTime("2026-08-15 14:30:00")
+        assertTrue(t3 != null && t3 > 0)
+
+        // yyyy-MM-dd'T'HH:mm:ss
+        val t4 = Dates.parseFlexibleDateTime("2026-08-15T14:30:00")
+        assertTrue(t4 != null && t4 > 0)
+
+        // dd MMM yyyy, HH:mm
+        val t5 = Dates.parseFlexibleDateTime("15 Aug 2026, 14:30")
+        assertTrue(t5 != null && t5 > 0)
+
+        // dd-MM-yyyy HH:mm
+        val t6 = Dates.parseFlexibleDateTime("15-08-2026 14:30")
+        assertTrue(t6 != null && t6 > 0)
+
+        // dd/MM/yyyy (fallback to midnight)
+        val t7 = Dates.parseFlexibleDateTime("15/08/2026")
+        assertTrue(t7 != null && t7 > 0)
+
+        // Raw epoch ms
+        val now = 1786780000000L
+        val t8 = Dates.parseFlexibleDateTime(now.toString())
+        assertEquals(now, t8)
+
+        // Null or blank or invalid
+        assertEquals(null, Dates.parseFlexibleDateTime(null))
+        assertEquals(null, Dates.parseFlexibleDateTime(""))
+        assertEquals(null, Dates.parseFlexibleDateTime("   "))
+        assertEquals(null, Dates.parseFlexibleDateTime("invalid_garbage_timestamp"))
+    }
+
+    @Test
+    fun testIsWithinMinute() {
+        val base = 1786780000000L
+        assertTrue(Dates.isWithinMinute(base, base + 30000L))
+        assertTrue(Dates.isWithinMinute(base, base - 59000L))
+        assertTrue(Dates.isWithinMinute(base, base))
+        assertFalse(Dates.isWithinMinute(base, base + 61000L))
+        assertFalse(Dates.isWithinMinute(base, base - 61000L))
+        assertFalse(Dates.isWithinMinute(null, base))
+        assertFalse(Dates.isWithinMinute(base, null))
+    }
 }
