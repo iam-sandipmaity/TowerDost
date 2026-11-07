@@ -69,6 +69,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -88,6 +89,7 @@ import app.telecom.sitetracker.ui.theme.SeverityMajor
 import app.telecom.sitetracker.ui.theme.SeverityMinor
 import app.telecom.sitetracker.ui.theme.StatusDownRed
 import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
+import app.telecom.sitetracker.ui.theme.TealPrimary
 import app.telecom.sitetracker.ui.theme.TelecomAmber
 import app.telecom.sitetracker.util.Dates
 
@@ -447,7 +449,7 @@ private fun DayViewContent(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clickable { onOpenDatePicker() }
                 ) {
-                    Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp), tint = TealPrimary)
+                    Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(18.dp), tint = TelecomAmber)
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = if (isToday) "Today ($dateStr)" else dateStr,
