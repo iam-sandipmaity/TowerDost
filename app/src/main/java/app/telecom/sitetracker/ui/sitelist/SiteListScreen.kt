@@ -59,6 +59,10 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.SiteEntity
+import app.telecom.sitetracker.ui.components.EnterpriseListRow
+import app.telecom.sitetracker.ui.components.EnterpriseTopBar
+import app.telecom.sitetracker.ui.components.SearchCapsule
+import app.telecom.sitetracker.ui.components.StatusDotBadge
 import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.StatusDownRed
 import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
@@ -81,38 +85,18 @@ fun SiteListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(R.drawable.ic_towerdost_logo),
-                            contentDescription = "TowerDost Logo",
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(stringResource(R.string.site_list_title), fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                            Text(
-                                text = "$activeCount active sites",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                },
+            EnterpriseTopBar(
+                title = stringResource(R.string.site_list_title),
+                subtitle = "$activeCount active towers",
                 actions = {
-                    IconButton(onClick = onSearchClick) {
-                        Icon(Icons.Default.Search, contentDescription = "Search sites")
-                    }
                     IconButton(onClick = onImportClick) {
-                        Icon(Icons.Default.FileDownload, contentDescription = "Import file", tint = TelecomAmber)
+                        Icon(
+                            Icons.Default.FileDownload,
+                            contentDescription = "Import file",
+                            tint = TelecomAmber
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                }
             )
         },
         modifier = modifier
@@ -122,37 +106,19 @@ fun SiteListScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Instant Search Trigger Bar (Crisp outline with 48dp tactile target)
-            Card(
-                onClick = onSearchClick,
-                shape = RoundedCornerShape(8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                border = CardDefaults.outlinedCardBorder(),
+            // Instant Search Trigger Capsule
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable(onClick = onSearchClick)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Search,
-                        contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Search by SAP ID, site name, JC...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                SearchCapsule(
+                    query = "",
+                    onQueryChange = {},
+                    placeholder = "Search by SAP ID, site name, JC...",
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Box(
@@ -181,10 +147,7 @@ fun SiteListScreen(
                     else -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                                start = 16.dp,
-                                end = 16.dp,
                                 top = 4.dp,
                                 bottom = 80.dp
                             )
@@ -235,129 +198,114 @@ fun SiteCard(
     onCopyCoordinates: (Double, Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    EnterpriseListRow(
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder(),
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // Row 1: SAP ID + Status
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = site.sapId,
-                    style = SapIdStyle.copy(fontSize = 16.sp, color = TelecomAmber)
-                )
+        // Row 1: SAP ID + Status
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = site.sapId,
+                style = SapIdStyle.copy(fontSize = 16.sp, color = TelecomAmber)
+            )
 
-                val statusText = site.status ?: "Active"
-                val isDown = statusText.equals("down", ignoreCase = true)
-                val badgeColor = if (isDown) StatusDownRed else StatusRestoredGreen
-                val badgeBg = badgeColor.copy(alpha = 0.15f)
+            val statusText = site.status ?: "Active"
+            val isDown = statusText.equals("down", ignoreCase = true)
+            val badgeColor = if (isDown) StatusDownRed else StatusRestoredGreen
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(badgeBg)
-                        .border(1.dp, badgeColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+            StatusDotBadge(text = statusText, color = badgeColor)
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Row 2: Name & Circle / District
+        if (!site.name.isNullOrBlank()) {
+            Text(
+                text = site.name,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        val locationParts = listOfNotNull(site.city, site.district, site.circle)
+        if (locationParts.isNotEmpty()) {
+            Text(
+                text = locationParts.joinToString(" • "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Row 3: Coordinates + Badges
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (site.lat != null && site.lng != null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { onCopyCoordinates(site.lat, site.lng) }
                 ) {
                     Text(
-                        text = statusText.uppercase(),
-                        color = badgeColor,
+                        text = "${site.lat.format(4)}, ${site.lng.format(4)}",
+                        fontFamily = FontFamily.Monospace,
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold
+                        color = TelemetryCyan
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        Icons.Default.ContentCopy,
+                        contentDescription = "Copy coordinates",
+                        modifier = Modifier.size(12.dp),
+                        tint = TelemetryCyan
                     )
                 }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Row 2: Name & Circle / District
-            if (!site.name.isNullOrBlank()) {
+            } else {
                 Text(
-                    text = site.name,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
+                    text = "No GPS recorded",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )
             }
 
-            val locationParts = listOfNotNull(site.city, site.district, site.circle)
-            if (locationParts.isNotEmpty()) {
-                Text(
-                    text = locationParts.joinToString(" • "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Row 3: Coordinates + Badges
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (site.lat != null && site.lng != null) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.clickable { onCopyCoordinates(site.lat, site.lng) }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (!site.technology.isNullOrBlank()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(4.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Text(
-                            text = "${site.lat.format(4)}, ${site.lng.format(4)}",
-                            fontFamily = FontFamily.Monospace,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TelemetryCyan
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            Icons.Default.ContentCopy,
-                            contentDescription = "Copy coordinates",
-                            modifier = Modifier.size(12.dp),
-                            tint = TelemetryCyan
+                            text = site.technology,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
-                } else {
-                    Text(
-                        text = "No GPS recorded",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
                 }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (!site.technology.isNullOrBlank()) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(3.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                        ) {
-                            Text(
-                                text = site.technology,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                    if (!site.siteType.isNullOrBlank()) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(3.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                        ) {
-                            Text(
-                                text = site.siteType,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
+                if (!site.siteType.isNullOrBlank()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(4.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Text(
+                            text = site.siteType,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
                     }
                 }
             }
+        }
+    }
         }
     }
 }
