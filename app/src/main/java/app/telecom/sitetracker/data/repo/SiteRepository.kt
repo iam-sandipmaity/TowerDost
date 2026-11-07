@@ -6,6 +6,7 @@ import androidx.paging.PagingData
 import app.telecom.sitetracker.data.db.AppDatabase
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
+import app.telecom.sitetracker.data.entity.SiteFts
 import app.telecom.sitetracker.util.Geo
 import kotlinx.coroutines.flow.Flow
 
@@ -85,6 +86,78 @@ class SiteRepository(private val db: AppDatabase) {
 
     suspend fun saveSite(site: SiteEntity) {
         siteDao.insertSite(site)
+    }
+
+    suspend fun getAllFields(): List<SiteFieldEntity> = fieldDao.getAllFields()
+
+    suspend fun updateSiteOverview(site: SiteEntity) {
+        val updated = site.copy(updatedAt = System.currentTimeMillis())
+        siteDao.updateSite(updated)
+        try {
+            val fields = fieldDao.getFieldsForSite(site.sapId)
+            val fieldText = fields.joinToString(" ") { "${it.fieldKey} ${it.fieldValue ?: ""}" }
+            siteDao.deleteFts(site.sapNorm)
+            siteDao.insertFts(
+                listOf(
+                    SiteFts(
+                        sapNorm = site.sapNorm,
+                        name = site.name,
+                        address = site.address ?: site.city ?: site.district,
+                        fieldText = fieldText
+                    )
+                )
+            )
+        } catch (_: Exception) {}
+    }
+
+    suspend fun updateSiteSpec(field: SiteFieldEntity) {
+        fieldDao.updateField(field)
+        val site = siteDao.getSiteBySapId(field.sapId)
+        if (site != null) {
+            siteDao.updateSite(site.copy(updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    suspend fun addOrUpdateSiteSpec(
+        sapId: String,
+        fieldKey: String,
+        fieldValue: String?,
+        groupName: String?
+    ) {
+        val existingFields = fieldDao.getFieldsForSite(sapId)
+        val trimmedKey = fieldKey.trim()
+        val existing = existingFields.find { it.fieldKey.equals(trimmedKey, ignoreCase = true) }
+        if (existing != null) {
+            fieldDao.updateField(
+                existing.copy(
+                    fieldValue = fieldValue?.trim(),
+                    groupName = groupName?.trim()?.ifBlank { null } ?: existing.groupName
+                )
+            )
+        } else {
+            val maxSort = existingFields.maxOfOrNull { it.sortOrder ?: 0 } ?: 0
+            fieldDao.insertField(
+                SiteFieldEntity(
+                    sapId = sapId,
+                    fieldKey = trimmedKey,
+                    fieldValue = fieldValue?.trim(),
+                    groupName = groupName?.trim()?.ifBlank { null } ?: "GENERAL SPECIFICATIONS",
+                    sortOrder = maxSort + 1
+                )
+            )
+        }
+        val site = siteDao.getSiteBySapId(sapId)
+        if (site != null) {
+            siteDao.updateSite(site.copy(updatedAt = System.currentTimeMillis()))
+        }
+    }
+
+    suspend fun deleteSiteSpec(fieldId: Long, sapId: String) {
+        fieldDao.deleteFieldById(fieldId)
+        val site = siteDao.getSiteBySapId(sapId)
+        if (site != null) {
+            siteDao.updateSite(site.copy(updatedAt = System.currentTimeMillis()))
+        }
     }
 
     suspend fun tombstoneSite(sapId: String, tombstoneTime: Long) {

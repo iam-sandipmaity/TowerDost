@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
@@ -124,6 +126,13 @@ fun SiteDetailScreen(
                 actions = {
                     IconButton(
                         onClick = {
+                            viewModel.exportSingleSiteReport(context)
+                        }
+                    ) {
+                        Icon(Icons.Default.Description, contentDescription = "Export Site CSV")
+                    }
+                    IconButton(
+                        onClick = {
                             val site = uiState.site ?: return@IconButton
                             shareSiteDetails(context, site, uiState.groupedSpecs)
                         }
@@ -207,7 +216,9 @@ fun SiteDetailScreen(
                     0 -> SpecsTab(
                         groupedSpecs = uiState.groupedSpecs,
                         filterQuery = specFilterQuery,
-                        onFilterChange = { specFilterQuery = it }
+                        onFilterChange = { specFilterQuery = it },
+                        onAddSpecClick = { viewModel.startAddingSpec() },
+                        onEditSpecClick = { spec -> viewModel.startEditingSpec(spec) }
                     )
                     1 -> SiteLogsTab(
                         logs = uiState.incidents,
@@ -215,12 +226,104 @@ fun SiteDetailScreen(
                         onEditLogClick = { incId -> onEditLog(site.sapId, incId) },
                         onDeleteLogClick = { logToDelete = it }
                     )
-                    2 -> OverviewTab(site = site)
+                    2 -> OverviewTab(
+                        site = site,
+                        isEditing = uiState.isEditingOverview,
+                        draft = uiState.draftOverview ?: site,
+                        onStartEdit = { viewModel.startEditingOverview() },
+                        onCancelEdit = { viewModel.cancelEditingOverview() },
+                        onDraftChange = { transform -> viewModel.updateOverviewDraft(transform) },
+                        onSaveClick = { viewModel.requestSaveOverview() }
+                    )
                 }
             }
         }
     }
 
+    // Safeguard: Overview Save Confirmation Dialog
+    if (uiState.confirmSaveOverview && uiState.site != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissSaveOverviewConfirmation() },
+            icon = {
+                Icon(Icons.Default.Edit, contentDescription = null, tint = BrandPrimary, modifier = Modifier.size(36.dp))
+            },
+            title = {
+                Text("Save Site Overview Changes?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    text = "You are updating the master record for site ${uiState.site?.sapId}.\n\nThese modifications will be permanently stored in the local database and will be included in all future master CSV exports.\n\nDo you want to apply these changes?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmAndSaveOverview() },
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary)
+                ) {
+                    Text("Confirm & Save", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissSaveOverviewConfirmation() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Safeguard: Spec Editor Dialog (Add or Edit)
+    if (uiState.specToEdit != null || uiState.isAddingSpec) {
+        val editingSpec = uiState.specToEdit
+        val isNew = uiState.isAddingSpec
+        SpecEditDialog(
+            spec = editingSpec,
+            isNew = isNew,
+            sapId = uiState.site?.sapId ?: "",
+            onDismiss = { viewModel.dismissSpecEditor() },
+            onSave = { key, value, group ->
+                viewModel.saveSpec(key, value, group)
+            },
+            onDelete = if (!isNew && editingSpec != null) {
+                { viewModel.requestDeleteSpec(it) }
+            } else null
+        )
+    }
+
+    // Safeguard: Spec Deletion Confirmation Dialog
+    if (uiState.confirmDeleteSpec != null) {
+        val target = uiState.confirmDeleteSpec!!
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelDeleteSpec() },
+            icon = {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = TagIssueColor, modifier = Modifier.size(36.dp))
+            },
+            title = {
+                Text("Delete Specification?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    text = "⚠️ Warning: Are you sure you want to delete '${target.fieldKey}' from ${target.sapId}?\n\nThis specification will be removed from technical specifications and omitted from subsequent CSV exports.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmDeleteSpec() },
+                    colors = ButtonDefaults.buttonColors(containerColor = TagIssueColor)
+                ) {
+                    Text("Delete Permanently", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelDeleteSpec() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Safeguard: Log Deletion Confirmation Dialog
     if (logToDelete != null) {
         val target = logToDelete!!
         AlertDialog(
@@ -531,7 +634,7 @@ private fun SiteLogsTab(
                             ) {
                                 TextButton(
                                     onClick = { onEditLogClick(log.id) },
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -540,7 +643,7 @@ private fun SiteLogsTab(
 
                                 TextButton(
                                     onClick = { onDeleteLogClick(log) },
-                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp), tint = TagIssueColor)
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -559,21 +662,39 @@ private fun SiteLogsTab(
 private fun SpecsTab(
     groupedSpecs: Map<String, List<SiteFieldEntity>>,
     filterQuery: String,
-    onFilterChange: (String) -> Unit
+    onFilterChange: (String) -> Unit,
+    onAddSpecClick: () -> Unit,
+    onEditSpecClick: (SiteFieldEntity) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        OutlinedTextField(
-            value = filterQuery,
-            onValueChange = onFilterChange,
-            placeholder = { Text("Filter specifications (e.g. SMPS, DG, Battery)...") },
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = RoundedCornerShape(8.dp)
-        )
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = filterQuery,
+                onValueChange = onFilterChange,
+                placeholder = { Text("Filter specs (e.g. SMPS, DG)...") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp)
+            )
+
+            OutlinedButton(
+                onClick = onAddSpecClick,
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Add Spec", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -610,7 +731,11 @@ private fun SpecsTab(
             ) {
                 filteredGroups.forEach { (groupName, fields) ->
                     item(key = groupName) {
-                        SpecGroupCard(groupName = groupName, fields = fields)
+                        SpecGroupCard(
+                            groupName = groupName,
+                            fields = fields,
+                            onEditSpec = onEditSpecClick
+                        )
                     }
                 }
             }
@@ -619,7 +744,11 @@ private fun SpecsTab(
 }
 
 @Composable
-private fun SpecGroupCard(groupName: String, fields: List<SiteFieldEntity>) {
+private fun SpecGroupCard(
+    groupName: String,
+    fields: List<SiteFieldEntity>,
+    onEditSpec: (SiteFieldEntity) -> Unit
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = CardDefaults.outlinedCardBorder(),
@@ -655,6 +784,17 @@ private fun SpecGroupCard(groupName: String, fields: List<SiteFieldEntity>) {
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.weight(1f)
                     )
+                    IconButton(
+                        onClick = { onEditSpec(field) },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit ${field.fieldKey}",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
                 if (index < fields.lastIndex) {
                     HorizontalDivider(
@@ -668,28 +808,350 @@ private fun SpecGroupCard(groupName: String, fields: List<SiteFieldEntity>) {
 }
 
 @Composable
-private fun OverviewTab(site: SiteEntity) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        OverviewRow("Circle", site.circle ?: "—")
-        OverviewRow("Region", site.region ?: "—")
-        OverviewRow("District", site.district ?: "—")
-        OverviewRow("City / JC", site.city ?: "—")
-        OverviewRow("Technology", site.technology ?: "—")
-        OverviewRow("Site Type", site.siteType ?: "—")
-        OverviewRow("Address", site.address ?: "—")
-        OverviewRow("Tags / Scope", site.tags ?: "—")
-        OverviewRow("Source File", site.sourceFile ?: "—")
-        if (site.updatedAt != null) {
-            OverviewRow("Last Updated", Dates.formatDateTime(site.updatedAt))
+private fun SpecEditDialog(
+    spec: SiteFieldEntity?,
+    isNew: Boolean,
+    sapId: String,
+    onDismiss: () -> Unit,
+    onSave: (key: String, value: String, group: String) -> Unit,
+    onDelete: ((SiteFieldEntity) -> Unit)?
+) {
+    var fieldKey by remember { mutableStateOf(spec?.fieldKey ?: "") }
+    var fieldValue by remember { mutableStateOf(spec?.fieldValue ?: "") }
+    var groupName by remember { mutableStateOf(spec?.groupName ?: "GENERAL SPECIFICATIONS") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (isNew) "Add Specification" else "Edit Specification",
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "⚠️ Updating this specification will modify the master database for $sapId and will be included in all future CSV exports.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = fieldKey,
+                    onValueChange = { fieldKey = it },
+                    label = { Text("Field Name (e.g. SMPS CAPACITY)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    enabled = isNew // Primary spec key locked if existing, or freely editable
+                )
+
+                OutlinedTextField(
+                    value = fieldValue,
+                    onValueChange = { fieldValue = it },
+                    label = { Text("Field Value (e.g. 48V 100A)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = groupName,
+                    onValueChange = { groupName = it },
+                    label = { Text("Group / Category (e.g. POWER, BATTERY, RF)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onSave(fieldKey, fieldValue, groupName) },
+                colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                enabled = fieldKey.isNotBlank()
+            ) {
+                Text("Save Specification", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            Row {
+                if (!isNew && spec != null && onDelete != null) {
+                    TextButton(onClick = { onDelete(spec) }) {
+                        Text("Delete", color = TagIssueColor, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            }
         }
-        if (!site.notes.isNullOrBlank()) {
-            OverviewRow("Remarks", site.notes)
+    )
+}
+
+@Composable
+private fun OverviewTab(
+    site: SiteEntity,
+    isEditing: Boolean,
+    draft: SiteEntity,
+    onStartEdit: () -> Unit,
+    onCancelEdit: () -> Unit,
+    onDraftChange: ((SiteEntity) -> SiteEntity) -> Unit,
+    onSaveClick: () -> Unit
+) {
+    if (isEditing) {
+        // Edit Mode with explicit safeguards
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = TagMaintBg),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = TagMaintColor, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "Editing Overview: ${site.sapId}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TagMaintColor
+                        )
+                        Text(
+                            text = "Modifications will update master records and reflect in all CSV exports.",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+
+            OutlinedTextField(
+                value = draft.name ?: "",
+                onValueChange = { v -> onDraftChange { it.copy(name = v) } },
+                label = { Text("Site Name") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = draft.lat?.toString() ?: "",
+                    onValueChange = { v -> onDraftChange { it.copy(lat = v.toDoubleOrNull()) } },
+                    label = { Text("Latitude") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = draft.lng?.toString() ?: "",
+                    onValueChange = { v -> onDraftChange { it.copy(lng = v.toDoubleOrNull()) } },
+                    label = { Text("Longitude") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = draft.circle ?: "",
+                    onValueChange = { v -> onDraftChange { it.copy(circle = v) } },
+                    label = { Text("Circle") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = draft.district ?: "",
+                    onValueChange = { v -> onDraftChange { it.copy(district = v) } },
+                    label = { Text("District") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = draft.city ?: "",
+                    onValueChange = { v -> onDraftChange { it.copy(city = v) } },
+                    label = { Text("City / JC") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = draft.state ?: "",
+                    onValueChange = { v -> onDraftChange { it.copy(state = v) } },
+                    label = { Text("State") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = draft.technology ?: "",
+                    onValueChange = { v -> onDraftChange { it.copy(technology = v) } },
+                    label = { Text("Technology (e.g. 4G/5G)") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+                OutlinedTextField(
+                    value = draft.siteType ?: "",
+                    onValueChange = { v -> onDraftChange { it.copy(siteType = v) } },
+                    label = { Text("Site Type (e.g. GBT, RTT)") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true
+                )
+            }
+
+            OutlinedTextField(
+                value = draft.address ?: "",
+                onValueChange = { v -> onDraftChange { it.copy(address = v) } },
+                label = { Text("Address") },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 3
+            )
+
+            OutlinedTextField(
+                value = draft.notes ?: "",
+                onValueChange = { v -> onDraftChange { it.copy(notes = v) } },
+                label = { Text("Remarks / Notes") },
+                modifier = Modifier.fillMaxWidth(),
+                maxLines = 3
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onCancelEdit,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = onSaveClick,
+                    modifier = Modifier.weight(1.5f),
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Save Changes", fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    } else {
+        // Locked View Mode
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                border = CardDefaults.outlinedCardBorder(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "Site Overview Protected",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Locked against accidental edits",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = onStartEdit,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Edit Details", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            OverviewRow("Site Name", site.name ?: "—")
+            OverviewRow("Circle", site.circle ?: "—")
+            OverviewRow("Region", site.region ?: "—")
+            OverviewRow("District", site.district ?: "—")
+            OverviewRow("City / JC", site.city ?: "—")
+            OverviewRow("State", site.state ?: "—")
+            OverviewRow("Technology", site.technology ?: "—")
+            OverviewRow("Site Type", site.siteType ?: "—")
+            OverviewRow("Address", site.address ?: "—")
+            if (site.lat != null && site.lng != null) {
+                OverviewRow("GPS Coordinates", "${site.lat.format(5)}, ${site.lng.format(5)}")
+            }
+            OverviewRow("Tags / Scope", site.tags ?: "—")
+            OverviewRow("Source File", site.sourceFile ?: "—")
+            if (site.updatedAt != null) {
+                OverviewRow("Last Updated", Dates.formatDateTime(site.updatedAt))
+            }
+            if (!site.notes.isNullOrBlank()) {
+                OverviewRow("Remarks", site.notes)
+            }
         }
     }
 }

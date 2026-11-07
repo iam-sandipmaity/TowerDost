@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -11,6 +12,18 @@ import kotlinx.coroutines.flow.Flow
 interface FieldDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFields(fields: List<SiteFieldEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertField(field: SiteFieldEntity): Long
+
+    @Update
+    suspend fun updateField(field: SiteFieldEntity)
+
+    @Query("DELETE FROM site_fields WHERE id = :id")
+    suspend fun deleteFieldById(id: Long)
+
+    @Query("DELETE FROM site_fields WHERE sap_id = :sapId AND field_key = :fieldKey")
+    suspend fun deleteFieldByKey(sapId: String, fieldKey: String)
 
     @Query("SELECT * FROM site_fields WHERE sap_id = :sapId ORDER BY sort_order ASC, id ASC")
     fun observeFieldsForSite(sapId: String): Flow<List<SiteFieldEntity>>

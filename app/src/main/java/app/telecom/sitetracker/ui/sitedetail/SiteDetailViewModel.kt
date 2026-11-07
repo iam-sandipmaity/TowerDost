@@ -1,10 +1,12 @@
 package app.telecom.sitetracker.ui.sitedetail
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
+import app.telecom.sitetracker.data.export.Exporter
 import app.telecom.sitetracker.data.repo.IncidentRepository
 import app.telecom.sitetracker.data.repo.OutageRepository
 import app.telecom.sitetracker.data.repo.SiteRepository
@@ -27,7 +29,15 @@ data class SiteDetailUiState(
     val dominantCategory: String? = null,
     val recommendation: String? = null,
     val errorMessage: String? = null,
-    val userMessage: String? = null
+    val userMessage: String? = null,
+    // Overview edit & safeguards
+    val isEditingOverview: Boolean = false,
+    val draftOverview: SiteEntity? = null,
+    val confirmSaveOverview: Boolean = false,
+    // Spec edit & safeguards
+    val specToEdit: SiteFieldEntity? = null,
+    val isAddingSpec: Boolean = false,
+    val confirmDeleteSpec: SiteFieldEntity? = null
 )
 
 class SiteDetailViewModel(
@@ -107,6 +117,175 @@ class SiteDetailViewModel(
 
     fun dismissUserMessage() {
         _uiState.update { it.copy(userMessage = null, errorMessage = null) }
+    }
+
+    // --- Overview Edit & Accidental Modification Safeguards ---
+
+    fun startEditingOverview() {
+        val currentSite = _uiState.value.site ?: return
+        _uiState.update {
+            it.copy(
+                isEditingOverview = true,
+                draftOverview = currentSite.copy(),
+                confirmSaveOverview = false
+            )
+        }
+    }
+
+    fun updateOverviewDraft(transform: (SiteEntity) -> SiteEntity) {
+        _uiState.update { current ->
+            val draft = current.draftOverview ?: current.site ?: return@update current
+            current.copy(draftOverview = transform(draft))
+        }
+    }
+
+    fun requestSaveOverview() {
+        _uiState.update { it.copy(confirmSaveOverview = true) }
+    }
+
+    fun dismissSaveOverviewConfirmation() {
+        _uiState.update { it.copy(confirmSaveOverview = false) }
+    }
+
+    fun cancelEditingOverview() {
+        _uiState.update {
+            it.copy(
+                isEditingOverview = false,
+                draftOverview = null,
+                confirmSaveOverview = false
+            )
+        }
+    }
+
+    fun confirmAndSaveOverview() {
+        val draft = _uiState.value.draftOverview ?: return
+        viewModelScope.launch {
+            try {
+                siteRepository.updateSiteOverview(draft)
+                _uiState.update {
+                    it.copy(
+                        site = draft,
+                        isEditingOverview = false,
+                        draftOverview = null,
+                        confirmSaveOverview = false,
+                        userMessage = "Site overview updated successfully."
+                    )
+                }
+                loadSiteDetails()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        confirmSaveOverview = false,
+                        errorMessage = "Failed to update site overview: ${e.localizedMessage}"
+                    )
+                }
+            }
+        }
+    }
+
+    // --- Specifications Edit & Accidental Modification Safeguards ---
+
+    fun startEditingSpec(spec: SiteFieldEntity) {
+        _uiState.update { it.copy(specToEdit = spec, isAddingSpec = false) }
+    }
+
+    fun startAddingSpec() {
+        _uiState.update { it.copy(isAddingSpec = true, specToEdit = null) }
+    }
+
+    fun dismissSpecEditor() {
+        _uiState.update { it.copy(specToEdit = null, isAddingSpec = false) }
+    }
+
+    fun saveSpec(fieldKey: String, fieldValue: String, groupName: String) {
+        if (fieldKey.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Specification name cannot be blank.") }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val currentSite = _uiState.value.site ?: return@launch
+                val editing = _uiState.value.specToEdit
+                if (editing != null) {
+                    siteRepository.updateSiteSpec(
+                        editing.copy(
+                            fieldKey = fieldKey.trim(),
+                            fieldValue = fieldValue.trim(),
+                            groupName = groupName.trim().ifBlank { null } ?: editing.groupName
+                        )
+                    )
+                } else {
+                    siteRepository.addOrUpdateSiteSpec(
+                        sapId = currentSite.sapId,
+                        fieldKey = fieldKey,
+                        fieldValue = fieldValue,
+                        groupName = groupName
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        specToEdit = null,
+                        isAddingSpec = false,
+                        userMessage = "Specification '$fieldKey' saved successfully."
+                    )
+                }
+                loadSiteDetails()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to save specification: ${e.localizedMessage}")
+                }
+            }
+        }
+    }
+
+    fun requestDeleteSpec(spec: SiteFieldEntity) {
+        _uiState.update { it.copy(confirmDeleteSpec = spec) }
+    }
+
+    fun cancelDeleteSpec() {
+        _uiState.update { it.copy(confirmDeleteSpec = null) }
+    }
+
+    fun confirmDeleteSpec() {
+        val target = _uiState.value.confirmDeleteSpec ?: return
+        viewModelScope.launch {
+            try {
+                siteRepository.deleteSiteSpec(target.id, target.sapId)
+                _uiState.update {
+                    it.copy(
+                        confirmDeleteSpec = null,
+                        specToEdit = null,
+                        userMessage = "Specification '${target.fieldKey}' deleted."
+                    )
+                }
+                loadSiteDetails()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        confirmDeleteSpec = null,
+                        errorMessage = "Failed to delete spec: ${e.localizedMessage}"
+                    )
+                }
+            }
+        }
+    }
+
+    // --- Export Single Site Report ---
+
+    fun exportSingleSiteReport(context: Context) {
+        val site = _uiState.value.site ?: return
+        viewModelScope.launch {
+            try {
+                val specs = siteRepository.getFieldsForSite(site.sapId)
+                val incidents = incidentRepository.getIncidentsForSite(site.sapId)
+                val file = Exporter.exportSingleSiteCsv(context, site, specs, incidents)
+                Exporter.shareCsvFile(context, file, "TowerDost Site Report: ${site.sapId}")
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to export site data: ${e.localizedMessage}")
+                }
+            }
+        }
     }
 
     private fun loadSiteDetails() {

@@ -224,7 +224,8 @@ fun ToolsScreen(
                                 snackbarHostState.showSnackbar("No sites to export.")
                                 return@launch
                             }
-                            val file = Exporter.exportSitesCsv(context, sites)
+                            val allFields = app.siteRepository.getAllFields()
+                            val file = Exporter.exportSitesCsv(context, sites, allFields)
                             Exporter.shareCsvFile(context, file, "TowerDost Master Sites")
                         } catch (e: Exception) {
                             snackbarHostState.showSnackbar("Export failed: ${e.message}")

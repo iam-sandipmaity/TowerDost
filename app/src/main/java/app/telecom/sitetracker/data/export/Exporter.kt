@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.core.content.FileProvider
 import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
+import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.util.Dates
 import java.io.File
 import java.io.FileWriter
@@ -24,15 +25,14 @@ object Exporter {
     }
 
     /**
-     * Exports all incidents / outages into a standard CSV file and saves to app cache.
+     * Exports all incidents / outages into a standard CSV file.
      */
-    fun exportRegisterCsv(context: Context, incidents: List<IncidentEntity>): File {
-        val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+    fun exportRegisterCsv(outputDir: File, incidents: List<IncidentEntity>): File {
+        outputDir.mkdirs()
         val dateStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-        val file = File(exportDir, "TowerDost_Register_$dateStamp.csv")
+        val file = File(outputDir, "TowerDost_Register_$dateStamp.csv")
 
         FileWriter(file).use { writer ->
-            // CSV Header
             writer.append("SAP ID,Title,Type,Severity,Category,Status,Down At (IST),Restored At (IST),Downtime Hours,Engineer,Ticket Ref,Action Taken,Description,GPS Lat,GPS Lng\n")
 
             for (item in incidents) {
@@ -69,35 +69,158 @@ object Exporter {
         return file
     }
 
+    fun exportRegisterCsv(context: Context, incidents: List<IncidentEntity>): File =
+        exportRegisterCsv(File(context.cacheDir, "exports"), incidents)
+
     /**
-     * Exports master sites to CSV.
+     * Exports master sites and dynamic equipment specifications to CSV.
      */
-    fun exportSitesCsv(context: Context, sites: List<SiteEntity>): File {
-        val exportDir = File(context.cacheDir, "exports").apply { mkdirs() }
+    fun exportSitesCsv(
+        outputDir: File,
+        sites: List<SiteEntity>,
+        allFields: List<SiteFieldEntity> = emptyList()
+    ): File {
+        outputDir.mkdirs()
         val dateStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
-        val file = File(exportDir, "TowerDost_MasterSites_$dateStamp.csv")
+        val file = File(outputDir, "TowerDost_MasterSites_$dateStamp.csv")
+
+        val distinctSpecKeys = allFields.map { it.fieldKey }.distinct().sorted()
 
         FileWriter(file).use { writer ->
-            writer.append("SAP ID,Site Name,Circle,District,State,Latitude,Longitude,Address\n")
+            val headers = mutableListOf(
+                "SAP ID",
+                "Site Name",
+                "Circle",
+                "Region",
+                "District",
+                "City",
+                "State",
+                "Technology",
+                "Site Type",
+                "Status",
+                "Latitude",
+                "Longitude",
+                "Address",
+                "Remarks",
+                "Last Updated"
+            )
+            headers.addAll(distinctSpecKeys)
+            writer.append(headers.joinToString(",")).append("\n")
+
+            // Index fields by sapId -> fieldKey -> fieldValue for O(1) row assembly
+            val fieldsBySite = allFields.groupBy { it.sapId }
 
             for (site in sites) {
-                val row = listOf(
+                val siteSpecsMap = fieldsBySite[site.sapId]?.associate { it.fieldKey to it.fieldValue } ?: emptyMap()
+
+                val rowValues = mutableListOf(
                     escapeCsv(site.sapId),
                     escapeCsv(site.name),
                     escapeCsv(site.circle),
+                    escapeCsv(site.region),
                     escapeCsv(site.district),
+                    escapeCsv(site.city),
                     escapeCsv(site.state),
+                    escapeCsv(site.technology),
+                    escapeCsv(site.siteType),
+                    escapeCsv(site.status),
                     escapeCsv(site.lat?.toString()),
                     escapeCsv(site.lng?.toString()),
-                    escapeCsv(site.address)
-                ).joinToString(",")
+                    escapeCsv(site.address),
+                    escapeCsv(site.notes),
+                    escapeCsv(if (site.updatedAt != null) Dates.formatDateTime(site.updatedAt) else "")
+                )
 
+                for (specKey in distinctSpecKeys) {
+                    rowValues.add(escapeCsv(siteSpecsMap[specKey]))
+                }
+
+                writer.append(rowValues.joinToString(",")).append("\n")
+            }
+        }
+
+        return file
+    }
+
+    fun exportSitesCsv(
+        context: Context,
+        sites: List<SiteEntity>,
+        allFields: List<SiteFieldEntity> = emptyList()
+    ): File = exportSitesCsv(File(context.cacheDir, "exports"), sites, allFields)
+
+    /**
+     * Exports a comprehensive individual site report (Overview, Specs, Incident History).
+     */
+    fun exportSingleSiteCsv(
+        outputDir: File,
+        site: SiteEntity,
+        specs: List<SiteFieldEntity>,
+        incidents: List<IncidentEntity>
+    ): File {
+        outputDir.mkdirs()
+        val safeSap = site.sapId.replace(Regex("[^A-Za-z0-9_-]"), "_")
+        val dateStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+        val file = File(outputDir, "Site_${safeSap}_$dateStamp.csv")
+
+        FileWriter(file).use { writer ->
+            // Section 1: Site Overview
+            writer.append("=== SITE OVERVIEW: ${site.sapId} ===\n")
+            writer.append("Field,Value\n")
+            writer.append("SAP ID,${escapeCsv(site.sapId)}\n")
+            writer.append("Site Name,${escapeCsv(site.name)}\n")
+            writer.append("Circle,${escapeCsv(site.circle)}\n")
+            writer.append("Region,${escapeCsv(site.region)}\n")
+            writer.append("District,${escapeCsv(site.district)}\n")
+            writer.append("City / JC,${escapeCsv(site.city)}\n")
+            writer.append("State,${escapeCsv(site.state)}\n")
+            writer.append("Technology,${escapeCsv(site.technology)}\n")
+            writer.append("Site Type,${escapeCsv(site.siteType)}\n")
+            writer.append("Status,${escapeCsv(site.status)}\n")
+            writer.append("Latitude,${escapeCsv(site.lat?.toString())}\n")
+            writer.append("Longitude,${escapeCsv(site.lng?.toString())}\n")
+            writer.append("Address,${escapeCsv(site.address)}\n")
+            writer.append("Remarks,${escapeCsv(site.notes)}\n")
+            writer.append("Last Updated,${escapeCsv(if (site.updatedAt != null) Dates.formatDateTime(site.updatedAt) else "")}\n\n")
+
+            // Section 2: Technical Specifications
+            writer.append("=== TECHNICAL SPECIFICATIONS ===\n")
+            writer.append("Group,Specification Name,Value\n")
+            for (spec in specs.sortedBy { it.sortOrder ?: 0 }) {
+                writer.append("${escapeCsv(spec.groupName ?: "GENERAL")},${escapeCsv(spec.fieldKey)},${escapeCsv(spec.fieldValue)}\n")
+            }
+            writer.append("\n")
+
+            // Section 3: Incident & Activity History
+            writer.append("=== INCIDENT & ACTIVITY HISTORY ===\n")
+            writer.append("Log ID,Date (IST),Type,Category,Severity,Status,Title,Engineer,Action Taken,Description\n")
+            for (inc in incidents) {
+                val isOutage = inc.isOutage == 1
+                val type = if (isOutage) "Outage" else "Activity / Note"
+                val row = listOf(
+                    escapeCsv(inc.id),
+                    escapeCsv(Dates.formatDateTime(inc.downAt ?: inc.occurredAt)),
+                    escapeCsv(type),
+                    escapeCsv(inc.category),
+                    escapeCsv(inc.severity),
+                    escapeCsv(inc.status),
+                    escapeCsv(inc.title),
+                    escapeCsv(inc.engineer),
+                    escapeCsv(inc.actionTaken),
+                    escapeCsv(inc.description)
+                ).joinToString(",")
                 writer.append(row).append("\n")
             }
         }
 
         return file
     }
+
+    fun exportSingleSiteCsv(
+        context: Context,
+        site: SiteEntity,
+        specs: List<SiteFieldEntity>,
+        incidents: List<IncidentEntity>
+    ): File = exportSingleSiteCsv(File(context.cacheDir, "exports"), site, specs, incidents)
 
     /**
      * Launches Android Share sheet via FileProvider to send or save CSV file.
