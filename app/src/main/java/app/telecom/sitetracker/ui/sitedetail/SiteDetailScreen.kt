@@ -23,15 +23,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,21 +42,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,9 +72,15 @@ import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
-import app.telecom.sitetracker.ui.theme.SeverityCritical
-import app.telecom.sitetracker.ui.theme.SeverityMajor
-import app.telecom.sitetracker.ui.theme.SeverityMinor
+import app.telecom.sitetracker.ui.theme.BrandPrimary
+import app.telecom.sitetracker.ui.theme.TagIssueBg
+import app.telecom.sitetracker.ui.theme.TagIssueColor
+import app.telecom.sitetracker.ui.theme.TagMaintBg
+import app.telecom.sitetracker.ui.theme.TagMaintColor
+import app.telecom.sitetracker.ui.theme.TagNoteBg
+import app.telecom.sitetracker.ui.theme.TagNoteColor
+import app.telecom.sitetracker.ui.theme.TagVisitBg
+import app.telecom.sitetracker.ui.theme.TagVisitColor
 import app.telecom.sitetracker.util.Dates
 import java.util.Locale
 
@@ -92,7 +96,6 @@ fun SiteDetailScreen(
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var specFilterQuery by remember { mutableStateOf("") }
-
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(uiState.userMessage, uiState.errorMessage) {
@@ -106,7 +109,7 @@ fun SiteDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.site_detail_title)) },
+                title = { Text(uiState.site?.sapId ?: stringResource(R.string.site_detail_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -160,60 +163,51 @@ fun SiteDetailScreen(
                     site = site,
                     contactPhone = uiState.contactPhone,
                     onNavigate = { lat, lng -> launchNavigation(context, lat, lng, site.sapId) },
-                    onCall = { phone -> launchCall(context, phone) }
+                    onCall = { phone -> launchCall(context, phone) },
+                    onAddLog = { onLogIncident(site.sapId) }
                 )
 
-                // Before-you-go Repeat Fault Alert
-                if (uiState.isRepeatFault) {
-                    BeforeYouGoCard(
-                        count = uiState.repeatFaultCount,
-                        dominantCategory = uiState.dominantCategory,
-                        recommendation = uiState.recommendation
-                    )
-                }
-
-                // Live Outage Status Banner
-                LiveOutageStatusBar(
-                    openOutage = uiState.openOutage,
-                    onMarkDown = { onLogIncident(site.sapId) },
-                    onRestore = { viewModel.restoreCurrentOutage() }
-                )
-
-                // Tabs: Overview, Specs, Incidents
-                TabRow(selectedTabIndex = selectedTab) {
+                // Tabs: 0 = Specs, 1 = Site Logs, 2 = Overview
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
                     Tab(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        text = { Text("Overview") }
+                        text = {
+                            val specCount = uiState.groupedSpecs.values.sumOf { it.size }
+                            Text("Specs ($specCount)", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal)
+                        }
                     )
                     Tab(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
                         text = {
-                            val specCount = uiState.groupedSpecs.values.sumOf { it.size }
-                            Text("Specs ($specCount)")
+                            Text("Logs (${uiState.incidents.size})", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal)
                         }
                     )
                     Tab(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
-                        text = { Text("Incidents (${uiState.incidents.size})") }
+                        text = {
+                            Text("Overview", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal)
+                        }
                     )
                 }
 
                 // Tab Content
                 when (selectedTab) {
-                    0 -> OverviewTab(site = site)
-                    1 -> SpecsTab(
+                    0 -> SpecsTab(
                         groupedSpecs = uiState.groupedSpecs,
                         filterQuery = specFilterQuery,
                         onFilterChange = { specFilterQuery = it }
                     )
-                    2 -> IncidentsTab(
-                        sapId = site.sapId,
-                        incidents = uiState.incidents,
-                        onLogIncident = { onLogIncident(site.sapId) }
+                    1 -> SiteLogsTab(
+                        logs = uiState.incidents,
+                        onAddLogClick = { onLogIncident(site.sapId) }
                     )
+                    2 -> OverviewTab(site = site)
                 }
             }
         }
@@ -225,11 +219,12 @@ private fun SiteHeaderCard(
     site: SiteEntity,
     contactPhone: String?,
     onNavigate: (Double, Double) -> Unit,
-    onCall: (String) -> Unit
+    onCall: (String) -> Unit,
+    onAddLog: () -> Unit
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = CardDefaults.outlinedCardBorder(),
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
@@ -245,20 +240,14 @@ private fun SiteHeaderCard(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    color = BrandPrimary
                 )
 
-                val statusText = site.status ?: "Active"
-                Surface(
-                    color = if (statusText.equals("active", ignoreCase = true)) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
+                if (!site.city.isNullOrBlank() || !site.district.isNullOrBlank()) {
                     Text(
-                        text = statusText.uppercase(Locale.US),
-                        color = if (statusText.equals("active", ignoreCase = true)) Color(0xFF2E7D32) else Color(0xFFC62828),
+                        text = listOfNotNull(site.city, site.district).joinToString(" • "),
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -272,43 +261,331 @@ private fun SiteHeaderCard(
                 )
             }
 
+            if (!site.address.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = site.address,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+            }
+
             if (site.lat != null && site.lng != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "${site.lat.format(5)}, ${site.lng.format(5)}",
+                    text = "GPS: ${site.lat.format(5)}, ${site.lng.format(5)}",
                     fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Action Buttons Row
+            // Action Buttons Row: Directions, Call, Add Log
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Button(
+                    onClick = onAddLog,
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                    modifier = Modifier.weight(1.2f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add Log", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
                 if (site.lat != null && site.lng != null) {
-                    Button(
+                    OutlinedButton(
                         onClick = { onNavigate(site.lat, site.lng) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.action_navigate))
+                        Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Map", fontSize = 13.sp)
                     }
                 }
 
                 if (!contactPhone.isNullOrBlank()) {
                     OutlinedButton(
                         onClick = { onCall(contactPhone) },
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.action_call))
+                        Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Call", fontSize = 13.sp)
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SiteLogsTab(
+    logs: List<IncidentEntity>,
+    onAddLogClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Site Activity History (${logs.size})",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+
+            TextButton(onClick = onAddLogClick) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("+ New Log Entry", fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (logs.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "No notes or issues recorded for this site yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = onAddLogClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Add First Log Entry", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(logs, key = { it.id }) { log ->
+                    val cat = log.category.lowercase()
+                    val (badgeText, badgeColor, badgeBg) = when {
+                        cat.contains("issue") || log.isOutage == 1 -> Triple("ISSUE", TagIssueColor, TagIssueBg)
+                        cat.contains("maint") || cat.contains("repair") -> Triple("MAINTENANCE", TagMaintColor, TagMaintBg)
+                        cat.contains("visit") || cat.contains("audit") -> Triple("VISIT", TagVisitColor, TagVisitBg)
+                        else -> Triple("NOTE", TagNoteColor, TagNoteBg)
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = CardDefaults.outlinedCardBorder(),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(badgeBg)
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = badgeText,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            color = badgeColor,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.sp
+                                        )
+                                    )
+                                }
+
+                                Text(
+                                    text = Dates.formatDateTime(log.occurredAt),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            val text = log.description ?: log.title
+                            if (text.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    lineHeight = 20.sp
+                                )
+                            }
+
+                            if (!log.actionTaken.isNullOrBlank() && log.actionTaken != text) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Action: ${log.actionTaken}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFF15803D),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            if (!log.engineer.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = log.engineer,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpecsTab(
+    groupedSpecs: Map<String, List<SiteFieldEntity>>,
+    filterQuery: String,
+    onFilterChange: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        OutlinedTextField(
+            value = filterQuery,
+            onValueChange = onFilterChange,
+            placeholder = { Text("Filter specifications (e.g. SMPS, DG, Battery)...") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            shape = RoundedCornerShape(8.dp)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val filteredGroups = remember(groupedSpecs, filterQuery) {
+            if (filterQuery.isBlank()) groupedSpecs
+            else {
+                val q = filterQuery.trim().lowercase(Locale.US)
+                groupedSpecs.mapValues { (_, fields) ->
+                    fields.filter {
+                        it.fieldKey.lowercase(Locale.US).contains(q) ||
+                                (it.fieldValue?.lowercase(Locale.US)?.contains(q) == true)
+                    }
+                }.filterValues { it.isNotEmpty() }
+            }
+        }
+
+        if (filteredGroups.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (filterQuery.isBlank()) "No equipment specifications available." else "No specs match \"$filterQuery\"",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                filteredGroups.forEach { (groupName, fields) ->
+                    item(key = groupName) {
+                        SpecGroupCard(groupName = groupName, fields = fields)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpecGroupCard(groupName: String, fields: List<SiteFieldEntity>) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = CardDefaults.outlinedCardBorder(),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = groupName,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = BrandPrimary
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            fields.forEachIndexed { index, field ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = field.fieldKey,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                    Text(
+                        text = field.fieldValue ?: "—",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (index < fields.lastIndex) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
                 }
             }
         }
@@ -347,7 +624,7 @@ private fun OverviewRow(label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
+            .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
@@ -363,272 +640,7 @@ private fun OverviewRow(label: String, value: String) {
             modifier = Modifier.weight(1f)
         )
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-}
-
-@Composable
-private fun SpecsTab(
-    groupedSpecs: Map<String, List<SiteFieldEntity>>,
-    filterQuery: String,
-    onFilterChange: (String) -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        OutlinedTextField(
-            value = filterQuery,
-            onValueChange = onFilterChange,
-            placeholder = { Text("Filter specifications (e.g. SMPS, rating, DG)...") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 12.dp),
-            singleLine = true
-        )
-
-        val filteredGroups = groupedSpecs.mapValues { (_, fields) ->
-            if (filterQuery.isBlank()) fields else {
-                fields.filter {
-                    it.fieldKey.contains(filterQuery, ignoreCase = true) ||
-                            (it.fieldValue?.contains(filterQuery, ignoreCase = true) == true)
-                }
-            }
-        }.filter { it.value.isNotEmpty() }
-
-        if (filteredGroups.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No matching specifications found.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                filteredGroups.forEach { (groupName, fields) ->
-                    item(key = groupName) {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text(
-                                    text = groupName,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                fields.forEach { field ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(
-                                            text = field.fieldKey,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.weight(0.45f)
-                                        )
-                                        Text(
-                                            text = field.fieldValue ?: "—",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            fontWeight = FontWeight.Medium,
-                                            fontFamily = FontFamily.Monospace,
-                                            modifier = Modifier.weight(0.55f)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun IncidentsTab(
-    sapId: String,
-    incidents: List<app.telecom.sitetracker.data.entity.IncidentEntity>,
-    onLogIncident: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Incident History",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Button(onClick = onLogIncident) {
-                Text("Log Incident")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (incidents.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No incidents recorded for $sapId",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(incidents, key = { it.id }) { incident ->
-                    val isOutage = incident.isOutage == 1
-                    val isResolved = incident.status == "Resolved" || incident.status == "Closed"
-
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isOutage && !isResolved) Color(0xFFFFF7ED) else MaterialTheme.colorScheme.surface
-                        ),
-                        border = CardDefaults.outlinedCardBorder(),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    // Severity
-                                    val sevColor = when (incident.severity) {
-                                        "Critical" -> SeverityCritical
-                                        "Major" -> SeverityMajor
-                                        "Minor" -> SeverityMinor
-                                        else -> Color(0xFF64748B)
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(sevColor.copy(alpha = 0.15f))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = incident.severity,
-                                            style = MaterialTheme.typography.labelSmall.copy(color = sevColor, fontWeight = FontWeight.Bold)
-                                        )
-                                    }
-
-                                    // Type badge
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isOutage) Color(0xFFFEF2F2) else MaterialTheme.colorScheme.primaryContainer)
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = if (isOutage) "OUTAGE" else "VISIT",
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                color = if (isOutage) SeverityCritical else MaterialTheme.colorScheme.onPrimaryContainer,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        )
-                                    }
-
-                                    // Status badge
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(4.dp))
-                                            .background(if (isResolved) Color(0xFFDCFCE7) else Color(0xFFFEF3C7))
-                                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    ) {
-                                        Text(
-                                            text = incident.status,
-                                            style = MaterialTheme.typography.labelSmall.copy(
-                                                color = if (isResolved) Color(0xFF15803D) else Color(0xFFB45309),
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        )
-                                    }
-                                }
-
-                                Text(
-                                    text = Dates.formatDateTime(incident.occurredAt),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Text(
-                                text = incident.title,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            Text(
-                                text = "Category: ${incident.category}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            if (!incident.description.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = incident.description,
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-
-                            if (!incident.actionTaken.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Action: ${incident.actionTaken}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF15803D),
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-
-                            if (!incident.engineer.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Tech: ${incident.engineer}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 }
 
 private fun launchNavigation(context: Context, lat: Double, lng: Double, label: String) {
@@ -637,11 +649,10 @@ private fun launchNavigation(context: Context, lat: Double, lng: Double, label: 
     try {
         context.startActivity(intent)
     } catch (_: Exception) {
-        // Fallback to browser Google Maps URL
         val webUri = Uri.parse("https://maps.google.com/?q=$lat,$lng")
         try {
             context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             Toast.makeText(context, "Could not open map", Toast.LENGTH_SHORT).show()
         }
     }
@@ -685,165 +696,3 @@ private fun shareSiteDetails(
 }
 
 private fun Double.format(digits: Int): String = String.format(Locale.US, "%.${digits}f", this)
-
-@Composable
-private fun BeforeYouGoCard(
-    count: Int,
-    dominantCategory: String?,
-    recommendation: String?
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
-        border = BorderStroke(1.5.dp, SeverityCritical)
-    ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Warning, contentDescription = null, tint = SeverityCritical, modifier = Modifier.size(20.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "BEFORE-YOU-GO REPEAT FAULT ALERT",
-                    fontWeight = FontWeight.Bold,
-                    color = SeverityCritical,
-                    style = MaterialTheme.typography.titleSmall
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Site has experienced $count outages in the last 30 days (Frequent repeat fault).",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            if (!dominantCategory.isNullOrBlank()) {
-                Text(
-                    text = "Primary Root Cause: $dominantCategory",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (!recommendation.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Recommendation: $recommendation",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF991B1B))
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun LiveOutageStatusBar(
-    openOutage: IncidentEntity?,
-    onMarkDown: () -> Unit,
-    onRestore: () -> Unit
-) {
-    if (openOutage != null) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7ED)),
-            border = BorderStroke(1.dp, SeverityCritical)
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(SeverityCritical)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "SITE CURRENTLY DOWN",
-                            fontWeight = FontWeight.Bold,
-                            color = SeverityCritical,
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                    }
-
-                    val now = System.currentTimeMillis()
-                    val downAt = openOutage.downAt ?: openOutage.occurredAt
-                    val durationHours = if (now > downAt) (now - downAt) / 3600000.0 else 0.0
-                    Text(
-                        text = "Elapsed: ${Dates.formatHours(durationHours)}",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = SeverityCritical
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "${openOutage.category}: ${openOutage.title}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Button(
-                    onClick = onRestore,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("1-Tap Restore Site Now", fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            }
-        }
-    } else {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-            border = BorderStroke(1.dp, Color(0xFF86EFAC))
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF16A34A))
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "SITE OPERATIONAL",
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF16A34A),
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                }
-
-                Button(
-                    onClick = onMarkDown,
-                    colors = ButtonDefaults.buttonColors(containerColor = SeverityCritical),
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.height(36.dp)
-                ) {
-                    Text("Mark Down", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                }
-            }
-        }
-    }
-}
-

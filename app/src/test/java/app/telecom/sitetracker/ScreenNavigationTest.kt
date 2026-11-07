@@ -11,7 +11,7 @@ class ScreenNavigationTest {
     @Test
     fun testBottomNavItemsAreNotNull() {
         val items = Screen.bottomNavItems
-        assertEquals(5, items.size)
+        assertEquals(3, items.size)
         for (item in items) {
             assertNotNull("Nav item must not be null", item)
             assertNotNull("Route must not be null", item.route)
@@ -21,8 +21,10 @@ class ScreenNavigationTest {
 
     @Test
     fun testRoutesMatch() {
-        assertEquals("home", Screen.Home.route)
         assertEquals("sites", Screen.Sites.route)
+        assertEquals("activity", Screen.Activity.route)
+        assertEquals("tools", Screen.Tools.route)
+        assertEquals("home", Screen.Home.route)
         assertEquals("map", Screen.Map.route)
         assertEquals("register", Screen.Register.route)
         assertEquals("insights", Screen.Insights.route)

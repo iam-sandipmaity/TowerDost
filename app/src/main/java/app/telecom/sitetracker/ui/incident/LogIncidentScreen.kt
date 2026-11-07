@@ -1,6 +1,5 @@
 package app.telecom.sitetracker.ui.incident
 
-import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
@@ -13,8 +12,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,11 +29,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
@@ -44,18 +40,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -80,30 +71,34 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.IncidentPhotoEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
-import app.telecom.sitetracker.ui.theme.SapIdStyle
-import app.telecom.sitetracker.ui.theme.SeverityCritical
-import app.telecom.sitetracker.ui.theme.SeverityMajor
-import app.telecom.sitetracker.ui.theme.SeverityMinor
-import app.telecom.sitetracker.ui.theme.TealPrimary
+import app.telecom.sitetracker.ui.theme.BrandPrimary
+import app.telecom.sitetracker.ui.theme.TagIssueBg
+import app.telecom.sitetracker.ui.theme.TagIssueColor
+import app.telecom.sitetracker.ui.theme.TagMaintBg
+import app.telecom.sitetracker.ui.theme.TagMaintColor
+import app.telecom.sitetracker.ui.theme.TagNoteBg
+import app.telecom.sitetracker.ui.theme.TagNoteColor
+import app.telecom.sitetracker.ui.theme.TagVisitBg
+import app.telecom.sitetracker.ui.theme.TagVisitColor
 import app.telecom.sitetracker.util.BitmapUtils
 import app.telecom.sitetracker.util.Dates
 import java.io.File
 
-private val CATEGORIES = listOf(
-    "Power", "DG", "Battery", "SMPS", "Transmission", "OFC", "BTS-RAN", "AC", "Civil", "Security", "Other"
-)
+private enum class LogType(val label: String, val icon: String, val textColor: Color, val bgColor: Color) {
+    ISSUE("Issue / Fault", "⚠️", TagIssueColor, TagIssueBg),
+    MAINTENANCE("Maintenance", "🔧", TagMaintColor, TagMaintBg),
+    VISIT("Site Visit", "📋", TagVisitColor, TagVisitBg),
+    NOTE("General Note", "📝", TagNoteColor, TagNoteBg)
+}
 
-private val SEVERITIES = listOf("Critical", "Major", "Minor", "Info")
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LogIncidentScreen(
     viewModel: LogIncidentViewModel,
@@ -116,11 +111,20 @@ fun LogIncidentScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollState = rememberScrollState()
 
+    var selectedType by remember {
+        mutableStateOf(
+            when (uiState.category.lowercase()) {
+                "maintenance" -> LogType.MAINTENANCE
+                "visit", "inspection" -> LogType.VISIT
+                "note", "general" -> LogType.NOTE
+                else -> LogType.ISSUE
+            }
+        )
+    }
+
     var cameraCaptureUri by remember { mutableStateOf<Uri?>(null) }
     var cameraCaptureFile by remember { mutableStateOf<File?>(null) }
-
-    var showDownAtPicker by remember { mutableStateOf(false) }
-    var showRestoredAtPicker by remember { mutableStateOf(false) }
+    var showDateTimePicker by remember { mutableStateOf(false) }
 
     // Camera Launcher
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -144,15 +148,6 @@ fun LogIncidentScreen(
         }
     }
 
-    // Location Permission Launcher
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            viewModel.stampGps(context)
-        }
-    }
-
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { msg ->
             snackbarHostState.showSnackbar(msg)
@@ -163,12 +158,7 @@ fun LogIncidentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = if (uiState.isOutage) "Log Site Outage" else "Log Site Incident",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+                title = { Text("Add Site Log / Note", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -177,6 +167,7 @@ fun LogIncidentScreen(
                 actions = {
                     TextButton(
                         onClick = {
+                            viewModel.setCategory(selectedType.label.split(" ").first())
                             viewModel.saveIncident { incidentId, sapId ->
                                 onIncidentSaved(sapId, incidentId)
                             }
@@ -186,7 +177,7 @@ fun LogIncidentScreen(
                         if (uiState.isSaving) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         } else {
-                            Text("SAVE", fontWeight = FontWeight.Bold, color = TealPrimary)
+                            Text("SAVE", fontWeight = FontWeight.Bold, color = BrandPrimary, fontSize = 15.sp)
                         }
                     }
                 },
@@ -204,18 +195,15 @@ fun LogIncidentScreen(
                 .padding(innerPadding)
                 .verticalScroll(scrollState)
                 .imePadding()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
-            // 1. Target Site Selector
-            Text("Target Site *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-
+            // 1. Target Site Header Card
             if (uiState.selectedSite != null) {
                 val site = uiState.selectedSite!!
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = CardDefaults.outlinedCardBorder()
                 ) {
                     Row(
@@ -226,13 +214,27 @@ fun LogIncidentScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(site.sapId, style = SapIdStyle.copy(fontSize = 18.sp, color = TealPrimary))
+                            Text(
+                                text = site.sapId,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = BrandPrimary
+                            )
                             if (!site.name.isNullOrBlank()) {
-                                Text(site.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = site.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
-                            val loc = listOfNotNull(site.district, site.circle, site.state).joinToString(", ")
+                            val loc = listOfNotNull(site.district, site.city, site.circle).joinToString(" • ")
                             if (loc.isNotBlank()) {
-                                Text(loc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    text = loc,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                         if (uiState.initialSapId.isNullOrBlank()) {
@@ -243,11 +245,14 @@ fun LogIncidentScreen(
                     }
                 }
             } else {
+                // Search Site box
                 Column {
+                    Text("Select Target Site *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
                         value = uiState.siteSearchQuery,
                         onValueChange = { viewModel.onSiteSearchQueryChanged(it) },
-                        placeholder = { Text("Search SAP ID, Name, or City...") },
+                        placeholder = { Text("Search SAP ID, Site Name, or City...") },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                         trailingIcon = {
                             if (uiState.isSearchingSites) {
@@ -278,10 +283,15 @@ fun LogIncidentScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column {
-                                            Text(site.sapId, style = SapIdStyle.copy(color = TealPrimary))
+                                            Text(
+                                                site.sapId,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.Bold,
+                                                color = BrandPrimary
+                                            )
                                             Text(site.name ?: "Unnamed Site", style = MaterialTheme.typography.bodySmall)
                                         }
-                                        Text(site.district ?: site.circle ?: "", style = MaterialTheme.typography.labelSmall)
+                                        Text(site.city ?: site.district ?: "", style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                             }
@@ -290,320 +300,62 @@ fun LogIncidentScreen(
                 }
             }
 
-            // 2. Type Selector: Outage vs Incident
-            Text("Issue Classification", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                FilterChip(
-                    selected = uiState.isOutage,
-                    onClick = { viewModel.setIsOutage(true) },
-                    label = { Text("🚨 Site Outage (Down)", fontWeight = FontWeight.SemiBold) },
-                    modifier = Modifier.weight(1f),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = Color(0xFFFEF2F2),
-                        selectedLabelColor = SeverityCritical
-                    )
-                )
-                FilterChip(
-                    selected = !uiState.isOutage,
-                    onClick = { viewModel.setIsOutage(false) },
-                    label = { Text("🔧 Visit / Incident", fontWeight = FontWeight.SemiBold) },
-                    modifier = Modifier.weight(1f),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                )
-            }
-
-            // 3. Severity Chips
-            Text("Severity", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                for (sev in SEVERITIES) {
-                    val isSelected = uiState.severity == sev
-                    val color = when (sev) {
-                        "Critical" -> SeverityCritical
-                        "Major" -> SeverityMajor
-                        "Minor" -> SeverityMinor
-                        else -> Color(0xFF64748B)
-                    }
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.setSeverity(sev) },
-                        label = { Text(sev, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        modifier = Modifier.weight(1f),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = color.copy(alpha = 0.2f),
-                            selectedLabelColor = color
-                        )
-                    )
-                }
-            }
-
-            // 4. Category Selector
-            Text("Category / Subsystem", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                for (cat in CATEGORIES) {
-                    val isSelected = uiState.category == cat
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.setCategory(cat) },
-                        label = { Text(cat, fontSize = 12.sp) }
-                    )
-                }
-            }
-
-            // 5. Root Cause Reason Dropdown
-            Text("Root Cause Reason", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            var reasonDropdownExpanded by remember { mutableStateOf(false) }
-            val selectedReason = uiState.activeReasons.find { it.id == uiState.selectedReasonId }
-
-            ExposedDropdownMenuBox(
-                expanded = reasonDropdownExpanded,
-                onExpandedChange = { reasonDropdownExpanded = !reasonDropdownExpanded },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = selectedReason?.label ?: "Select a root cause reason...",
-                    onValueChange = {},
-                    readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = reasonDropdownExpanded) },
-                    modifier = Modifier
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                        .fillMaxWidth(),
-                    shape = RoundedCornerShape(8.dp)
-                )
-
-                ExposedDropdownMenu(
-                    expanded = reasonDropdownExpanded,
-                    onDismissRequest = { reasonDropdownExpanded = false }
-                ) {
-                    for (reason in uiState.activeReasons) {
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(reason.label, fontWeight = FontWeight.Medium)
-                                    Text(
-                                        text = "${reason.category ?: "Other"} • ${if (reason.countsTowardDowntime == 1) "Counts as downtime" else "Excluded"}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            },
-                            onClick = {
-                                viewModel.setSelectedReason(reason.id)
-                                reasonDropdownExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            // 6. Incident Summary / Title
-            Text("Incident Title / Short Summary *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            OutlinedTextField(
-                value = uiState.title,
-                onValueChange = { viewModel.setTitle(it) },
-                placeholder = { Text("e.g. EB phase fail, DG cranked manually") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = RoundedCornerShape(8.dp)
-            )
-
-            // 7. Time & Restored Checkbox
-            Text(
-                if (uiState.isOutage) "Outage Start Time *" else "Incident Timestamp *",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = CardDefaults.outlinedCardBorder()
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text("Selected Start Time (IST)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(
-                                text = Dates.formatDateTime(uiState.downAtMs),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = TealPrimary
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            OutlinedButton(onClick = { showDownAtPicker = true }) {
-                                Text("Set Date/Time")
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Quick adjustment chips
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        val nowMs = System.currentTimeMillis()
-                        FilterChip(
-                            selected = false,
-                            onClick = { viewModel.setDownAtMs(nowMs) },
-                            label = { Text("Now", fontSize = 11.sp) }
-                        )
-                        FilterChip(
-                            selected = false,
-                            onClick = { viewModel.setDownAtMs(nowMs - 3600000L) },
-                            label = { Text("-1 hr", fontSize = 11.sp) }
-                        )
-                        FilterChip(
-                            selected = false,
-                            onClick = { viewModel.setDownAtMs(nowMs - (3 * 3600000L)) },
-                            label = { Text("-3 hrs", fontSize = 11.sp) }
-                        )
-                        FilterChip(
-                            selected = false,
-                            onClick = { viewModel.setDownAtMs(nowMs - 86400000L) },
-                            label = { Text("Yesterday", fontSize = 11.sp) }
-                        )
-                    }
-                }
-            }
-
-            if (uiState.isOutage) {
+            // 2. Log Type (4 clear, simple chips)
+            Column {
+                Text("Log Category", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Checkbox(
-                        checked = uiState.isRestored,
-                        onCheckedChange = { viewModel.setIsRestored(it) }
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Already Restored? (Log resolved past outage)", style = MaterialTheme.typography.bodyMedium)
-                }
-
-                if (uiState.isRestored) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
-                        border = CardDefaults.outlinedCardBorder()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text("Restoration Time (IST)", style = MaterialTheme.typography.labelSmall, color = Color(0xFF166534))
-                                    Text(
-                                        text = Dates.formatDateTime(uiState.restoredAtMs),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF15803D)
-                                    )
-                                }
-                                OutlinedButton(onClick = { showRestoredAtPicker = true }) {
-                                    Text("Set Date/Time")
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Quick adjustment chips for restore
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                val nowMs = System.currentTimeMillis()
-                                FilterChip(
-                                    selected = false,
-                                    onClick = { viewModel.setRestoredAtMs(nowMs) },
-                                    label = { Text("Now", fontSize = 11.sp) }
+                    for (type in LogType.values()) {
+                        val isSelected = selectedType == type
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedType = type
+                                viewModel.setCategory(type.label.split(" ").first())
+                            },
+                            label = {
+                                Text(
+                                    text = "${type.icon} ${type.label.split(" ").first()}",
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 12.sp
                                 )
-                                FilterChip(
-                                    selected = false,
-                                    onClick = { viewModel.setRestoredAtMs(uiState.downAtMs + 3600000L) },
-                                    label = { Text("+1h after down", fontSize = 11.sp) }
-                                )
-                                FilterChip(
-                                    selected = false,
-                                    onClick = { viewModel.setRestoredAtMs(uiState.downAtMs + (3 * 3600000L)) },
-                                    label = { Text("+3h after down", fontSize = 11.sp) }
-                                )
-                            }
-                        }
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = type.bgColor,
+                                selectedLabelColor = type.textColor
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
 
-            // 8. Description & Action Taken
-            Text("Fault Details & Action Taken", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            OutlinedTextField(
-                value = uiState.description,
-                onValueChange = { viewModel.setDescription(it) },
-                label = { Text("Description / Observations") },
-                placeholder = { Text("e.g. Discovered burnt fuse in EB cutout box, battery holding at 48.1V") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2,
-                maxLines = 4,
-                shape = RoundedCornerShape(8.dp)
-            )
-
-            OutlinedTextField(
-                value = uiState.actionTaken,
-                onValueChange = { viewModel.setActionTaken(it) },
-                label = { Text("Action Taken / Remediation") },
-                placeholder = { Text("e.g. Replaced 63A HRC fuse, DG run for 1.2 hrs until EB restored") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2,
-                maxLines = 4,
-                shape = RoundedCornerShape(8.dp)
-            )
-
-            // 9. Technician Name & Ticket Reference
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+            // 3. What happened / Note Details
+            Column {
+                Text("Details / Remarks *", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(
-                    value = uiState.engineer,
-                    onValueChange = { viewModel.setEngineer(it) },
-                    label = { Text("Technician") },
-                    placeholder = { Text("Name / Phone") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    shape = RoundedCornerShape(8.dp)
-                )
-
-                OutlinedTextField(
-                    value = uiState.ticketRef,
-                    onValueChange = { viewModel.setTicketRef(it) },
-                    label = { Text("Ticket Ref") },
-                    placeholder = { Text("TT / CR #") },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
+                    value = uiState.description,
+                    onValueChange = {
+                        viewModel.setDescription(it)
+                        if (uiState.title.isBlank() || uiState.title.endsWith("Log") || uiState.title.endsWith("Issue")) {
+                            viewModel.setTitle(it.take(50).trim())
+                        }
+                    },
+                    placeholder = {
+                        Text("Describe what happened, actions taken, or observations at this site (e.g. EB fault, replaced SMPS module, battery backup 2.5 hrs, fuel filled)...")
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 4,
+                    maxLines = 8,
                     shape = RoundedCornerShape(8.dp)
                 )
             }
 
-            // 10. GPS Location Stamp
-            Text("Field GPS Stamp", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            // 4. Date & Time Strip
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -612,115 +364,116 @@ fun LogIncidentScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(12.dp),
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        if (uiState.gpsLat != null && uiState.gpsLng != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.EventNote, contentDescription = null, tint = BrandPrimary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("Log Timestamp", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                text = "Lat: %.5f, Lng: %.5f".format(uiState.gpsLat, uiState.gpsLng),
+                                text = Dates.formatDateTime(uiState.downAtMs),
                                 style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.Bold
                             )
-                            val acc = uiState.gpsAccuracyM?.let { " (±%.1fm)".format(it) } ?: ""
-                            Text("Accuracy$acc", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                            if (uiState.gpsDistanceFromSiteM != null) {
-                                val dist = uiState.gpsDistanceFromSiteM!!
-                                val color = if (dist <= 500) Color(0xFF16A34A) else SeverityMajor
-                                Text(
-                                    text = if (dist < 1000) "%.0fm from site".format(dist) else "%.2fkm from site".format(dist / 1000.0),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = color)
-                                )
-                            }
-                        } else {
-                            Text("No GPS location stamped", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
                     OutlinedButton(
-                        onClick = {
-                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                        }
+                        onClick = { showDateTimePicker = true },
+                        shape = RoundedCornerShape(6.dp)
                     ) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (uiState.gpsLat != null) "Update" else "Stamp GPS")
+                        Text("Change", fontSize = 12.sp)
                     }
                 }
             }
 
-            // 11. Photos
-            Text("Photos & Evidence (${uiState.photos.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-            Row(
+            // 5. Technician Name / Info (Optional)
+            OutlinedTextField(
+                value = uiState.engineer,
+                onValueChange = { viewModel.setEngineer(it) },
+                label = { Text("Technician / Engineer (Optional)") },
+                placeholder = { Text("e.g. Ramesh Kumar (9876543210)") },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        val pair = BitmapUtils.createImageCaptureUri(context)
-                        cameraCaptureUri = pair.first
-                        cameraCaptureFile = pair.second
-                        cameraLauncher.launch(pair.first)
-                    },
-                    modifier = Modifier.weight(1f)
+                singleLine = true,
+                shape = RoundedCornerShape(8.dp)
+            )
+
+            // 6. Photos (Optional)
+            Column {
+                Text("Photos (${uiState.photos.size})", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Take Photo")
+                    OutlinedButton(
+                        onClick = {
+                            val pair = BitmapUtils.createImageCaptureUri(context)
+                            cameraCaptureUri = pair.first
+                            cameraCaptureFile = pair.second
+                            cameraLauncher.launch(pair.first)
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Take Photo")
+                    }
+
+                    OutlinedButton(
+                        onClick = { pickerLauncher.launch("image/*") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Gallery")
+                    }
                 }
 
-                OutlinedButton(
-                    onClick = { pickerLauncher.launch("image/*") },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.PhotoLibrary, contentDescription = null)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Gallery")
-                }
-            }
-
-            if (uiState.photos.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(uiState.photos, key = { it.id }) { photo ->
-                        PhotoThumbnailItem(
-                            photo = photo,
-                            context = context,
-                            onRemove = { viewModel.removePhoto(photo.id) }
-                        )
+                if (uiState.photos.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(uiState.photos, key = { it.id }) { photo ->
+                            PhotoThumbnailItem(
+                                photo = photo,
+                                context = context,
+                                onRemove = { viewModel.removePhoto(photo.id) }
+                            )
+                        }
                     }
                 }
             }
 
-            // 12. Submit Button
-            Spacer(modifier = Modifier.height(8.dp))
+            // 7. Save Button
+            Spacer(modifier = Modifier.height(4.dp))
             Button(
                 onClick = {
+                    viewModel.setCategory(selectedType.label.split(" ").first())
                     viewModel.saveIncident { incidentId, sapId ->
                         onIncidentSaved(sapId, incidentId)
                     }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
+                    .height(50.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
                 shape = RoundedCornerShape(8.dp),
-                enabled = !uiState.isSaving
+                enabled = !uiState.isSaving && uiState.selectedSite != null
             ) {
                 if (uiState.isSaving) {
-                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
                 } else {
                     Icon(Icons.Default.Check, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (uiState.isOutage) "LOG OUTAGE & UPDATE REGISTER" else "RECORD INCIDENT",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
+                    Text("SAVE LOG ENTRY", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             }
 
@@ -728,28 +481,15 @@ fun LogIncidentScreen(
         }
     }
 
-    // Date & Time Picker Dialogs
-    if (showDownAtPicker) {
+    if (showDateTimePicker) {
         DateTimePickerDialog(
-            title = if (uiState.isOutage) "Set Outage Start Time" else "Set Incident Time",
+            title = "Set Log Date & Time",
             initialEpochMs = uiState.downAtMs,
             onConfirm = {
                 viewModel.setDownAtMs(it)
-                showDownAtPicker = false
+                showDateTimePicker = false
             },
-            onDismiss = { showDownAtPicker = false }
-        )
-    }
-
-    if (showRestoredAtPicker) {
-        DateTimePickerDialog(
-            title = "Set Restoration Time",
-            initialEpochMs = uiState.restoredAtMs,
-            onConfirm = {
-                viewModel.setRestoredAtMs(it)
-                showRestoredAtPicker = false
-            },
-            onDismiss = { showRestoredAtPicker = false }
+            onDismiss = { showDateTimePicker = false }
         )
     }
 }
@@ -772,18 +512,14 @@ fun DateTimePickerDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, fontWeight = FontWeight.Bold) },
         text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-            ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    text = "Enter date & time in Indian Standard Time (IST):",
+                    text = "Enter date & time (IST):",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = dateText,
@@ -807,58 +543,7 @@ fun DateTimePickerDialog(
 
                 if (errorText != null) {
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(errorText!!, color = SeverityCritical, style = MaterialTheme.typography.bodySmall)
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text("Quick Presets:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(6.dp))
-
-                val now = System.currentTimeMillis()
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    FilterChip(
-                        selected = false,
-                        onClick = {
-                            dateText = Dates.formatDate(now)
-                            timeText = Dates.formatTime(now)
-                            errorText = null
-                        },
-                        label = { Text("Now", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = false,
-                        onClick = {
-                            val oneHrAgo = now - 3600000L
-                            dateText = Dates.formatDate(oneHrAgo)
-                            timeText = Dates.formatTime(oneHrAgo)
-                            errorText = null
-                        },
-                        label = { Text("-1h", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = false,
-                        onClick = {
-                            val threeHrAgo = now - (3 * 3600000L)
-                            dateText = Dates.formatDate(threeHrAgo)
-                            timeText = Dates.formatTime(threeHrAgo)
-                            errorText = null
-                        },
-                        label = { Text("-3h", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = false,
-                        onClick = {
-                            val yesterday = now - 86400000L
-                            dateText = Dates.formatDate(yesterday)
-                            timeText = Dates.formatTime(yesterday)
-                            errorText = null
-                        },
-                        label = { Text("Yesterday", fontSize = 11.sp) }
-                    )
+                    Text(errorText!!, color = TagIssueColor, style = MaterialTheme.typography.bodySmall)
                 }
             }
         },
@@ -869,17 +554,15 @@ fun DateTimePickerDialog(
                     if (parsed != null) {
                         onConfirm(parsed)
                     } else {
-                        errorText = "Invalid format. Please use dd/MM/yyyy (e.g. 07/11/2026) and HH:mm (e.g. 14:30)."
+                        errorText = "Invalid date or time format."
                     }
                 }
             ) {
-                Text("Set Time", fontWeight = FontWeight.Bold, color = TealPrimary)
+                Text("Confirm", fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
 }
@@ -890,43 +573,39 @@ private fun PhotoThumbnailItem(
     context: Context,
     onRemove: () -> Unit
 ) {
-    val file = remember(photo.relPath) { File(context.filesDir, photo.relPath) }
-    val bitmapState = produceState<Bitmap?>(initialValue = null, key1 = file.absolutePath) {
-        value = BitmapUtils.loadThumbnailBitmap(file, maxDim = 180)
+    val bitmapState = produceState<Bitmap?>(initialValue = null, key1 = photo.relPath) {
+        val file = File(context.filesDir, photo.relPath)
+        value = BitmapUtils.loadThumbnailBitmap(file, 200)
     }
 
     Box(
         modifier = Modifier
-            .size(90.dp)
+            .size(80.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.LightGray)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+            .background(Color(0xFFE2E8F0))
     ) {
-        if (bitmapState.value != null) {
+        val bmp = bitmapState.value
+        if (bmp != null) {
             Image(
-                bitmap = bitmapState.value!!.asImageBitmap(),
-                contentDescription = photo.caption,
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
             }
         }
 
-        // Delete button
-        Box(
+        IconButton(
+            onClick = onRemove,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(4.dp)
-                .size(22.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.6f))
-                .clickable { onRemove() },
-            contentAlignment = Alignment.Center
+                .size(24.dp)
+                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
         ) {
-            Icon(Icons.Default.Close, contentDescription = "Delete", tint = Color.White, modifier = Modifier.size(14.dp))
+            Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.White, modifier = Modifier.size(14.dp))
         }
     }
 }

@@ -9,6 +9,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import app.telecom.sitetracker.SiteTrackerApp
+import app.telecom.sitetracker.ui.activity.ActivityScreen
+import app.telecom.sitetracker.ui.activity.ActivityViewModel
+import app.telecom.sitetracker.ui.tools.ToolsScreen
 import app.telecom.sitetracker.ui.home.HomeScreen
 import app.telecom.sitetracker.ui.home.HomeUiState
 import app.telecom.sitetracker.ui.importwizard.ImportWizardScreen
@@ -42,34 +45,10 @@ fun AppNavGraph(
 
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route,
+        startDestination = Screen.Sites.route,
         modifier = modifier
     ) {
-        // 1. Home Dashboard
-        composable(Screen.Home.route) {
-            HomeScreen(
-                uiState = homeUiState,
-                onSeedSampleData = onSeedSampleData,
-                onLogIncidentClick = {
-                    navController.navigate(Screen.LogIncident.createRoute())
-                },
-                onSiteClick = { sapId ->
-                    navController.navigate(Screen.SiteDetail.createRoute(sapId))
-                },
-                onDismissMessage = onDismissHomeMessage,
-                onTotalSitesClick = {
-                    navController.navigate(Screen.Sites.route)
-                },
-                onSitesDownClick = {
-                    navController.navigate(Screen.Register.route)
-                },
-                onOpenIncidentsClick = {
-                    navController.navigate(Screen.Register.route)
-                }
-            )
-        }
-
-        // 2. Sites Master Directory
+        // 1. Sites Master Directory (Main Tab 1)
         composable(Screen.Sites.route) {
             val siteListViewModel: SiteListViewModel = viewModel {
                 SiteListViewModel(
@@ -90,6 +69,57 @@ fun AppNavGraph(
                     navController.navigate(Screen.ImportWizard.route)
                 },
                 onSeedSampleData = onSeedSampleData
+            )
+        }
+
+        // 2. Activity / Site Logs Feed (Main Tab 2)
+        composable(Screen.Activity.route) {
+            val activityViewModel: ActivityViewModel = viewModel {
+                ActivityViewModel(
+                    incidentRepository = app.incidentRepository
+                )
+            }
+            ActivityScreen(
+                viewModel = activityViewModel,
+                onSiteClick = { sapId ->
+                    navController.navigate(Screen.SiteDetail.createRoute(sapId))
+                },
+                onAddLogClick = {
+                    navController.navigate(Screen.LogIncident.createRoute())
+                }
+            )
+        }
+
+        // 3. Tools & Data (Main Tab 3)
+        composable(Screen.Tools.route) {
+            ToolsScreen(
+                onNavigateToImport = {
+                    navController.navigate(Screen.ImportWizard.route)
+                }
+            )
+        }
+
+        // Legacy Home Dashboard
+        composable(Screen.Home.route) {
+            HomeScreen(
+                uiState = homeUiState,
+                onSeedSampleData = onSeedSampleData,
+                onLogIncidentClick = {
+                    navController.navigate(Screen.LogIncident.createRoute())
+                },
+                onSiteClick = { sapId ->
+                    navController.navigate(Screen.SiteDetail.createRoute(sapId))
+                },
+                onDismissMessage = onDismissHomeMessage,
+                onTotalSitesClick = {
+                    navController.navigate(Screen.Sites.route)
+                },
+                onSitesDownClick = {
+                    navController.navigate(Screen.Activity.route)
+                },
+                onOpenIncidentsClick = {
+                    navController.navigate(Screen.Activity.route)
+                }
             )
         }
 
@@ -130,7 +160,7 @@ fun AppNavGraph(
                 onNavigateBack = { navController.popBackStack() },
                 onImportComplete = {
                     navController.navigate(Screen.Sites.route) {
-                        popUpTo(Screen.Home.route)
+                        popUpTo(Screen.Sites.route) { inclusive = true }
                     }
                 }
             )
