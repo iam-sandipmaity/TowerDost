@@ -103,7 +103,8 @@ fun AppNavGraph(
                 SiteDetailViewModel(
                     sapId = sapId,
                     siteRepository = app.siteRepository,
-                    incidentRepository = app.incidentRepository
+                    incidentRepository = app.incidentRepository,
+                    outageRepository = app.outageRepository
                 )
             }
             SiteDetailScreen(
@@ -166,6 +167,8 @@ fun AppNavGraph(
                 DownRegisterViewModel(
                     outageRepository = app.outageRepository,
                     incidentRepository = app.incidentRepository,
+                    reasonRepository = app.reasonRepository,
+                    siteRepository = app.siteRepository,
                     clock = app.clock
                 )
             }

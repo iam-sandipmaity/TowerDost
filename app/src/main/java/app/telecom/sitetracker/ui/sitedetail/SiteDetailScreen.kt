@@ -48,6 +48,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,6 +93,16 @@ fun SiteDetailScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     var specFilterQuery by remember { mutableStateOf("") }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.userMessage, uiState.errorMessage) {
+        val msg = uiState.userMessage ?: uiState.errorMessage
+        if (msg != null) {
+            snackbarHostState.showSnackbar(msg)
+            viewModel.dismissUserMessage()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -110,6 +127,7 @@ fun SiteDetailScreen(
                 )
             )
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { innerPadding ->
         if (uiState.isLoading) {
@@ -143,6 +161,22 @@ fun SiteDetailScreen(
                     contactPhone = uiState.contactPhone,
                     onNavigate = { lat, lng -> launchNavigation(context, lat, lng, site.sapId) },
                     onCall = { phone -> launchCall(context, phone) }
+                )
+
+                // Before-you-go Repeat Fault Alert
+                if (uiState.isRepeatFault) {
+                    BeforeYouGoCard(
+                        count = uiState.repeatFaultCount,
+                        dominantCategory = uiState.dominantCategory,
+                        recommendation = uiState.recommendation
+                    )
+                }
+
+                // Live Outage Status Banner
+                LiveOutageStatusBar(
+                    openOutage = uiState.openOutage,
+                    onMarkDown = { onLogIncident(site.sapId) },
+                    onRestore = { viewModel.restoreCurrentOutage() }
                 )
 
                 // Tabs: Overview, Specs, Incidents
@@ -651,3 +685,165 @@ private fun shareSiteDetails(
 }
 
 private fun Double.format(digits: Int): String = String.format(Locale.US, "%.${digits}f", this)
+
+@Composable
+private fun BeforeYouGoCard(
+    count: Int,
+    dominantCategory: String?,
+    recommendation: String?
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
+        border = BorderStroke(1.5.dp, SeverityCritical)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = SeverityCritical, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "BEFORE-YOU-GO REPEAT FAULT ALERT",
+                    fontWeight = FontWeight.Bold,
+                    color = SeverityCritical,
+                    style = MaterialTheme.typography.titleSmall
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Site has experienced $count outages in the last 30 days (Frequent repeat fault).",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (!dominantCategory.isNullOrBlank()) {
+                Text(
+                    text = "Primary Root Cause: $dominantCategory",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (!recommendation.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Recommendation: $recommendation",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold, color = Color(0xFF991B1B))
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveOutageStatusBar(
+    openOutage: IncidentEntity?,
+    onMarkDown: () -> Unit,
+    onRestore: () -> Unit
+) {
+    if (openOutage != null) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7ED)),
+            border = BorderStroke(1.dp, SeverityCritical)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(SeverityCritical)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "SITE CURRENTLY DOWN",
+                            fontWeight = FontWeight.Bold,
+                            color = SeverityCritical,
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    }
+
+                    val now = System.currentTimeMillis()
+                    val downAt = openOutage.downAt ?: openOutage.occurredAt
+                    val durationHours = if (now > downAt) (now - downAt) / 3600000.0 else 0.0
+                    Text(
+                        text = "Elapsed: ${Dates.formatHours(durationHours)}",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = SeverityCritical
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "${openOutage.category}: ${openOutage.title}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = onRestore,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("1-Tap Restore Site Now", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    } else {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+            border = BorderStroke(1.dp, Color(0xFF86EFAC))
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF16A34A))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "SITE OPERATIONAL",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF16A34A),
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                }
+
+                Button(
+                    onClick = onMarkDown,
+                    colors = ButtonDefaults.buttonColors(containerColor = SeverityCritical),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text("Mark Down", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+

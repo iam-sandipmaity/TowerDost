@@ -112,4 +112,9 @@ class IncidentRepository(private val db: AppDatabase) {
     suspend fun clearAllIncidents() {
         incidentDao.deleteAllIncidents()
     }
+
+    suspend fun updateIncidentReason(incidentId: String, newReasonId: String, updatedAt: Long = System.currentTimeMillis()) {
+        val existing = incidentDao.getIncidentById(incidentId) ?: return
+        saveIncident(existing.copy(reasonId = newReasonId, updatedAt = updatedAt), changedBy = "Field Engineer", changeTimeMs = updatedAt)
+    }
 }

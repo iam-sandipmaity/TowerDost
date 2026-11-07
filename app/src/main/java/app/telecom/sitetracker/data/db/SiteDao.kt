@@ -84,4 +84,10 @@ interface SiteDao {
 
     @Query("DELETE FROM site_search")
     suspend fun clearFts()
+
+    @Query("DELETE FROM sites WHERE sap_id LIKE 'DEL-9%' OR sap_id LIKE 'MUM-9%' OR sap_id LIKE 'KOL-9%' OR sap_id LIKE 'CHN-9%' OR sap_id LIKE 'BLR-9%'")
+    suspend fun deleteSampleSites()
+
+    @Query("DELETE FROM sites")
+    suspend fun deleteAllSites()
 }

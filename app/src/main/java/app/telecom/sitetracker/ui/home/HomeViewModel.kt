@@ -106,6 +106,19 @@ class HomeViewModel(private val app: SiteTrackerApp) : ViewModel() {
         }
     }
 
+    fun clearSampleData() {
+        viewModelScope.launch {
+            try {
+                app.siteRepository.deleteSampleSites()
+                app.incidentRepository.clearSampleIncidents()
+                refreshCalculatedMetrics()
+                _userMessage.value = "Sample data cleared. Ready for real field operations."
+            } catch (e: Exception) {
+                _userMessage.value = "Failed to clear sample data: ${e.message}"
+            }
+        }
+    }
+
     fun dismissUserMessage() {
         _userMessage.value = null
     }

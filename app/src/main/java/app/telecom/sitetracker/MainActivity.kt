@@ -133,6 +133,13 @@ fun MainAppShell(
                             onDismissRequest = { showMenu = false }
                         ) {
                             DropdownMenuItem(
+                                text = { Text("Log Outage / Incident") },
+                                onClick = {
+                                    showMenu = false
+                                    navController.navigate(Screen.LogIncident.createRoute())
+                                }
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Import Wizard") },
                                 onClick = {
                                     showMenu = false
@@ -179,6 +186,13 @@ fun MainAppShell(
                                             Exporter.shareCsvFile(context, file, "TowerDost Master Sites")
                                         } catch (_: Exception) {}
                                     }
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Remove Dummy / Sample Data") },
+                                onClick = {
+                                    showMenu = false
+                                    homeViewModel.clearSampleData()
                                 }
                             )
                         }

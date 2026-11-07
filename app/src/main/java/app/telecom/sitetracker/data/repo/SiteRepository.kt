@@ -93,4 +93,13 @@ class SiteRepository(private val db: AppDatabase) {
             siteDao.updateSite(site.copy(deletedAt = tombstoneTime))
         }
     }
+
+    suspend fun deleteSampleSites() {
+        siteDao.deleteSampleSites()
+    }
+
+    suspend fun deleteAllSites() {
+        siteDao.deleteAllSites()
+        siteDao.clearFts()
+    }
 }
