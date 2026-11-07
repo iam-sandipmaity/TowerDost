@@ -21,12 +21,12 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -36,19 +36,25 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.IncidentEntity
-import app.telecom.sitetracker.ui.theme.MetricMonoStyle
+import app.telecom.sitetracker.ui.components.EnterpriseListRow
+import app.telecom.sitetracker.ui.components.EnterpriseTopBar
+import app.telecom.sitetracker.ui.components.MetricTile
+import app.telecom.sitetracker.ui.components.StatusDotBadge
 import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.SeverityCritical
 import app.telecom.sitetracker.ui.theme.SeverityMajor
-import app.telecom.sitetracker.ui.theme.TealPrimary
+import app.telecom.sitetracker.ui.theme.StatusDownRed
+import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
+import app.telecom.sitetracker.ui.theme.TelecomAmber
+import app.telecom.sitetracker.ui.theme.TelemetryCyan
 import app.telecom.sitetracker.util.Dates
 
 @Composable
@@ -72,48 +78,80 @@ fun HomeScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Scaffold(
+        topBar = {
+            EnterpriseTopBar(
+                title = "Command Center",
+                subtitle = "${Dates.formatIndianNumber(uiState.kpis.totalSites.toLong())} Monitored Towers"
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier
+    ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(innerPadding)
         ) {
-            item { Spacer(modifier = Modifier.height(8.dp)) }
-
             // Clock Skew Warning Banner
             if (uiState.kpis.hasClockSkew) {
                 item {
-                    WarningBanner(
-                        message = stringResource(R.string.warning_clock_skew),
-                        backgroundColor = SeverityCritical.copy(alpha = 0.15f),
-                        textColor = SeverityCritical
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        WarningBanner(
+                            message = stringResource(R.string.warning_clock_skew),
+                            backgroundColor = SeverityCritical.copy(alpha = 0.15f),
+                            textColor = SeverityCritical
+                        )
+                    }
+                }
+            }
+
+            // Executive 3-Column Metric Strip
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val downCount = uiState.kpis.sitesDownNow
+                    MetricTile(
+                        label = "Down Now",
+                        value = downCount.toString(),
+                        valueColor = if (downCount > 0) StatusDownRed else StatusRestoredGreen,
+                        modifier = Modifier.weight(1f),
+                        onClick = onSitesDownClick
+                    )
+                    MetricTile(
+                        label = "Unrestored",
+                        value = "${uiState.openOutages.size}",
+                        valueColor = if (uiState.openOutages.isNotEmpty()) SeverityMajor else MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                        onClick = onOpenIncidentsClick
+                    )
+                    MetricTile(
+                        label = "24h Loss",
+                        value = Dates.formatHours(uiState.kpis.yesterdayDowntimeHours),
+                        valueColor = TelecomAmber,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            // Today Strip
-            item {
-                TodayStrip(
-                    sitesDownNow = uiState.kpis.sitesDownNow,
-                    stillDownCount = uiState.openOutages.size,
-                    yesterdayDowntimeHours = uiState.kpis.yesterdayDowntimeHours,
-                    onClick = onSitesDownClick
-                )
-            }
-
-            // Quick Actions
+            // Fast Action Dock
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Button(
                         onClick = onLogIncidentClick,
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = app.telecom.sitetracker.ui.theme.TelecomAmber),
+                        colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF0F172A))
@@ -145,226 +183,94 @@ fun HomeScreen(
                 }
             }
 
-            // KPI Grid
-            item {
-                Text(
-                    text = "Key Operations Metrics",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                KpiGrid(
-                    kpis = uiState.kpis,
-                    onTotalSitesClick = onTotalSitesClick,
-                    onOpenIncidentsClick = onOpenIncidentsClick,
-                    onCriticalOpenClick = onSitesDownClick
-                )
-            }
-
-            // Open Outages Section
+            // Secondary Metrics Strip
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Active Outages (${uiState.openOutages.size})",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                    MetricTile(
+                        label = "Total Master Sites",
+                        value = Dates.formatIndianNumber(uiState.kpis.totalSites.toLong()),
+                        valueColor = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                        onClick = onTotalSitesClick
                     )
+                    MetricTile(
+                        label = "Average MTTR (90d)",
+                        value = Dates.formatHours(uiState.kpis.avgMttrHours),
+                        valueColor = TelemetryCyan,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // Section Header: Active Outages Feed
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "LIVE OUTAGES",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = "${uiState.openOutages.size} active incidents",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
 
             if (uiState.openOutages.isEmpty()) {
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = CardDefaults.outlinedCardBorder()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 24.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = if (uiState.kpis.totalSites == 0)
-                                    "No master site data loaded yet. Tap 'Load Sample' to begin."
-                                else
-                                    "No open outages recorded. All sites reporting operational.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            text = if (uiState.kpis.totalSites == 0)
+                                "No master site data loaded. Tap 'Load Sample' to begin."
+                            else
+                                "Zero live outages recorded. All sites reporting operational.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             } else {
                 items(uiState.openOutages, key = { it.id }) { outage ->
-                    ActiveOutageCard(
+                    ActiveOutageRow(
                         outage = outage,
                         onSiteClick = { onSiteClick(outage.sapId) }
                     )
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
-        }
-
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-    }
-}
-
-@Composable
-fun TodayStrip(
-    sitesDownNow: Int,
-    stillDownCount: Int,
-    yesterdayDowntimeHours: Double,
-    onClick: () -> Unit = {}
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = CardDefaults.outlinedCardBorder()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text(
-                    text = "Sites Down Now",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = sitesDownNow.toString(),
-                    style = MetricMonoStyle.copy(
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (sitesDownNow > 0) app.telecom.sitetracker.ui.theme.StatusDownRed else app.telecom.sitetracker.ui.theme.StatusRestoredGreen
-                    )
-                )
-            }
-
-            Column {
-                Text(
-                    text = "Unrestored",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "$stillDownCount sites",
-                    style = MetricMonoStyle.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                )
-            }
-
-            Column {
-                Text(
-                    text = "Yesterday Downtime",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = Dates.formatHours(yesterdayDowntimeHours),
-                    style = MetricMonoStyle.copy(fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                )
-            }
+            item { Spacer(modifier = Modifier.height(80.dp)) }
         }
     }
 }
 
 @Composable
-fun KpiGrid(
-    kpis: app.telecom.sitetracker.data.repo.HomeKpiData,
-    onTotalSitesClick: () -> Unit = {},
-    onOpenIncidentsClick: () -> Unit = {},
-    onCriticalOpenClick: () -> Unit = {}
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            KpiCard(
-                title = "Total Master Sites",
-                value = Dates.formatIndianNumber(kpis.totalSites.toLong()),
-                modifier = Modifier.weight(1f),
-                onClick = onTotalSitesClick
-            )
-            KpiCard(
-                title = "Sites with Open Incidents",
-                value = kpis.openIncidentsCount.toString(),
-                modifier = Modifier.weight(1f),
-                valueColor = if (kpis.openIncidentsCount > 0) SeverityMajor else Color.Unspecified,
-                onClick = onOpenIncidentsClick
-            )
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            KpiCard(
-                title = "Critical Open",
-                value = kpis.criticalOpenCount.toString(),
-                modifier = Modifier.weight(1f),
-                valueColor = if (kpis.criticalOpenCount > 0) SeverityCritical else Color.Unspecified,
-                onClick = onCriticalOpenClick
-            )
-            KpiCard(
-                title = "Average MTTR (90d)",
-                value = Dates.formatHours(kpis.avgMttrHours),
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-fun KpiCard(
-    title: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    valueColor: Color = Color.Unspecified,
-    onClick: (() -> Unit)? = null
-) {
-    Card(
-        modifier = modifier,
-        onClick = onClick ?: {},
-        enabled = onClick != null,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder()
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = value,
-                style = MetricMonoStyle.copy(
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (valueColor != Color.Unspecified) valueColor else MaterialTheme.colorScheme.onSurface
-                )
-            )
-        }
-    }
-}
-
-@Composable
-fun ActiveOutageCard(
+fun ActiveOutageRow(
     outage: IncidentEntity,
     onSiteClick: () -> Unit
 ) {
@@ -373,64 +279,49 @@ fun ActiveOutageCard(
         ((now - outage.downAt) / Dates.MS_PER_DAY).toInt() + 1
     } else 1
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onSiteClick,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder()
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = outage.sapId,
-                    style = SapIdStyle.copy(color = TealPrimary)
-                )
-                // Running Day Counter Badge (Pinned visibility)
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(SeverityCritical)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "STILL DOWN - DAY $daysDown",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
+    EnterpriseListRow(onClick = onSiteClick) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                text = outage.title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
+                text = outage.sapId,
+                style = SapIdStyle.copy(fontSize = 16.sp, color = TelecomAmber)
             )
+            StatusDotBadge(
+                text = if (daysDown > 1) "STILL DOWN • DAY $daysDown" else "DOWN NOW",
+                color = StatusDownRed
+            )
+        }
 
-            Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Category: ${outage.category}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = "Since: ${Dates.formatDateTime(outage.downAt)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+        Text(
+            text = outage.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Reason: ${outage.category}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Since: ${Dates.formatDateTime(outage.downAt)}",
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
