@@ -64,11 +64,13 @@ class BackupManagerTest {
         val reasons = listOf(
             ReasonEntity(
                 id = "reason-eb-01",
-                code = "EB_FAIL",
                 label = "Grid / EB Supply Failure",
+                groupName = "Power",
                 category = "Power",
+                countsTowardDowntime = 1,
                 sortOrder = 1,
-                isDefault = 1
+                isHidden = 0,
+                isSeeded = 1
             )
         )
 
@@ -109,7 +111,11 @@ class BackupManagerTest {
         assertEquals(1, parsed.incidents[0].isOutage)
 
         assertEquals(1, parsed.reasons.size)
-        assertEquals("EB_FAIL", parsed.reasons[0].code)
+        assertEquals("reason-eb-01", parsed.reasons[0].id)
+        assertEquals("Grid / EB Supply Failure", parsed.reasons[0].label)
+        assertEquals("Power", parsed.reasons[0].groupName)
+        assertEquals(1, parsed.reasons[0].countsTowardDowntime)
+        assertEquals(1, parsed.reasons[0].isSeeded)
     }
 
     @Test(expected = IllegalArgumentException::class)

@@ -129,12 +129,14 @@ class BackupManager(
             for (r in data.reasons) {
                 val obj = JSONObject()
                 obj.put("id", r.id)
-                obj.put("code", r.code)
                 obj.put("label", r.label)
+                obj.putOpt("groupName", r.groupName)
                 obj.putOpt("category", r.category)
-                obj.put("sortOrder", r.sortOrder)
-                obj.put("isDefault", r.isDefault)
+                obj.put("countsTowardDowntime", r.countsTowardDowntime)
+                obj.putOpt("sortOrder", r.sortOrder)
                 obj.put("isHidden", r.isHidden)
+                obj.put("isSeeded", r.isSeeded)
+                obj.putOpt("updatedAt", r.updatedAt)
                 reasonsArray.put(obj)
             }
             root.put("reasons", reasonsArray)
@@ -231,12 +233,14 @@ class BackupManager(
                 reasons.add(
                     ReasonEntity(
                         id = obj.getString("id"),
-                        code = obj.getString("code"),
                         label = obj.getString("label"),
+                        groupName = if (obj.has("groupName")) obj.optString("groupName") else null,
                         category = if (obj.has("category")) obj.optString("category") else null,
-                        sortOrder = obj.optInt("sortOrder", 0),
-                        isDefault = obj.optInt("isDefault", 0),
-                        isHidden = obj.optInt("isHidden", 0)
+                        countsTowardDowntime = obj.optInt("countsTowardDowntime", 1),
+                        sortOrder = if (obj.has("sortOrder") && !obj.isNull("sortOrder")) obj.optInt("sortOrder") else null,
+                        isHidden = obj.optInt("isHidden", 0),
+                        isSeeded = obj.optInt("isSeeded", 0),
+                        updatedAt = if (obj.has("updatedAt") && !obj.isNull("updatedAt")) obj.optLong("updatedAt") else null
                     )
                 )
             }
