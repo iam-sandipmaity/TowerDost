@@ -4,7 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,7 +24,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Delete
@@ -40,7 +40,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,12 +49,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,11 +61,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,20 +72,24 @@ import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
-import app.telecom.sitetracker.ui.theme.BrandPrimary
+import app.telecom.sitetracker.ui.components.EnterpriseListRow
+import app.telecom.sitetracker.ui.components.EnterpriseSegmentedControl
+import app.telecom.sitetracker.ui.components.EnterpriseTopBar
+import app.telecom.sitetracker.ui.components.SearchCapsule
+import app.telecom.sitetracker.ui.components.StatusDotBadge
+import app.telecom.sitetracker.ui.theme.MetricMonoStyle
+import app.telecom.sitetracker.ui.theme.RFCyan
+import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
-import app.telecom.sitetracker.ui.theme.TagIssueBg
 import app.telecom.sitetracker.ui.theme.TagIssueColor
 import app.telecom.sitetracker.ui.theme.TagMaintBg
 import app.telecom.sitetracker.ui.theme.TagMaintColor
-import app.telecom.sitetracker.ui.theme.TagNoteBg
 import app.telecom.sitetracker.ui.theme.TagNoteColor
-import app.telecom.sitetracker.ui.theme.TagVisitBg
 import app.telecom.sitetracker.ui.theme.TagVisitColor
+import app.telecom.sitetracker.ui.theme.TelecomAmber
 import app.telecom.sitetracker.util.Dates
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SiteDetailScreen(
     viewModel: SiteDetailViewModel,
@@ -117,20 +115,19 @@ fun SiteDetailScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(uiState.site?.sapId ?: stringResource(R.string.site_detail_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            EnterpriseTopBar(
+                title = uiState.site?.sapId ?: stringResource(R.string.site_detail_title),
+                subtitle = listOfNotNull(uiState.site?.name, uiState.site?.city).joinToString(" • ").ifBlank { null },
+                onBack = onNavigateBack,
                 actions = {
                     IconButton(
-                        onClick = {
-                            viewModel.exportSingleSiteReport(context)
-                        }
+                        onClick = { viewModel.exportSingleSiteReport(context) }
                     ) {
-                        Icon(Icons.Default.Description, contentDescription = "Export Site CSV")
+                        Icon(
+                            imageVector = Icons.Default.Description,
+                            contentDescription = "Export Site CSV",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     IconButton(
                         onClick = {
@@ -138,13 +135,93 @@ fun SiteDetailScreen(
                             shareSiteDetails(context, site, uiState.groupedSpecs)
                         }
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = "Share specs")
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Share specs",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                }
             )
+        },
+        bottomBar = {
+            if (uiState.site != null) {
+                val site = uiState.site!!
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column {
+                        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = { onLogIncident(site.sapId) },
+                                colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .weight(1.3f)
+                                    .height(44.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Add Log",
+                                    color = Color.Black,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+
+                            if (site.lat != null && site.lng != null) {
+                                OutlinedButton(
+                                    onClick = { launchNavigation(context, site.lat, site.lng, site.sapId) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Navigation,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = "Map", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+
+                            if (!uiState.contactPhone.isNullOrBlank()) {
+                                OutlinedButton(
+                                    onClick = { launchCall(context, uiState.contactPhone!!) },
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Call,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(text = "Call", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
@@ -156,7 +233,7 @@ fun SiteDetailScreen(
                     .padding(innerPadding),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                CircularProgressIndicator(color = TelecomAmber)
             }
         } else if (uiState.site == null) {
             Box(
@@ -174,43 +251,17 @@ fun SiteDetailScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                // Pinned Header Card
-                SiteHeaderCard(
-                    site = site,
-                    contactPhone = uiState.contactPhone,
-                    onNavigate = { lat, lng -> launchNavigation(context, lat, lng, site.sapId) },
-                    onCall = { phone -> launchCall(context, phone) },
-                    onAddLog = { onLogIncident(site.sapId) }
-                )
+                // Pinned Telemetry Header Banner
+                SiteHeaderBanner(site = site)
 
-                // Tabs: 0 = Specs, 1 = Site Logs, 2 = Overview
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = MaterialTheme.colorScheme.surface
-                ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = {
-                            val specCount = uiState.groupedSpecs.values.sumOf { it.size }
-                            Text("Specs ($specCount)", fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal)
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = {
-                            Text("Logs (${uiState.incidents.size})", fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal)
-                        }
-                    )
-                    Tab(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        text = {
-                            Text("Overview", fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal)
-                        }
-                    )
-                }
+                // Segmented Tabs: 0 = Specs, 1 = Site Logs, 2 = Overview
+                val specCount = uiState.groupedSpecs.values.sumOf { it.size }
+                EnterpriseSegmentedControl(
+                    options = listOf("Specs ($specCount)", "Logs (${uiState.incidents.size})", "Overview"),
+                    selectedIndex = selectedTab,
+                    onSelect = { selectedTab = it },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
 
                 // Tab Content
                 when (selectedTab) {
@@ -246,7 +297,7 @@ fun SiteDetailScreen(
         AlertDialog(
             onDismissRequest = { viewModel.dismissSaveOverviewConfirmation() },
             icon = {
-                Icon(Icons.Default.Edit, contentDescription = null, tint = BrandPrimary, modifier = Modifier.size(36.dp))
+                Icon(Icons.Default.Edit, contentDescription = null, tint = TelecomAmber, modifier = Modifier.size(36.dp))
             },
             title = {
                 Text("Save Site Overview Changes?", fontWeight = FontWeight.Bold)
@@ -260,9 +311,9 @@ fun SiteDetailScreen(
             confirmButton = {
                 Button(
                     onClick = { viewModel.confirmAndSaveOverview() },
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber)
                 ) {
-                    Text("Confirm & Save", fontWeight = FontWeight.Bold)
+                    Text("Confirm & Save", fontWeight = FontWeight.Bold, color = Color.Black)
                 }
             },
             dismissButton = {
@@ -362,114 +413,72 @@ fun SiteDetailScreen(
 }
 
 @Composable
-private fun SiteHeaderCard(
-    site: SiteEntity,
-    contactPhone: String?,
-    onNavigate: (Double, Double) -> Unit,
-    onCall: (String) -> Unit,
-    onAddLog: () -> Unit
+private fun SiteHeaderBanner(
+    site: SiteEntity
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder(),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp)
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Column {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Text(
-                    text = site.sapId,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp,
-                    color = BrandPrimary
-                )
-
-                if (!site.city.isNullOrBlank() || !site.district.isNullOrBlank()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = listOfNotNull(site.city, site.district).joinToString(" • "),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = site.sapId,
+                        style = SapIdStyle.copy(
+                            fontSize = 20.sp,
+                            color = TelecomAmber
+                        )
+                    )
+
+                    if (!site.city.isNullOrBlank() || !site.district.isNullOrBlank()) {
+                        StatusDotBadge(
+                            text = listOfNotNull(site.city, site.district).joinToString(" • "),
+                            color = RFCyan
+                        )
+                    }
+                }
+
+                if (!site.name.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = site.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
 
-            if (!site.name.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = site.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-
-            if (!site.address.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = site.address,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
-                )
-            }
-
-            if (site.lat != null && site.lng != null) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "GPS: ${site.lat.format(5)}, ${site.lng.format(5)}",
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Action Buttons Row: Directions, Call, Add Log
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = onAddLog,
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
-                    modifier = Modifier.weight(1.2f),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add Log", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                if (!site.address.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = site.address,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2
+                    )
                 }
 
                 if (site.lat != null && site.lng != null) {
-                    OutlinedButton(
-                        onClick = { onNavigate(site.lat, site.lng) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Map", fontSize = 13.sp)
-                    }
-                }
-
-                if (!contactPhone.isNullOrBlank()) {
-                    OutlinedButton(
-                        onClick = { onCall(contactPhone) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Call", fontSize = 13.sp)
-                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "GPS: ${site.lat.format(5)}, ${site.lng.format(5)}",
+                        style = MetricMonoStyle.copy(
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
                 }
             }
+            HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -481,31 +490,7 @@ private fun SiteLogsTab(
     onEditLogClick: (String) -> Unit,
     onDeleteLogClick: (IncidentEntity) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Site Activity History (${logs.size})",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-
-            TextButton(onClick = onAddLogClick) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("+ New Log Entry", fontWeight = FontWeight.Bold)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
+    Column(modifier = Modifier.fillMaxSize()) {
         if (logs.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -526,92 +511,81 @@ private fun SiteLogsTab(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                     Button(
                         onClick = onAddLogClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text("Add First Log Entry", fontWeight = FontWeight.Bold)
+                        Text("Add First Log Entry", fontWeight = FontWeight.Bold, color = Color.Black)
                     }
                 }
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(logs, key = { it.id }) { log ->
                     val cat = log.category.lowercase().trim()
-                    val (badgeText, badgeColor, badgeBg) = when {
-                        cat.contains("maint") || cat.contains("repair") -> Triple("MAINTENANCE", TagMaintColor, TagMaintBg)
-                        cat.contains("visit") || cat.contains("site") || cat.contains("inspect") || cat.contains("audit") -> Triple("VISIT", TagVisitColor, TagVisitBg)
-                        cat.contains("note") || cat.contains("general") -> Triple("NOTE", TagNoteColor, TagNoteBg)
-                        cat.contains("issue") || log.isOutage == 1 -> Triple("ISSUE", TagIssueColor, TagIssueBg)
-                        else -> Triple(log.category.uppercase().ifBlank { "NOTE" }, TagNoteColor, TagNoteBg)
+                    val (badgeText, badgeColor) = when {
+                        cat.contains("maint") || cat.contains("repair") -> Pair("MAINTENANCE", TagMaintColor)
+                        cat.contains("visit") || cat.contains("site") || cat.contains("inspect") || cat.contains("audit") -> Pair("VISIT", TagVisitColor)
+                        cat.contains("note") || cat.contains("general") -> Pair("NOTE", TagNoteColor)
+                        cat.contains("issue") || log.isOutage == 1 -> Pair("ISSUE", TagIssueColor)
+                        else -> Pair(log.category.uppercase().ifBlank { "NOTE" }, TagNoteColor)
                     }
 
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = CardDefaults.outlinedCardBorder(),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(badgeBg)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = badgeText,
-                                        style = MaterialTheme.typography.labelSmall.copy(
-                                            color = badgeColor,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 10.sp
-                                        )
-                                    )
-                                }
+                    EnterpriseListRow(onClick = { onEditLogClick(log.id) }) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            StatusDotBadge(text = badgeText, color = badgeColor)
 
-                                Text(
-                                    text = Dates.formatDateTime(log.occurredAt),
-                                    style = MaterialTheme.typography.labelSmall,
+                            Text(
+                                text = Dates.formatDateTime(log.occurredAt),
+                                style = MetricMonoStyle.copy(
+                                    fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                            }
+                            )
+                        }
 
-                            val text = log.description ?: log.title
-                            if (text.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = text,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    lineHeight = 20.sp
-                                )
-                            }
+                        val text = log.description ?: log.title
+                        if (text.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = text,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                lineHeight = 20.sp
+                            )
+                        }
 
-                            if (!log.actionTaken.isNullOrBlank() && log.actionTaken != text) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Action: ${log.actionTaken}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = StatusRestoredGreen,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
+                        if (!log.actionTaken.isNullOrBlank() && log.actionTaken != text) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Action: ${log.actionTaken}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = StatusRestoredGreen,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
 
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             if (!log.engineer.isNullOrBlank()) {
-                                Spacer(modifier = Modifier.height(8.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(
                                         imageVector = Icons.Default.Person,
                                         contentDescription = null,
-                                        modifier = Modifier.size(14.dp),
+                                        modifier = Modifier.size(13.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -621,39 +595,41 @@ private fun SiteLogsTab(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                            } else {
+                                Spacer(modifier = Modifier.width(1.dp))
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 4.dp),
-                                horizontalArrangement = Arrangement.End,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                TextButton(
+                                IconButton(
                                     onClick = { onEditLogClick(log.id) },
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    modifier = Modifier.size(32.dp)
                                 ) {
-                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Edit", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Icon(
+                                        imageVector = Icons.Default.Edit,
+                                        contentDescription = "Edit Log",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(15.dp)
+                                    )
                                 }
-
-                                TextButton(
+                                IconButton(
                                     onClick = { onDeleteLogClick(log) },
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    modifier = Modifier.size(32.dp)
                                 ) {
-                                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp), tint = TagIssueColor)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Delete", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TagIssueColor)
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete Log",
+                                        tint = TagIssueColor,
+                                        modifier = Modifier.size(15.dp)
+                                    )
                                 }
                             }
                         }
                     }
                 }
+                item { Spacer(modifier = Modifier.height(32.dp)) }
             }
         }
     }
@@ -667,37 +643,32 @@ private fun SpecsTab(
     onAddSpecClick: () -> Unit,
     onEditSpecClick: (SiteFieldEntity) -> Unit
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            OutlinedTextField(
-                value = filterQuery,
-                onValueChange = onFilterChange,
-                placeholder = { Text("Filter specs (e.g. SMPS, DG)...") },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                shape = RoundedCornerShape(8.dp)
+            SearchCapsule(
+                query = filterQuery,
+                onQueryChange = onFilterChange,
+                placeholder = "Filter specifications...",
+                modifier = Modifier.weight(1f)
             )
 
             OutlinedButton(
                 onClick = onAddSpecClick,
                 shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.height(44.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Add Spec", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("Add Spec", fontWeight = FontWeight.Bold, fontSize = 12.sp)
             }
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
 
         val filteredGroups = remember(groupedSpecs, filterQuery) {
             if (filterQuery.isBlank()) groupedSpecs
@@ -727,83 +698,90 @@ private fun SpecsTab(
             }
         } else {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(14.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 filteredGroups.forEach { (groupName, fields) ->
                     item(key = groupName) {
-                        SpecGroupCard(
-                            groupName = groupName,
-                            fields = fields,
-                            onEditSpec = onEditSpecClick
+                        Surface(
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = groupName.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = RFCyan,
+                                letterSpacing = 0.5.sp,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+
+                    items(fields, key = { "${it.groupName}_${it.fieldKey}" }) { field ->
+                        EnterpriseSpecRow(
+                            field = field,
+                            onEdit = { onEditSpecClick(field) }
                         )
                     }
                 }
+                item { Spacer(modifier = Modifier.height(32.dp)) }
             }
         }
     }
 }
 
 @Composable
-private fun SpecGroupCard(
-    groupName: String,
-    fields: List<SiteFieldEntity>,
-    onEditSpec: (SiteFieldEntity) -> Unit
+private fun EnterpriseSpecRow(
+    field: SiteFieldEntity,
+    onEdit: () -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder(),
-        modifier = Modifier.fillMaxWidth()
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(
-                text = groupName,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = BrandPrimary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = field.fieldKey,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1.2f)
+                )
 
-            fields.forEachIndexed { index, field ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = field.fieldKey,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1.2f)
-                    )
-                    Text(
-                        text = field.fieldValue ?: "—",
-                        style = MaterialTheme.typography.bodySmall,
+                Text(
+                    text = field.fieldValue ?: "—",
+                    style = MetricMonoStyle.copy(
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(
-                        onClick = { onEditSpec(field) },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit ${field.fieldKey}",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-                if (index < fields.lastIndex) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(vertical = 2.dp)
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit ${field.fieldKey}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
         }
     }
 }
@@ -836,8 +814,9 @@ private fun SpecEditDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
@@ -854,7 +833,7 @@ private fun SpecEditDialog(
                     label = { Text("Field Name (e.g. SMPS CAPACITY)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    enabled = isNew // Primary spec key locked if existing, or freely editable
+                    enabled = isNew
                 )
 
                 OutlinedTextField(
@@ -877,10 +856,10 @@ private fun SpecEditDialog(
         confirmButton = {
             Button(
                 onClick = { onSave(fieldKey, fieldValue, groupName) },
-                colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
                 enabled = fieldKey.isNotBlank()
             ) {
-                Text("Save Specification", fontWeight = FontWeight.Bold)
+                Text("Save Specification", fontWeight = FontWeight.Bold, color = Color.Black)
             }
         },
         dismissButton = {
@@ -910,7 +889,6 @@ private fun OverviewTab(
     onSaveClick: () -> Unit
 ) {
     if (isEditing) {
-        // Edit Mode with explicit safeguards
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -918,8 +896,9 @@ private fun OverviewTab(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = TagMaintBg),
+            Surface(
+                color = TagMaintBg,
+                shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1065,10 +1044,10 @@ private fun OverviewTab(
                 Button(
                     onClick = onSaveClick,
                     modifier = Modifier.weight(1.5f),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandPrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text("Save Changes", fontWeight = FontWeight.Bold)
+                    Text("Save Changes", fontWeight = FontWeight.Bold, color = Color.Black)
                 }
             }
         }
@@ -1079,11 +1058,12 @@ private fun OverviewTab(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                border = CardDefaults.outlinedCardBorder(),
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1098,7 +1078,7 @@ private fun OverviewTab(
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
-                            Icons.Default.Lock,
+                            imageVector = Icons.Default.Lock,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
@@ -1108,7 +1088,8 @@ private fun OverviewTab(
                             Text(
                                 text = "Site Overview Protected",
                                 style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "Locked against accidental edits",
@@ -1153,6 +1134,7 @@ private fun OverviewTab(
             if (!site.notes.isNullOrBlank()) {
                 OverviewRow("Remarks", site.notes)
             }
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
@@ -1162,23 +1144,27 @@ private fun OverviewRow(label: String, value: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(120.dp)
+            modifier = Modifier.width(130.dp)
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
+            style = MetricMonoStyle.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            ),
             modifier = Modifier.weight(1f)
         )
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
 }
 
 private fun launchNavigation(context: Context, lat: Double, lng: Double, label: String) {

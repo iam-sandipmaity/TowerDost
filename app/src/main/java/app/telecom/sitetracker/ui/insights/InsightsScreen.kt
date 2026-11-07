@@ -15,20 +15,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.CellTower
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -36,9 +27,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,23 +36,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.telecom.sitetracker.data.db.CategoryParetoRow
 import app.telecom.sitetracker.data.db.TopProblemSiteRow
+import app.telecom.sitetracker.ui.components.EnterpriseListRow
+import app.telecom.sitetracker.ui.components.EnterpriseSegmentedControl
+import app.telecom.sitetracker.ui.components.EnterpriseTopBar
+import app.telecom.sitetracker.ui.components.MetricTile
+import app.telecom.sitetracker.ui.components.StatusDotBadge
 import app.telecom.sitetracker.ui.theme.MetricMonoStyle
+import app.telecom.sitetracker.ui.theme.RFCyan
 import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.SeverityCritical
 import app.telecom.sitetracker.ui.theme.SeverityMajor
 import app.telecom.sitetracker.ui.theme.SeverityMinor
 import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
+import app.telecom.sitetracker.ui.theme.TelecomAmber
 import app.telecom.sitetracker.util.Dates
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InsightsScreen(
     viewModel: InsightsViewModel,
@@ -82,19 +76,25 @@ fun InsightsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Operations & SLA Insights", fontWeight = FontWeight.Bold) },
+            EnterpriseTopBar(
+                title = "OPERATIONS & SLA",
+                subtitle = "EXECUTIVE TELEMETRY",
                 actions = {
                     IconButton(onClick = { viewModel.exportOutagesCsv(context) }) {
-                        Icon(Icons.Default.Share, contentDescription = "Export Report")
+                        Icon(
+                            imageVector = Icons.Default.Share,
+                            contentDescription = "Export Report",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -104,24 +104,17 @@ fun InsightsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item { Spacer(modifier = Modifier.height(4.dp)) }
-
-            // 1. Time Range Selector
+            // 1. Time Range Segmented Control
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    for (range in TimeRange.values()) {
-                        FilterChip(
-                            selected = uiState.selectedRange == range,
-                            onClick = { viewModel.setTimeRange(range) },
-                            label = { Text(range.label, fontSize = 12.sp) }
-                        )
-                    }
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    val ranges = TimeRange.values()
+                    val selectedIdx = ranges.indexOf(uiState.selectedRange).coerceAtLeast(0)
+                    EnterpriseSegmentedControl(
+                        options = ranges.map { it.label },
+                        selectedIndex = selectedIdx,
+                        onSelect = { idx -> viewModel.setTimeRange(ranges[idx]) }
+                    )
                 }
             }
 
@@ -137,12 +130,13 @@ fun InsightsScreen(
                     else -> SeverityCritical
                 }
 
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f))
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -155,9 +149,10 @@ fun InsightsScreen(
                                     text = "NETWORK AVAILABILITY",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "%.2f%%".format(avail),
                                     style = MetricMonoStyle.copy(
@@ -168,22 +163,14 @@ fun InsightsScreen(
                                 )
                             }
 
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(statusColor.copy(alpha = 0.15f))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = if (isHealthy) "SLA MET (≥99.5%)" else "BELOW SLA",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = statusColor
-                                    )
-                                )
-                            }
+                            StatusDotBadge(
+                                text = if (isHealthy) "SLA MET (≥99.5%)" else "BELOW SLA",
+                                color = statusColor
+                            )
                         }
 
+                        Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outlineVariant)
                         Spacer(modifier = Modifier.height(14.dp))
 
                         // 4-metric sub-grid
@@ -192,106 +179,79 @@ fun InsightsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column {
-                                Text("Total Downtime", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(Dates.formatHours(uiState.totalDowntimeHours), style = MetricMonoStyle.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold))
+                                Text(
+                                    text = "DOWNTIME",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = Dates.formatHours(uiState.totalDowntimeHours),
+                                    style = MetricMonoStyle.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                )
                             }
                             Column {
-                                Text("Average MTTR", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(Dates.formatHours(uiState.avgMttrHours), style = MetricMonoStyle.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold))
+                                Text(
+                                    text = "AVG MTTR",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = Dates.formatHours(uiState.avgMttrHours),
+                                    style = MetricMonoStyle.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                )
                             }
                             Column {
-                                Text("Total Incidents", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${uiState.totalIncidentsCount}", style = MetricMonoStyle.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold))
+                                Text(
+                                    text = "INCIDENTS",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${uiState.totalIncidentsCount}",
+                                    style = MetricMonoStyle.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                )
                             }
                             Column {
-                                Text("Sites Affected", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("${uiState.affectedSitesCount} / ${uiState.totalSites}", style = MetricMonoStyle.copy(fontSize = 15.sp, fontWeight = FontWeight.Bold))
+                                Text(
+                                    text = "AFFECTED",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${uiState.affectedSitesCount} / ${uiState.totalSites}",
+                                    style = MetricMonoStyle.copy(fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                )
                             }
                         }
                     }
                 }
             }
 
-            // 3. Root-Cause Pareto Breakdown
-            item {
-                Text(
-                    text = "Root-Cause Pareto Analysis",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            if (uiState.categoryPareto.isEmpty()) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = CardDefaults.outlinedCardBorder()
-                    ) {
-                        Box(modifier = Modifier.padding(16.dp), contentAlignment = Alignment.Center) {
-                            Text(
-                                "No outages recorded in ${uiState.selectedRange.label}. Network reported 100% stable.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            } else {
-                val maxHours = uiState.categoryPareto.maxOfOrNull { it.downtime_hours } ?: 1.0
-                val totalHours = uiState.totalDowntimeHours.coerceAtLeast(0.1)
-
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = CardDefaults.outlinedCardBorder()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            for (row in uiState.categoryPareto) {
-                                val pct = (row.downtime_hours / totalHours * 100.0).coerceIn(0.0, 100.0)
-                                Column {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Text(row.category, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                        Text(
-                                            text = "${Dates.formatHours(row.downtime_hours)} • ${row.count} faults (%.1f%%)".format(pct),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    LinearProgressIndicator(
-                                        progress = { (pct / 100f).toFloat() },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp)),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 4. Severity Distribution
+            // 3. Severity Distribution
             if (uiState.severityCounts.isNotEmpty()) {
                 item {
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Severity Distribution",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        text = "INCIDENT SEVERITY BREAKDOWN",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                }
-
-                item {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         for (sevRow in uiState.severityCounts) {
@@ -301,15 +261,98 @@ fun InsightsScreen(
                                 "Minor" -> SeverityMinor
                                 else -> MaterialTheme.colorScheme.onSurfaceVariant
                             }
-                            Card(
-                                modifier = Modifier.weight(1f),
-                                colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
-                                border = CardDefaults.outlinedCardBorder()
-                            ) {
-                                Column(modifier = Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(sevRow.severity, style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text("${sevRow.count}", style = MetricMonoStyle.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = color))
+                            MetricTile(
+                                label = sevRow.severity,
+                                value = "${sevRow.count}",
+                                valueColor = color,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 4. Root-Cause Pareto Breakdown
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    text = "ROOT-CAUSE PARETO ANALYSIS",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            if (uiState.categoryPareto.isEmpty()) {
+                item {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Box(modifier = Modifier.padding(16.dp), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "No outages recorded in ${uiState.selectedRange.label}. Network reported 100% stable.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            } else {
+                val totalHours = uiState.totalDowntimeHours.coerceAtLeast(0.1)
+
+                item {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            for (row in uiState.categoryPareto) {
+                                val pct = (row.downtime_hours / totalHours * 100.0).coerceIn(0.0, 100.0)
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = row.category,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "${Dates.formatHours(row.downtime_hours)} • ${row.count} faults (%.1f%%)".format(pct),
+                                            style = MetricMonoStyle.copy(
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    LinearProgressIndicator(
+                                        progress = { (pct / 100f).toFloat() },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(4.dp)
+                                            .clip(RoundedCornerShape(2.dp)),
+                                        color = TelecomAmber,
+                                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
                                 }
                             }
                         }
@@ -317,25 +360,48 @@ fun InsightsScreen(
                 }
             }
 
-            // 5. Top 10 Problem Sites
+            // 5. Top Problem Sites
             item {
-                Text(
-                    text = "Top Repeat-Fault Sites",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "TOP REPEAT-FAULT SITES",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                    Text(
+                        text = "${uiState.topProblemSites.size} SITES",
+                        style = MetricMonoStyle.copy(
+                            fontSize = 11.sp,
+                            color = RFCyan,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             if (uiState.topProblemSites.isEmpty()) {
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = CardDefaults.outlinedCardBorder()
+                    Surface(
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
                     ) {
                         Box(modifier = Modifier.padding(16.dp), contentAlignment = Alignment.Center) {
                             Text(
-                                "No repeat-fault problem sites detected.",
+                                text = "No repeat-fault problem sites detected.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -344,7 +410,7 @@ fun InsightsScreen(
                 }
             } else {
                 itemsIndexed(uiState.topProblemSites, key = { _, s -> s.sap_id }) { index, site ->
-                    ProblemSiteRowCard(
+                    ProblemSiteRow(
                         rank = index + 1,
                         problemSite = site,
                         onClick = { onSiteClick(site.sap_id) }
@@ -352,40 +418,37 @@ fun InsightsScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item { Spacer(modifier = Modifier.height(28.dp)) }
         }
     }
 }
 
 @Composable
-private fun ProblemSiteRowCard(
+private fun ProblemSiteRow(
     rank: Int,
     problemSite: TopProblemSiteRow,
     onClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = CardDefaults.outlinedCardBorder()
-    ) {
+    EnterpriseListRow(onClick = onClick) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Rank badge
             Box(
                 modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(if (rank <= 3) SeverityCritical.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant),
+                    .size(26.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(
+                        if (rank <= 3) SeverityCritical.copy(alpha = 0.15f)
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "#$rank",
-                    style = MaterialTheme.typography.labelSmall.copy(
+                    style = MetricMonoStyle.copy(
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (rank <= 3) SeverityCritical else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -395,49 +458,48 @@ private fun ProblemSiteRowCard(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(problemSite.sap_id, style = SapIdStyle.copy(color = MaterialTheme.colorScheme.primary))
+                Text(
+                    text = problemSite.sap_id,
+                    style = SapIdStyle.copy(color = TelecomAmber)
+                )
                 if (!problemSite.name.isNullOrBlank()) {
-                    Text(problemSite.name, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                    Spacer(modifier = Modifier.height(1.dp))
+                    Text(
+                        text = problemSite.name,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
                 }
             }
 
-            // Counts
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Severity & Fault count Badges
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (problemSite.open_critical_count > 0) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(SeverityCritical)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "${problemSite.open_critical_count} Crit",
-                            style = MaterialTheme.typography.labelSmall.copy(color = Color.White, fontWeight = FontWeight.Bold)
-                        )
-                    }
+                    StatusDotBadge(
+                        text = "${problemSite.open_critical_count} CRIT",
+                        color = SeverityCritical
+                    )
                 }
                 if (problemSite.open_major_count > 0) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(SeverityMajor)
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "${problemSite.open_major_count} Maj",
-                            style = MaterialTheme.typography.labelSmall.copy(color = Color.White, fontWeight = FontWeight.Bold)
-                        )
-                    }
+                    StatusDotBadge(
+                        text = "${problemSite.open_major_count} MAJ",
+                        color = SeverityMajor
+                    )
                 }
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = "${problemSite.ninety_day_count} faults",
-                        style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        style = MetricMonoStyle.copy(
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             }
