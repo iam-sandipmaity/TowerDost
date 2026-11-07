@@ -135,6 +135,8 @@ class SiteViewAndProximityTest {
             reportedAt = 1000L,
             attendedAt = 1000L,
             category = "Maintenance",
+            severity = "Major",
+            status = "Resolved",
             title = "Routine Battery Service",
             description = "Conducted discharge test",
             actionTaken = "Replaced 2 bad cells in Amaron string",
