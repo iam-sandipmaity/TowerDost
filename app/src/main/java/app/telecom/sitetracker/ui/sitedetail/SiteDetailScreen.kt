@@ -1,5 +1,7 @@
 package app.telecom.sitetracker.ui.sitedetail
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -1332,6 +1334,12 @@ private fun shareSiteDetails(
         putExtra(Intent.EXTRA_TEXT, sb.toString())
     }
     context.startActivity(Intent.createChooser(intent, "Share Site Specifications"))
+}
+
+private fun copyToClipboard(context: Context, label: String, text: String) {
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val clip = ClipData.newPlainText(label, text)
+    clipboard.setPrimaryClip(clip)
 }
 
 private fun Double.format(digits: Int): String = String.format(Locale.US, "%.${digits}f", this)
