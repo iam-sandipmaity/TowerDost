@@ -13,8 +13,17 @@ import app.telecom.sitetracker.data.entity.SiteFts
 import app.telecom.sitetracker.util.AppClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
 import java.io.File
 import java.io.FileWriter
 import java.text.SimpleDateFormat
@@ -53,194 +62,200 @@ class BackupManager(
         const val APP_IDENTIFIER = "TowerDost"
 
         fun serializeBackupJson(data: BackupData): String {
-            val root = JSONObject()
-            root.put("version", data.version)
-            root.put("appName", data.appName)
-            root.put("exportedAt", data.exportedAt)
+            val root = buildJsonObject {
+                put("version", data.version)
+                put("appName", data.appName)
+                put("exportedAt", data.exportedAt)
 
-            // Sites Array
-            val sitesArray = JSONArray()
-            for (s in data.sites) {
-                val obj = JSONObject()
-                obj.put("sapId", s.sapId)
-                obj.put("sapNorm", s.sapNorm)
-                obj.putOpt("name", s.name)
-                obj.putOpt("lat", s.lat)
-                obj.putOpt("lng", s.lng)
-                obj.putOpt("circle", s.circle)
-                obj.putOpt("region", s.region)
-                obj.putOpt("state", s.state)
-                obj.putOpt("district", s.district)
-                obj.putOpt("city", s.city)
-                obj.putOpt("technology", s.technology)
-                obj.putOpt("siteType", s.siteType)
-                obj.putOpt("status", s.status)
-                obj.putOpt("address", s.address)
-                obj.putOpt("tags", s.tags)
-                obj.putOpt("notes", s.notes)
-                obj.putOpt("sourceFile", s.sourceFile)
-                obj.putOpt("createdAt", s.createdAt)
-                obj.putOpt("updatedAt", s.updatedAt)
-                sitesArray.put(obj)
+                put("sites", buildJsonArray {
+                    for (s in data.sites) {
+                        add(buildJsonObject {
+                            put("sapId", s.sapId)
+                            put("sapNorm", s.sapNorm)
+                            s.name?.let { put("name", it) }
+                            s.lat?.let { put("lat", it) }
+                            s.lng?.let { put("lng", it) }
+                            s.circle?.let { put("circle", it) }
+                            s.region?.let { put("region", it) }
+                            s.state?.let { put("state", it) }
+                            s.district?.let { put("district", it) }
+                            s.city?.let { put("city", it) }
+                            s.technology?.let { put("technology", it) }
+                            s.siteType?.let { put("siteType", it) }
+                            s.status?.let { put("status", it) }
+                            s.address?.let { put("address", it) }
+                            s.tags?.let { put("tags", it) }
+                            s.notes?.let { put("notes", it) }
+                            s.sourceFile?.let { put("sourceFile", it) }
+                            s.createdAt?.let { put("createdAt", it) }
+                            s.updatedAt?.let { put("updatedAt", it) }
+                        })
+                    }
+                })
+
+                put("fields", buildJsonArray {
+                    for (f in data.fields) {
+                        add(buildJsonObject {
+                            put("sapId", f.sapId)
+                            put("fieldKey", f.fieldKey)
+                            put("fieldValue", f.fieldValue ?: "")
+                            f.groupName?.let { put("groupName", it) }
+                            f.sortOrder?.let { put("sortOrder", it) }
+                        })
+                    }
+                })
+
+                put("incidents", buildJsonArray {
+                    for (inc in data.incidents) {
+                        add(buildJsonObject {
+                            put("id", inc.id)
+                            put("sapId", inc.sapId)
+                            put("occurredAt", inc.occurredAt)
+                            put("category", inc.category)
+                            put("severity", inc.severity)
+                            put("status", inc.status)
+                            put("isOutage", inc.isOutage)
+                            inc.downAt?.let { put("downAt", it) }
+                            inc.restoredAt?.let { put("restoredAt", it) }
+                            put("title", inc.title)
+                            inc.description?.let { put("description", it) }
+                            inc.actionTaken?.let { put("actionTaken", it) }
+                            inc.engineer?.let { put("engineer", it) }
+                            inc.ticketRef?.let { put("ticketRef", it) }
+                            inc.gpsLat?.let { put("gpsLat", it) }
+                            inc.gpsLng?.let { put("gpsLng", it) }
+                            inc.createdAt?.let { put("createdAt", it) }
+                            inc.updatedAt?.let { put("updatedAt", it) }
+                        })
+                    }
+                })
+
+                put("reasons", buildJsonArray {
+                    for (r in data.reasons) {
+                        add(buildJsonObject {
+                            put("id", r.id)
+                            put("label", r.label)
+                            r.groupName?.let { put("groupName", it) }
+                            r.category?.let { put("category", it) }
+                            put("countsTowardDowntime", r.countsTowardDowntime)
+                            r.sortOrder?.let { put("sortOrder", it) }
+                            put("isHidden", r.isHidden)
+                            put("isSeeded", r.isSeeded)
+                            r.updatedAt?.let { put("updatedAt", it) }
+                        })
+                    }
+                })
             }
-            root.put("sites", sitesArray)
-
-            // Fields Array
-            val fieldsArray = JSONArray()
-            for (f in data.fields) {
-                val obj = JSONObject()
-                obj.put("sapId", f.sapId)
-                obj.put("fieldKey", f.fieldKey)
-                obj.put("fieldValue", f.fieldValue)
-                obj.putOpt("groupName", f.groupName)
-                obj.putOpt("sortOrder", f.sortOrder)
-                fieldsArray.put(obj)
-            }
-            root.put("fields", fieldsArray)
-
-            // Incidents Array
-            val incidentsArray = JSONArray()
-            for (inc in data.incidents) {
-                val obj = JSONObject()
-                obj.put("id", inc.id)
-                obj.put("sapId", inc.sapId)
-                obj.put("occurredAt", inc.occurredAt)
-                obj.put("category", inc.category)
-                obj.put("severity", inc.severity)
-                obj.put("status", inc.status)
-                obj.put("isOutage", inc.isOutage)
-                obj.putOpt("downAt", inc.downAt)
-                obj.putOpt("restoredAt", inc.restoredAt)
-                obj.put("title", inc.title)
-                obj.putOpt("description", inc.description)
-                obj.putOpt("actionTaken", inc.actionTaken)
-                obj.putOpt("engineer", inc.engineer)
-                obj.putOpt("ticketRef", inc.ticketRef)
-                obj.putOpt("gpsLat", inc.gpsLat)
-                obj.putOpt("gpsLng", inc.gpsLng)
-                obj.putOpt("createdAt", inc.createdAt)
-                obj.putOpt("updatedAt", inc.updatedAt)
-                incidentsArray.put(obj)
-            }
-            root.put("incidents", incidentsArray)
-
-            // Reasons Array
-            val reasonsArray = JSONArray()
-            for (r in data.reasons) {
-                val obj = JSONObject()
-                obj.put("id", r.id)
-                obj.put("label", r.label)
-                obj.putOpt("groupName", r.groupName)
-                obj.putOpt("category", r.category)
-                obj.put("countsTowardDowntime", r.countsTowardDowntime)
-                obj.putOpt("sortOrder", r.sortOrder)
-                obj.put("isHidden", r.isHidden)
-                obj.put("isSeeded", r.isSeeded)
-                obj.putOpt("updatedAt", r.updatedAt)
-                reasonsArray.put(obj)
-            }
-            root.put("reasons", reasonsArray)
-
             return root.toString()
         }
 
         fun parseBackupJson(jsonString: String): BackupData {
-            val root = JSONObject(jsonString)
-            val app = root.optString("appName")
+            val root = try {
+                Json.parseToJsonElement(jsonString).jsonObject
+            } catch (e: Exception) {
+                throw IllegalArgumentException("Invalid backup JSON format: ${e.message}", e)
+            }
+
+            val app = root["appName"]?.jsonPrimitive?.contentOrNull ?: ""
             if (app != APP_IDENTIFIER) {
                 throw IllegalArgumentException("Invalid backup file: Not a TowerDost archive (found '$app').")
             }
 
-            val version = root.optInt("version", 1)
-            val exportedAt = root.optLong("exportedAt", System.currentTimeMillis())
+            val version = root["version"]?.jsonPrimitive?.intOrNull ?: 1
+            val exportedAt = root["exportedAt"]?.jsonPrimitive?.longOrNull ?: System.currentTimeMillis()
 
             val sites = mutableListOf<SiteEntity>()
-            val sitesArray = root.optJSONArray("sites") ?: JSONArray()
-            for (i in 0 until sitesArray.length()) {
-                val obj = sitesArray.getJSONObject(i)
+            root["sites"]?.jsonArray?.forEach { el ->
+                val obj = el.jsonObject
+                val sapId = obj["sapId"]?.jsonPrimitive?.content ?: return@forEach
                 sites.add(
                     SiteEntity(
-                        sapId = obj.getString("sapId"),
-                        sapNorm = obj.optString("sapNorm", SiteEntity.normalizeSapId(obj.getString("sapId"))),
-                        name = if (obj.has("name")) obj.optString("name") else null,
-                        lat = if (obj.has("lat")) obj.optDouble("lat") else null,
-                        lng = if (obj.has("lng")) obj.optDouble("lng") else null,
-                        circle = if (obj.has("circle")) obj.optString("circle") else null,
-                        region = if (obj.has("region")) obj.optString("region") else null,
-                        state = if (obj.has("state")) obj.optString("state") else null,
-                        district = if (obj.has("district")) obj.optString("district") else null,
-                        city = if (obj.has("city")) obj.optString("city") else null,
-                        technology = if (obj.has("technology")) obj.optString("technology") else null,
-                        siteType = if (obj.has("siteType")) obj.optString("siteType") else null,
-                        status = if (obj.has("status")) obj.optString("status") else "Active",
-                        address = if (obj.has("address")) obj.optString("address") else null,
-                        tags = if (obj.has("tags")) obj.optString("tags") else null,
-                        notes = if (obj.has("notes")) obj.optString("notes") else null,
-                        sourceFile = if (obj.has("sourceFile")) obj.optString("sourceFile") else "BackupRestore",
-                        createdAt = obj.optLong("createdAt", exportedAt),
-                        updatedAt = obj.optLong("updatedAt", exportedAt)
+                        sapId = sapId,
+                        sapNorm = obj["sapNorm"]?.jsonPrimitive?.contentOrNull ?: SiteEntity.normalizeSapId(sapId),
+                        name = obj["name"]?.jsonPrimitive?.contentOrNull,
+                        lat = obj["lat"]?.jsonPrimitive?.doubleOrNull,
+                        lng = obj["lng"]?.jsonPrimitive?.doubleOrNull,
+                        circle = obj["circle"]?.jsonPrimitive?.contentOrNull,
+                        region = obj["region"]?.jsonPrimitive?.contentOrNull,
+                        state = obj["state"]?.jsonPrimitive?.contentOrNull,
+                        district = obj["district"]?.jsonPrimitive?.contentOrNull,
+                        city = obj["city"]?.jsonPrimitive?.contentOrNull,
+                        technology = obj["technology"]?.jsonPrimitive?.contentOrNull,
+                        siteType = obj["siteType"]?.jsonPrimitive?.contentOrNull,
+                        status = obj["status"]?.jsonPrimitive?.contentOrNull ?: "Active",
+                        address = obj["address"]?.jsonPrimitive?.contentOrNull,
+                        tags = obj["tags"]?.jsonPrimitive?.contentOrNull,
+                        notes = obj["notes"]?.jsonPrimitive?.contentOrNull,
+                        sourceFile = obj["sourceFile"]?.jsonPrimitive?.contentOrNull ?: "BackupRestore",
+                        createdAt = obj["createdAt"]?.jsonPrimitive?.longOrNull ?: exportedAt,
+                        updatedAt = obj["updatedAt"]?.jsonPrimitive?.longOrNull ?: exportedAt
                     )
                 )
             }
 
             val fields = mutableListOf<SiteFieldEntity>()
-            val fieldsArray = root.optJSONArray("fields") ?: JSONArray()
-            for (i in 0 until fieldsArray.length()) {
-                val obj = fieldsArray.getJSONObject(i)
+            root["fields"]?.jsonArray?.forEach { el ->
+                val obj = el.jsonObject
+                val sapId = obj["sapId"]?.jsonPrimitive?.content ?: return@forEach
+                val fieldKey = obj["fieldKey"]?.jsonPrimitive?.content ?: return@forEach
                 fields.add(
                     SiteFieldEntity(
-                        sapId = obj.getString("sapId"),
-                        fieldKey = obj.getString("fieldKey"),
-                        fieldValue = obj.getString("fieldValue"),
-                        groupName = if (obj.has("groupName")) obj.optString("groupName") else null,
-                        sortOrder = if (obj.has("sortOrder")) obj.optInt("sortOrder") else null
+                        sapId = sapId,
+                        fieldKey = fieldKey,
+                        fieldValue = obj["fieldValue"]?.jsonPrimitive?.contentOrNull,
+                        groupName = obj["groupName"]?.jsonPrimitive?.contentOrNull,
+                        sortOrder = obj["sortOrder"]?.jsonPrimitive?.intOrNull
                     )
                 )
             }
 
             val incidents = mutableListOf<IncidentEntity>()
-            val incidentsArray = root.optJSONArray("incidents") ?: JSONArray()
-            for (i in 0 until incidentsArray.length()) {
-                val obj = incidentsArray.getJSONObject(i)
+            root["incidents"]?.jsonArray?.forEach { el ->
+                val obj = el.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.content ?: return@forEach
+                val sapId = obj["sapId"]?.jsonPrimitive?.content ?: return@forEach
+                val occurredAt = obj["occurredAt"]?.jsonPrimitive?.longOrNull ?: exportedAt
+                val title = obj["title"]?.jsonPrimitive?.content ?: ""
                 incidents.add(
                     IncidentEntity(
-                        id = obj.getString("id"),
-                        sapId = obj.getString("sapId"),
-                        occurredAt = obj.getLong("occurredAt"),
-                        category = obj.getString("category"),
-                        severity = obj.getString("severity"),
-                        status = obj.getString("status"),
-                        isOutage = obj.optInt("isOutage", 0),
-                        downAt = if (obj.has("downAt")) obj.optLong("downAt") else null,
-                        restoredAt = if (obj.has("restoredAt")) obj.optLong("restoredAt") else null,
-                        title = obj.getString("title"),
-                        description = if (obj.has("description")) obj.optString("description") else null,
-                        actionTaken = if (obj.has("actionTaken")) obj.optString("actionTaken") else null,
-                        engineer = if (obj.has("engineer")) obj.optString("engineer") else null,
-                        ticketRef = if (obj.has("ticketRef")) obj.optString("ticketRef") else null,
-                        gpsLat = if (obj.has("gpsLat")) obj.optDouble("gpsLat") else null,
-                        gpsLng = if (obj.has("gpsLng")) obj.optDouble("gpsLng") else null,
-                        createdAt = obj.optLong("createdAt", exportedAt),
-                        updatedAt = obj.optLong("updatedAt", exportedAt)
+                        id = id,
+                        sapId = sapId,
+                        occurredAt = occurredAt,
+                        category = obj["category"]?.jsonPrimitive?.content ?: "Incident",
+                        severity = obj["severity"]?.jsonPrimitive?.content ?: "Minor",
+                        status = obj["status"]?.jsonPrimitive?.content ?: "Closed",
+                        isOutage = obj["isOutage"]?.jsonPrimitive?.intOrNull ?: 0,
+                        downAt = obj["downAt"]?.jsonPrimitive?.longOrNull,
+                        restoredAt = obj["restoredAt"]?.jsonPrimitive?.longOrNull,
+                        title = title,
+                        description = obj["description"]?.jsonPrimitive?.contentOrNull,
+                        actionTaken = obj["actionTaken"]?.jsonPrimitive?.contentOrNull,
+                        engineer = obj["engineer"]?.jsonPrimitive?.contentOrNull,
+                        ticketRef = obj["ticketRef"]?.jsonPrimitive?.contentOrNull,
+                        gpsLat = obj["gpsLat"]?.jsonPrimitive?.doubleOrNull,
+                        gpsLng = obj["gpsLng"]?.jsonPrimitive?.doubleOrNull,
+                        createdAt = obj["createdAt"]?.jsonPrimitive?.longOrNull ?: exportedAt,
+                        updatedAt = obj["updatedAt"]?.jsonPrimitive?.longOrNull ?: exportedAt
                     )
                 )
             }
 
             val reasons = mutableListOf<ReasonEntity>()
-            val reasonsArray = root.optJSONArray("reasons") ?: JSONArray()
-            for (i in 0 until reasonsArray.length()) {
-                val obj = reasonsArray.getJSONObject(i)
+            root["reasons"]?.jsonArray?.forEach { el ->
+                val obj = el.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.content ?: return@forEach
+                val label = obj["label"]?.jsonPrimitive?.content ?: ""
                 reasons.add(
                     ReasonEntity(
-                        id = obj.getString("id"),
-                        label = obj.getString("label"),
-                        groupName = if (obj.has("groupName")) obj.optString("groupName") else null,
-                        category = if (obj.has("category")) obj.optString("category") else null,
-                        countsTowardDowntime = obj.optInt("countsTowardDowntime", 1),
-                        sortOrder = if (obj.has("sortOrder") && !obj.isNull("sortOrder")) obj.optInt("sortOrder") else null,
-                        isHidden = obj.optInt("isHidden", 0),
-                        isSeeded = obj.optInt("isSeeded", 0),
-                        updatedAt = if (obj.has("updatedAt") && !obj.isNull("updatedAt")) obj.optLong("updatedAt") else null
+                        id = id,
+                        label = label,
+                        groupName = obj["groupName"]?.jsonPrimitive?.contentOrNull,
+                        category = obj["category"]?.jsonPrimitive?.contentOrNull,
+                        countsTowardDowntime = obj["countsTowardDowntime"]?.jsonPrimitive?.intOrNull ?: 1,
+                        sortOrder = obj["sortOrder"]?.jsonPrimitive?.intOrNull,
+                        isHidden = obj["isHidden"]?.jsonPrimitive?.intOrNull ?: 0,
+                        isSeeded = obj["isSeeded"]?.jsonPrimitive?.intOrNull ?: 0,
+                        updatedAt = obj["updatedAt"]?.jsonPrimitive?.longOrNull
                     )
                 )
             }
