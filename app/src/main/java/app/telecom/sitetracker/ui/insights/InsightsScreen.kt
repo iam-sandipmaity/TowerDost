@@ -1,5 +1,6 @@
 package app.telecom.sitetracker.ui.insights
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,7 +59,7 @@ import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.SeverityCritical
 import app.telecom.sitetracker.ui.theme.SeverityMajor
 import app.telecom.sitetracker.ui.theme.SeverityMinor
-import app.telecom.sitetracker.ui.theme.TealPrimary
+import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
 import app.telecom.sitetracker.util.Dates
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -131,7 +132,7 @@ fun InsightsScreen(
                 val isModerate = avail in 98.0..99.49
 
                 val statusColor = when {
-                    isHealthy -> Color(0xFF16A34A)
+                    isHealthy -> StatusRestoredGreen
                     isModerate -> SeverityMajor
                     else -> SeverityCritical
                 }
@@ -139,9 +140,9 @@ fun InsightsScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isHealthy) Color(0xFFF0FDF4) else Color(0xFFFFF7ED)
+                        containerColor = MaterialTheme.colorScheme.surface
                     ),
-                    border = CardDefaults.outlinedCardBorder()
+                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(
@@ -268,7 +269,7 @@ fun InsightsScreen(
                                             .fillMaxWidth()
                                             .height(6.dp)
                                             .clip(RoundedCornerShape(3.dp)),
-                                        color = TealPrimary,
+                                        color = MaterialTheme.colorScheme.primary,
                                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                                     )
                                 }
@@ -298,7 +299,7 @@ fun InsightsScreen(
                                 "Critical" -> SeverityCritical
                                 "Major" -> SeverityMajor
                                 "Minor" -> SeverityMinor
-                                else -> Color(0xFF64748B)
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
                             }
                             Card(
                                 modifier = Modifier.weight(1f),
@@ -394,7 +395,7 @@ private fun ProblemSiteRowCard(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(problemSite.sap_id, style = SapIdStyle.copy(color = TealPrimary))
+                Text(problemSite.sap_id, style = SapIdStyle.copy(color = MaterialTheme.colorScheme.primary))
                 if (!problemSite.name.isNullOrBlank()) {
                     Text(problemSite.name, style = MaterialTheme.typography.bodySmall, maxLines = 1)
                 }

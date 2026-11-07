@@ -86,8 +86,8 @@ fun HomeScreen(
                 item {
                     WarningBanner(
                         message = stringResource(R.string.warning_clock_skew),
-                        backgroundColor = Color(0xFFFEF2F2),
-                        textColor = Color(0xFF991B1B)
+                        backgroundColor = SeverityCritical.copy(alpha = 0.15f),
+                        textColor = SeverityCritical
                     )
                 }
             }
@@ -113,12 +113,12 @@ fun HomeScreen(
                         modifier = Modifier
                             .weight(1f)
                             .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = app.telecom.sitetracker.ui.theme.TelecomAmber),
                         shape = RoundedCornerShape(8.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null)
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF0F172A))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Log Outage")
+                        Text("Log Outage", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                     }
 
                     if (uiState.kpis.totalSites == 0) {
@@ -230,7 +230,7 @@ fun TodayStrip(
         modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
         colors = CardDefaults.cardColors(
-            containerColor = if (sitesDownNow > 0) Color(0xFFFEF2F2) else Color(0xFFF0FDF4)
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         border = CardDefaults.outlinedCardBorder()
     ) {
@@ -243,15 +243,15 @@ fun TodayStrip(
             Column {
                 Text(
                     text = "Sites Down Now",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xFF475569)
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = sitesDownNow.toString(),
                     style = MetricMonoStyle.copy(
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (sitesDownNow > 0) SeverityCritical else Color(0xFF16A34A)
+                        color = if (sitesDownNow > 0) app.telecom.sitetracker.ui.theme.StatusDownRed else app.telecom.sitetracker.ui.theme.StatusRestoredGreen
                     )
                 )
             }
@@ -259,8 +259,8 @@ fun TodayStrip(
             Column {
                 Text(
                     text = "Unrestored",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xFF475569)
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "$stillDownCount sites",
@@ -271,8 +271,8 @@ fun TodayStrip(
             Column {
                 Text(
                     text = "Yesterday Downtime",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = Color(0xFF475569)
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = Dates.formatHours(yesterdayDowntimeHours),

@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -12,12 +13,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -27,6 +31,7 @@ import androidx.navigation.compose.rememberNavController
 import app.telecom.sitetracker.ui.home.HomeViewModel
 import app.telecom.sitetracker.ui.navigation.AppNavGraph
 import app.telecom.sitetracker.ui.navigation.Screen
+import app.telecom.sitetracker.ui.theme.TelecomAmber
 import app.telecom.sitetracker.ui.theme.TelecomSiteTrackerTheme
 
 class MainActivity : ComponentActivity() {
@@ -77,7 +82,11 @@ fun MainAppShell(
             if (isBottomBarDestination) {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp
+                    tonalElevation = 0.dp,
+                    modifier = Modifier.border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
                 ) {
                     for (screen in Screen.bottomNavItems) {
                         val selected = currentRoute == screen.route
@@ -99,8 +108,19 @@ fun MainAppShell(
                                 Icon(screen.icon, contentDescription = stringResource(screen.titleRes))
                             },
                             label = {
-                                Text(stringResource(screen.titleRes))
-                            }
+                                Text(
+                                    text = stringResource(screen.titleRes),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = Color(0xFF0F172A),
+                                selectedTextColor = TelecomAmber,
+                                indicatorColor = TelecomAmber,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         )
                     }
                 }

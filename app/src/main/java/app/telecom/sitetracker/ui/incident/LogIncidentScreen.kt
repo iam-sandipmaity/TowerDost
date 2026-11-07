@@ -657,7 +657,7 @@ private fun PhotoThumbnailItem(
         modifier = Modifier
             .size(80.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFE2E8F0))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
         val bmp = bitmapState.value
         if (bmp != null) {

@@ -55,7 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.ReasonEntity
 import app.telecom.sitetracker.ui.theme.SeverityCritical
-import app.telecom.sitetracker.ui.theme.TealPrimary
+import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,8 +91,8 @@ fun ReasonCatalogueScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.openAddDialog() },
-                containerColor = TealPrimary,
-                contentColor = Color.White
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Add Reason")
             }
@@ -236,14 +236,14 @@ private fun ReasonRowCard(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
                             .background(
-                                if (countsDowntime) Color(0xFFFEF2F2) else Color(0xFFF0FDF4)
+                                if (countsDowntime) SeverityCritical.copy(alpha = 0.15f) else StatusRestoredGreen.copy(alpha = 0.15f)
                             )
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
                             text = if (countsDowntime) "Counts as Downtime" else "Excluded from Downtime",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = if (countsDowntime) SeverityCritical else Color(0xFF16A34A)
+                            color = if (countsDowntime) SeverityCritical else StatusRestoredGreen
                         )
                     }
                 }

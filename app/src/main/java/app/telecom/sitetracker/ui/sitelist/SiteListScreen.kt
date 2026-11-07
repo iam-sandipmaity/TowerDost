@@ -4,6 +4,9 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,18 +22,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,8 +45,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -56,6 +59,11 @@ import androidx.paging.LoadState
 import androidx.paging.compose.collectAsLazyPagingItems
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.SiteEntity
+import app.telecom.sitetracker.ui.theme.SapIdStyle
+import app.telecom.sitetracker.ui.theme.StatusDownRed
+import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
+import app.telecom.sitetracker.ui.theme.TelecomAmber
+import app.telecom.sitetracker.ui.theme.TelemetryCyan
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,13 +83,23 @@ fun SiteListScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(stringResource(R.string.site_list_title), fontWeight = FontWeight.Bold)
-                        Text(
-                            text = "$activeCount active sites",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(R.drawable.ic_towerdost_logo),
+                            contentDescription = "TowerDost Logo",
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(6.dp))
                         )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(stringResource(R.string.site_list_title), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Text(
+                                text = "$activeCount active sites",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -89,7 +107,7 @@ fun SiteListScreen(
                         Icon(Icons.Default.Search, contentDescription = "Search sites")
                     }
                     IconButton(onClick = onImportClick) {
-                        Icon(Icons.Default.FileDownload, contentDescription = "Import file")
+                        Icon(Icons.Default.FileDownload, contentDescription = "Import file", tint = TelecomAmber)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -104,12 +122,12 @@ fun SiteListScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Instant Search Trigger Bar
+            // Instant Search Trigger Bar (Crisp outline with 48dp tactile target)
             Card(
                 onClick = onSearchClick,
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(8.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ),
                 border = CardDefaults.outlinedCardBorder(),
                 modifier = Modifier
@@ -125,7 +143,8 @@ fun SiteListScreen(
                     Icon(
                         Icons.Default.Search,
                         contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
@@ -141,63 +160,64 @@ fun SiteListScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-            when {
-                pagedSites.loadState.refresh is LoadState.Loading -> {
-                    Column(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator()
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text("Loading sites directory...", style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                pagedSites.itemCount == 0 && pagedSites.loadState.refresh !is LoadState.Loading -> {
-                    EmptySitesView(
-                        onImportClick = onImportClick,
-                        onSeedClick = onSeedSampleData
-                    )
-                }
-                else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 8.dp,
-                            bottom = 80.dp
-                        )
-                    ) {
-                        items(
-                            count = pagedSites.itemCount,
-                            key = { index ->
-                                val item = pagedSites[index]
-                                if (item != null) "${item.sapId}_$index" else index
-                            }
-                        ) { index ->
-                            val site = pagedSites[index]
-                            if (site != null) {
-                                SiteCard(
-                                    site = site,
-                                    onClick = { onSiteClick(site.sapId) },
-                                    onCopyCoordinates = { lat, lng ->
-                                        copyToClipboard(context, "Coordinates", "$lat, $lng")
-                                    }
-                                )
-                            }
+                when {
+                    pagedSites.loadState.refresh is LoadState.Loading -> {
+                        Column(
+                            modifier = Modifier.fillMaxSize(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("Loading sites directory...", style = MaterialTheme.typography.bodyMedium)
                         }
+                    }
+                    pagedSites.itemCount == 0 && pagedSites.loadState.refresh !is LoadState.Loading -> {
+                        EmptySitesView(
+                            onImportClick = onImportClick,
+                            onSeedClick = onSeedSampleData
+                        )
+                    }
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 4.dp,
+                                bottom = 80.dp
+                            )
+                        ) {
+                            items(
+                                count = pagedSites.itemCount,
+                                key = { index ->
+                                    val item = pagedSites[index]
+                                    if (item != null) "${item.sapId}_$index" else index
+                                }
+                            ) { index ->
+                                val site = pagedSites[index]
+                                if (site != null) {
+                                    SiteCard(
+                                        site = site,
+                                        onClick = { onSiteClick(site.sapId) },
+                                        onCopyCoordinates = { lat, lng ->
+                                            copyToClipboard(context, "Coordinates", "$lat, $lng")
+                                        }
+                                    )
+                                }
+                            }
 
-                        if (pagedSites.loadState.append is LoadState.Loading) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                            if (pagedSites.loadState.append is LoadState.Loading) {
+                                item {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                                    }
                                 }
                             }
                         }
@@ -206,7 +226,6 @@ fun SiteListScreen(
             }
         }
     }
-}
 }
 
 @Composable
@@ -219,7 +238,7 @@ fun SiteCard(
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = CardDefaults.outlinedCardBorder(),
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -231,29 +250,26 @@ fun SiteCard(
             ) {
                 Text(
                     text = site.sapId,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.primary
+                    style = SapIdStyle.copy(fontSize = 16.sp, color = TelecomAmber)
                 )
 
                 val statusText = site.status ?: "Active"
-                val (containerColor, contentColor) = when (statusText.lowercase()) {
-                    "active" -> Pair(Color(0xFFE8F5E9), Color(0xFF2E7D32))
-                    "down" -> Pair(Color(0xFFFFEBEE), Color(0xFFC62828))
-                    else -> Pair(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                val isDown = statusText.equals("down", ignoreCase = true)
+                val badgeColor = if (isDown) StatusDownRed else StatusRestoredGreen
+                val badgeBg = badgeColor.copy(alpha = 0.15f)
 
-                Surface(
-                    color = containerColor,
-                    shape = RoundedCornerShape(4.dp)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(badgeBg)
+                        .border(1.dp, badgeColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = statusText.uppercase(),
-                        color = contentColor,
+                        color = badgeColor,
                         style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -295,21 +311,21 @@ fun SiteCard(
                             text = "${site.lat.format(4)}, ${site.lng.format(4)}",
                             fontFamily = FontFamily.Monospace,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.secondary
+                            color = TelemetryCyan
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             Icons.Default.ContentCopy,
                             contentDescription = "Copy coordinates",
                             modifier = Modifier.size(12.dp),
-                            tint = MaterialTheme.colorScheme.secondary
+                            tint = TelemetryCyan
                         )
                     }
                 } else {
                     Text(
                         text = "No GPS recorded",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     )
                 }
 
@@ -317,7 +333,8 @@ fun SiteCard(
                     if (!site.technology.isNullOrBlank()) {
                         Surface(
                             color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(3.dp)
+                            shape = RoundedCornerShape(3.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             Text(
                                 text = site.technology,
@@ -329,7 +346,8 @@ fun SiteCard(
                     if (!site.siteType.isNullOrBlank()) {
                         Surface(
                             color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(3.dp)
+                            shape = RoundedCornerShape(3.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
                             Text(
                                 text = site.siteType,
@@ -360,7 +378,7 @@ private fun EmptySitesView(
             Icons.Default.CellTower,
             contentDescription = null,
             modifier = Modifier.size(64.dp),
-            tint = MaterialTheme.colorScheme.primary
+            tint = TelecomAmber
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
@@ -377,14 +395,21 @@ private fun EmptySitesView(
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onImportClick,
-            modifier = Modifier.fillMaxWidth(0.8f)
+            colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .height(48.dp),
+            shape = RoundedCornerShape(8.dp)
         ) {
-            Text("Import Excel / CSV Master")
+            Text("Import Excel / CSV Master", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         OutlinedButton(
             onClick = onSeedClick,
-            modifier = Modifier.fillMaxWidth(0.8f)
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .height(48.dp),
+            shape = RoundedCornerShape(8.dp)
         ) {
             Text("Load Sample Dataset")
         }

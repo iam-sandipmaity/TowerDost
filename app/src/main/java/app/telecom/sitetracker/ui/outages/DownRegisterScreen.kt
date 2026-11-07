@@ -1,5 +1,6 @@
 package app.telecom.sitetracker.ui.outages
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -79,6 +80,7 @@ import app.telecom.sitetracker.ui.theme.SapIdStyle
 import app.telecom.sitetracker.ui.theme.SeverityCritical
 import app.telecom.sitetracker.ui.theme.SeverityMajor
 import app.telecom.sitetracker.ui.theme.SeverityMinor
+import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
 import app.telecom.sitetracker.ui.theme.TealPrimary
 import app.telecom.sitetracker.util.Dates
 
@@ -289,7 +291,7 @@ fun DownRegisterScreen(
                             Button(
                                 onClick = { viewModel.restoreSelected() },
                                 enabled = uiState.selectedIncidentIds.isNotEmpty(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                                colors = ButtonDefaults.buttonColors(containerColor = StatusRestoredGreen)
                             ) {
                                 Text("Restore Selected", fontWeight = FontWeight.Bold)
                             }
@@ -487,7 +489,7 @@ private fun DayViewContent(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 4.dp),
             colors = CardDefaults.cardColors(
-                containerColor = if (sitesDownCount > 0) Color(0xFFFEF2F2) else Color(0xFFF0FDF4)
+                containerColor = MaterialTheme.colorScheme.surface
             ),
             border = CardDefaults.outlinedCardBorder()
         ) {
@@ -503,7 +505,7 @@ private fun DayViewContent(
                         text = "$sitesDownCount",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = if (sitesDownCount > 0) SeverityCritical else Color(0xFF16A34A)
+                        color = if (sitesDownCount > 0) app.telecom.sitetracker.ui.theme.StatusDownRed else app.telecom.sitetracker.ui.theme.StatusRestoredGreen
                     )
                     Text("Sites Down", style = MaterialTheme.typography.labelSmall)
                 }
@@ -513,7 +515,7 @@ private fun DayViewContent(
                         text = Dates.formatHours(totalDowntimeHours),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = if (totalDowntimeHours > 0) SeverityCritical else Color(0xFF16A34A)
+                        color = if (totalDowntimeHours > 0) app.telecom.sitetracker.ui.theme.StatusDownRed else app.telecom.sitetracker.ui.theme.StatusRestoredGreen
                     )
                     Text("Daily Downtime (0..24h)", style = MaterialTheme.typography.labelSmall)
                 }
@@ -524,7 +526,7 @@ private fun DayViewContent(
                         text = statusText,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (sitesDownCount == 0) Color(0xFF16A34A) else SeverityMajor
+                        color = if (sitesDownCount == 0) app.telecom.sitetracker.ui.theme.StatusRestoredGreen else app.telecom.sitetracker.ui.theme.StatusMaintAmber
                     )
                     Text("Day Status", style = MaterialTheme.typography.labelSmall)
                 }
@@ -582,7 +584,7 @@ private fun DayOutageCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = onSiteClick,
         colors = CardDefaults.cardColors(
-            containerColor = if (isStillDown) Color(0xFFFFF7ED) else MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         border = CardDefaults.outlinedCardBorder()
     ) {
@@ -594,21 +596,21 @@ private fun DayOutageCard(
             ) {
                 Text(
                     text = outage.sapId,
-                    style = SapIdStyle.copy(fontSize = 18.sp, color = TealPrimary)
+                    style = SapIdStyle.copy(fontSize = 18.sp, color = app.telecom.sitetracker.ui.theme.TelecomAmber)
                 )
 
                 // Clipped Downtime Pill
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(if (isStillDown) SeverityCritical else Color(0xFFE2E8F0))
+                        .background(if (isStillDown) app.telecom.sitetracker.ui.theme.StatusDownRed else MaterialTheme.colorScheme.surfaceVariant)
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = "${Dates.formatHours(item.clippedHours)} on this day",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            color = if (isStillDown) Color.White else Color(0xFF334155)
+                            color = if (isStillDown) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     )
                 }
@@ -659,7 +661,7 @@ private fun DayOutageCard(
                     text = if (isStillDown) "Status: STILL DOWN" else "Restored: ${Dates.formatDateTime(outage.restoredAt)}",
                     style = MaterialTheme.typography.labelSmall.copy(
                         fontWeight = FontWeight.Bold,
-                        color = if (isStillDown) SeverityCritical else Color(0xFF16A34A)
+                        color = if (isStillDown) SeverityCritical else StatusRestoredGreen
                     )
                 )
             }
@@ -671,7 +673,7 @@ private fun DayOutageCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(38.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusRestoredGreen),
                     shape = RoundedCornerShape(6.dp)
                 ) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
@@ -708,9 +710,12 @@ private fun OutageRegisterCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = { if (isMultiSelect) onToggleSelect() else onSiteClick() },
         colors = CardDefaults.cardColors(
-            containerColor = if (isStillDown) Color(0xFFFFF7ED) else MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = CardDefaults.outlinedCardBorder()
+        border = BorderStroke(
+            1.dp,
+            if (isStillDown) SeverityCritical.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant
+        )
     ) {
         Row(
             modifier = Modifier
@@ -734,7 +739,7 @@ private fun OutageRegisterCard(
                 ) {
                     Text(
                         text = outage.sapId,
-                        style = SapIdStyle.copy(fontSize = 18.sp, color = TealPrimary)
+                        style = SapIdStyle.copy(fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
                     )
 
                     // Status & Duration badge
@@ -757,14 +762,14 @@ private fun OutageRegisterCard(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFFDCFCE7))
+                                .background(StatusRestoredGreen.copy(alpha = 0.15f))
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text(
                                 text = "RESTORED (${Dates.formatHours(runningHours)})",
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF15803D)
+                                    color = StatusRestoredGreen
                                 )
                             )
                         }
@@ -772,14 +777,14 @@ private fun OutageRegisterCard(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text(
                                 text = outage.status.uppercase(),
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                         }
@@ -809,7 +814,7 @@ private fun OutageRegisterCard(
                     Text(
                         text = "Action: ${outage.actionTaken}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFF15803D),
+                        color = StatusRestoredGreen,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -830,7 +835,7 @@ private fun OutageRegisterCard(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(if (isOutage) Color(0xFFFEF2F2) else MaterialTheme.colorScheme.surfaceVariant)
+                                .background(if (isOutage) SeverityCritical.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(
@@ -847,7 +852,7 @@ private fun OutageRegisterCard(
                             "Critical" -> SeverityCritical
                             "Major" -> SeverityMajor
                             "Minor" -> SeverityMinor
-                            else -> Color(0xFF64748B)
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
                         Box(
                             modifier = Modifier
@@ -890,13 +895,13 @@ private fun OutageRegisterCard(
                         onClick = onRestore,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(40.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
-                        shape = RoundedCornerShape(6.dp)
+                            .height(44.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = StatusRestoredGreen),
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White)
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("1-Tap Restore Site Now", fontWeight = FontWeight.Bold, color = Color.White)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("1-Tap Restore Site Now", fontWeight = FontWeight.SemiBold, color = Color.White)
                     }
                 }
             }

@@ -79,6 +79,7 @@ import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.ui.theme.BrandPrimary
+import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
 import app.telecom.sitetracker.ui.theme.TagIssueBg
 import app.telecom.sitetracker.ui.theme.TagIssueColor
 import app.telecom.sitetracker.ui.theme.TagMaintBg
@@ -599,7 +600,7 @@ private fun SiteLogsTab(
                                 Text(
                                     text = "Action: ${log.actionTaken}",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF15803D),
+                                    color = StatusRestoredGreen,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
