@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 val TelecomAmber = Color(0xFFF59E0B)       // Industrial amber (high sunlight visibility)
 val TelecomAmberDark = Color(0xFFD97706)   // Deep amber for light mode
 val TelemetryCyan = Color(0xFF0EA5E9)      // RF telemetry cyan
+val RFCyan = TelemetryCyan                 // RF Cyan alias
 val CobaltAccent = Color(0xFF2563EB)
 
 // Backward compatibility brand aliases
