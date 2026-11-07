@@ -5,39 +5,40 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
-    primary = BrandPrimary,
-    onPrimary = SurfaceLight,
-    primaryContainer = BrandPrimaryContainer,
-    onPrimaryContainer = OnBrandPrimaryContainer,
-    secondary = BrandPrimary,
-    onSecondary = SurfaceLight,
-    background = BackgroundLight,
+    primary = TelecomAmberDark,
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFFEF3C7),
+    onPrimaryContainer = Color(0xFF78350F),
+    secondary = TelemetryCyan,
+    onSecondary = Color.White,
+    background = GroundLight,
     onBackground = TextPrimaryLight,
     surface = SurfaceLight,
     onSurface = TextPrimaryLight,
-    surfaceVariant = BackgroundLight,
+    surfaceVariant = SurfaceElevatedLight,
     onSurfaceVariant = TextSecondaryLight,
-    outline = CardBorderLight,
-    outlineVariant = CardBorderLight
+    outline = BorderLight,
+    outlineVariant = BorderLight
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = BrandPrimaryLight,
-    onPrimary = TextPrimaryLight,
-    primaryContainer = BrandPrimary,
-    onPrimaryContainer = BrandPrimaryContainer,
-    secondary = BrandPrimaryLight,
-    onSecondary = TextPrimaryLight,
-    background = BackgroundDark,
+    primary = TelecomAmber,
+    onPrimary = Color(0xFF0F172A),
+    primaryContainer = Color(0xFF1E283A),
+    onPrimaryContainer = TextPrimaryDark,
+    secondary = TelemetryCyan,
+    onSecondary = Color(0xFF0F172A),
+    background = GroundDark,
     onBackground = TextPrimaryDark,
     surface = SurfaceDark,
     onSurface = TextPrimaryDark,
-    surfaceVariant = SurfaceDark,
+    surfaceVariant = SurfaceElevatedDark,
     onSurfaceVariant = TextSecondaryDark,
-    outline = CardBorderDark,
-    outlineVariant = CardBorderDark
+    outline = BorderDark,
+    outlineVariant = BorderDark
 )
 
 @Composable
