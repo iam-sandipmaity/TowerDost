@@ -147,7 +147,7 @@ fun ReasonCatalogueScreen(
                             onToggleHidden = { viewModel.toggleReasonHidden(reason) }
                         )
                     }
-                    item { Spacer(modifier = Modifier.height(72.dp)) } // FAB clearance
+                    item { Spacer(modifier = Modifier.height(88.dp)) } // FAB clearance
                 }
             }
         }

@@ -709,6 +709,7 @@ private fun StepImportProgress(
             ) {
                 Text("View Sites Directory")
             }
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }

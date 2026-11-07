@@ -418,7 +418,7 @@ fun InsightsScreen(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(28.dp)) }
+            item { Spacer(modifier = Modifier.height(88.dp)) }
         }
     }
 }
