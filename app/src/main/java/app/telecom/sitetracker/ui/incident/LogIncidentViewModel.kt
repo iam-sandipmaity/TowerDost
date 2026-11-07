@@ -179,16 +179,23 @@ class LogIncidentViewModel(
     }
 
     fun setCategory(category: String) {
+        val isOutage = category.equals("Issue", ignoreCase = true)
         _uiState.update { current ->
             val matchingReason = current.activeReasons.find {
                 it.category.equals(category, ignoreCase = true) || it.groupName.equals(category, ignoreCase = true)
             }
             val newReasonId = matchingReason?.id ?: current.selectedReasonId
-            val defaultTitle = "${category} Issue"
+            val defaultTitle = when (category.lowercase()) {
+                "maintenance" -> "Routine Maintenance"
+                "visit" -> "Site Visit"
+                "note" -> "Site Note"
+                else -> "Site Issue"
+            }
             current.copy(
                 category = category,
+                isOutage = isOutage,
                 selectedReasonId = newReasonId,
-                title = if (current.title.isBlank() || current.title.endsWith("Issue")) defaultTitle else current.title
+                title = if (current.title.isBlank() || current.title.endsWith("Issue") || current.title.endsWith("Maintenance") || current.title.endsWith("Visit") || current.title.endsWith("Note")) defaultTitle else current.title
             )
         }
     }

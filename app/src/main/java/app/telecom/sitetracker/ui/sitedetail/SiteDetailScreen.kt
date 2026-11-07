@@ -438,12 +438,13 @@ private fun SiteLogsTab(
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(logs, key = { it.id }) { log ->
-                    val cat = log.category.lowercase()
+                    val cat = log.category.lowercase().trim()
                     val (badgeText, badgeColor, badgeBg) = when {
-                        cat.contains("issue") || log.isOutage == 1 -> Triple("ISSUE", TagIssueColor, TagIssueBg)
                         cat.contains("maint") || cat.contains("repair") -> Triple("MAINTENANCE", TagMaintColor, TagMaintBg)
-                        cat.contains("visit") || cat.contains("audit") -> Triple("VISIT", TagVisitColor, TagVisitBg)
-                        else -> Triple("NOTE", TagNoteColor, TagNoteBg)
+                        cat.contains("visit") || cat.contains("site") || cat.contains("inspect") || cat.contains("audit") -> Triple("VISIT", TagVisitColor, TagVisitBg)
+                        cat.contains("note") || cat.contains("general") -> Triple("NOTE", TagNoteColor, TagNoteBg)
+                        cat.contains("issue") || log.isOutage == 1 -> Triple("ISSUE", TagIssueColor, TagIssueBg)
+                        else -> Triple(log.category.uppercase().ifBlank { "NOTE" }, TagNoteColor, TagNoteBg)
                     }
 
                     Card(

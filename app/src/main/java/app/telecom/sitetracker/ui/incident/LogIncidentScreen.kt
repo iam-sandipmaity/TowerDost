@@ -94,11 +94,11 @@ import app.telecom.sitetracker.util.BitmapUtils
 import app.telecom.sitetracker.util.Dates
 import java.io.File
 
-private enum class LogType(val label: String, val icon: String, val textColor: Color, val bgColor: Color) {
-    ISSUE("Issue / Fault", "⚠️", TagIssueColor, TagIssueBg),
-    MAINTENANCE("Maintenance", "🔧", TagMaintColor, TagMaintBg),
-    VISIT("Site Visit", "📋", TagVisitColor, TagVisitBg),
-    NOTE("General Note", "📝", TagNoteColor, TagNoteBg)
+private enum class LogType(val categoryName: String, val label: String, val icon: String, val textColor: Color, val bgColor: Color) {
+    ISSUE("Issue", "Issue / Fault", "⚠️", TagIssueColor, TagIssueBg),
+    MAINTENANCE("Maintenance", "Maintenance", "🔧", TagMaintColor, TagMaintBg),
+    VISIT("Visit", "Site Visit", "📋", TagVisitColor, TagVisitBg),
+    NOTE("Note", "General Note", "📝", TagNoteColor, TagNoteBg)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -118,10 +118,11 @@ fun LogIncidentScreen(
     var selectedType by remember { mutableStateOf(LogType.ISSUE) }
 
     LaunchedEffect(uiState.category) {
-        selectedType = when (uiState.category.lowercase()) {
-            "maintenance" -> LogType.MAINTENANCE
-            "visit", "inspection" -> LogType.VISIT
-            "note", "general" -> LogType.NOTE
+        val cat = uiState.category.lowercase().trim()
+        selectedType = when {
+            cat.contains("maint") || cat.contains("repair") -> LogType.MAINTENANCE
+            cat.contains("visit") || cat.contains("site") || cat.contains("inspect") -> LogType.VISIT
+            cat.contains("note") || cat.contains("general") -> LogType.NOTE
             else -> LogType.ISSUE
         }
     }
@@ -191,7 +192,7 @@ fun LogIncidentScreen(
                     }
                     TextButton(
                         onClick = {
-                            viewModel.setCategory(selectedType.label.split(" ").first())
+                            viewModel.setCategory(selectedType.categoryName)
                             viewModel.saveIncident { incidentId, sapId ->
                                 onIncidentSaved(sapId, incidentId)
                             }
@@ -338,11 +339,11 @@ fun LogIncidentScreen(
                             selected = isSelected,
                             onClick = {
                                 selectedType = type
-                                viewModel.setCategory(type.label.split(" ").first())
+                                viewModel.setCategory(type.categoryName)
                             },
                             label = {
                                 Text(
-                                    text = "${type.icon} ${type.label.split(" ").first()}",
+                                    text = "${type.icon} ${type.categoryName}",
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     fontSize = 12.sp
                                 )
@@ -480,7 +481,7 @@ fun LogIncidentScreen(
             Spacer(modifier = Modifier.height(4.dp))
             Button(
                 onClick = {
-                    viewModel.setCategory(selectedType.label.split(" ").first())
+                    viewModel.setCategory(selectedType.categoryName)
                     viewModel.saveIncident { incidentId, sapId ->
                         onIncidentSaved(sapId, incidentId)
                     }

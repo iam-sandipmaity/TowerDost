@@ -32,11 +32,12 @@ class ActivityViewModel(
         _searchQuery
     ) { logs, filter, query ->
         val filtered = logs.filter { item ->
+            val c = item.category.lowercase().trim()
             val matchesFilter = when (filter) {
-                "Issue" -> item.category.contains("Issue", ignoreCase = true) || item.isOutage == 1
-                "Maintenance" -> item.category.contains("Maintenance", ignoreCase = true) || item.category.contains("Repair", ignoreCase = true)
-                "Visit" -> item.category.contains("Visit", ignoreCase = true) || item.category.contains("Inspection", ignoreCase = true)
-                "Note" -> item.category.contains("Note", ignoreCase = true) || item.category.contains("General", ignoreCase = true)
+                "Maintenance" -> c.contains("maint") || c.contains("repair")
+                "Visit" -> c.contains("visit") || c.contains("site") || c.contains("inspect") || c.contains("audit")
+                "Note" -> c.contains("note") || c.contains("general")
+                "Issue" -> c.contains("issue") || (item.isOutage == 1 && !c.contains("maint") && !c.contains("visit") && !c.contains("note"))
                 else -> true
             }
 
