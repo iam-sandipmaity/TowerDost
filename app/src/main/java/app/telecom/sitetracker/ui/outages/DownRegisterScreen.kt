@@ -329,7 +329,7 @@ fun DownRegisterScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 72.dp)
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
                     ) {
                         items(currentList, key = { it.id }) { outage ->
                             val isSelected = uiState.selectedIncidentIds.contains(outage.id)
@@ -346,7 +346,7 @@ fun DownRegisterScreen(
                                 }
                             )
                         }
-                        item { Spacer(modifier = Modifier.height(72.dp)) } // FAB clearance
+                        item { Spacer(modifier = Modifier.height(88.dp)) } // FAB clearance
                     }
                 }
             }

@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,7 +24,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CellTower
@@ -115,53 +113,17 @@ fun SiteListScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Live Interactive Search Bar
+            // Live Interactive Search Bar with respectful margins
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 EnterpriseSearchBar(
                     query = searchQuery,
                     onQueryChange = { viewModel.onSearchQueryChanged(it) },
-                    placeholder = "Search SAP ID, name, city, circle...",
+                    placeholder = "Search SAP ID, site name, city, circle...",
                     onClear = { viewModel.clearSearch() }
-                )
-            }
-
-            // Quick Filter Chips Row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilterPill(
-                    label = "🔴 Down Only",
-                    isSelected = filterState.filterDownOnly,
-                    onClick = { viewModel.onToggleDownFilter() }
-                )
-                FilterPill(
-                    label = "⚡ 4G",
-                    isSelected = filterState.selectedTech == "4G",
-                    onClick = { viewModel.onTechSelected("4G") }
-                )
-                FilterPill(
-                    label = "🚀 5G",
-                    isSelected = filterState.selectedTech == "5G",
-                    onClick = { viewModel.onTechSelected("5G") }
-                )
-                FilterPill(
-                    label = "Kolkata",
-                    isSelected = filterState.selectedCircle == "Kolkata",
-                    onClick = { viewModel.onCircleSelected("Kolkata") }
-                )
-                FilterPill(
-                    label = "West Bengal",
-                    isSelected = filterState.selectedCircle == "West Bengal",
-                    onClick = { viewModel.onCircleSelected("West Bengal") }
                 )
             }
 
@@ -191,18 +153,11 @@ fun SiteListScreen(
                             onClear = { viewModel.clearSearch() }
                         )
                     } else {
-                        val filteredResults = searchResults.filter { site ->
-                            val matchDown = !filterState.filterDownOnly || site.status?.equals("down", ignoreCase = true) == true
-                            val matchCircle = filterState.selectedCircle == null || site.circle?.contains(filterState.selectedCircle!!, ignoreCase = true) == true
-                            val matchTech = filterState.selectedTech == null || site.technology?.contains(filterState.selectedTech!!, ignoreCase = true) == true
-                            matchDown && matchCircle && matchTech
-                        }
-
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp)
                         ) {
-                            items(filteredResults, key = { it.sapId }) { site ->
+                            items(searchResults, key = { it.sapId }) { site ->
                                 SiteCard(
                                     site = site,
                                     onClick = { onSiteClick(site.sapId) },
@@ -274,38 +229,6 @@ fun SiteListScreen(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun FilterPill(
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        color = if (isSelected) TelecomAmber.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(8.dp),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp,
-            if (isSelected) TelecomAmber else MaterialTheme.colorScheme.outlineVariant
-        ),
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .height(32.dp)
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            )
         }
     }
 }
