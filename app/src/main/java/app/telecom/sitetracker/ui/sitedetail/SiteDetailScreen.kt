@@ -25,10 +25,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -90,12 +94,14 @@ fun SiteDetailScreen(
     viewModel: SiteDetailViewModel,
     onNavigateBack: () -> Unit,
     onLogIncident: (String) -> Unit,
+    onEditLog: (sapId: String, incidentId: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var specFilterQuery by remember { mutableStateOf("") }
+    var logToDelete by remember { mutableStateOf<IncidentEntity?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(uiState.userMessage, uiState.errorMessage) {
@@ -205,12 +211,49 @@ fun SiteDetailScreen(
                     )
                     1 -> SiteLogsTab(
                         logs = uiState.incidents,
-                        onAddLogClick = { onLogIncident(site.sapId) }
+                        onAddLogClick = { onLogIncident(site.sapId) },
+                        onEditLogClick = { incId -> onEditLog(site.sapId, incId) },
+                        onDeleteLogClick = { logToDelete = it }
                     )
                     2 -> OverviewTab(site = site)
                 }
             }
         }
+    }
+
+    if (logToDelete != null) {
+        val target = logToDelete!!
+        AlertDialog(
+            onDismissRequest = { logToDelete = null },
+            icon = {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = TagIssueColor, modifier = Modifier.size(36.dp))
+            },
+            title = {
+                Text("Delete Site Log?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    text = "⚠️ Warning: This will permanently remove this log entry from the database. Any notes, technician details, and photos attached to this log will be deleted.\n\nThis action cannot be undone. Are you sure you want to proceed?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteIncident(target.id)
+                        logToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = TagIssueColor)
+                ) {
+                    Text("Delete Permanently", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { logToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -330,7 +373,9 @@ private fun SiteHeaderCard(
 @Composable
 private fun SiteLogsTab(
     logs: List<IncidentEntity>,
-    onAddLogClick: () -> Unit
+    onAddLogClick: () -> Unit,
+    onEditLogClick: (String) -> Unit,
+    onDeleteLogClick: (IncidentEntity) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -470,6 +515,35 @@ private fun SiteLogsTab(
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(
+                                    onClick = { onEditLogClick(log.id) },
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Edit", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                }
+
+                                TextButton(
+                                    onClick = { onDeleteLogClick(log) },
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp), tint = TagIssueColor)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Delete", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TagIssueColor)
                                 }
                             }
                         }

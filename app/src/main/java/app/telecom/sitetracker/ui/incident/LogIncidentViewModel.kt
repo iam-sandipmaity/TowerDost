@@ -27,13 +27,17 @@ import java.util.UUID
 
 data class LogIncidentUiState(
     val initialSapId: String? = null,
+    val initialIncidentId: String? = null,
+    val isEditMode: Boolean = false,
+    val existingIncidentId: String? = null,
+    val showDeleteDialog: Boolean = false,
     val selectedSite: SiteEntity? = null,
     val siteSearchQuery: String = "",
     val siteSuggestions: List<SiteEntity> = emptyList(),
     val isSearchingSites: Boolean = false,
     val isOutage: Boolean = true,
     val severity: String = "Major",
-    val category: String = "Power",
+    val category: String = "Issue",
     val selectedReasonId: String? = null,
     val activeReasons: List<ReasonEntity> = emptyList(),
     val title: String = "",
@@ -57,6 +61,7 @@ data class LogIncidentUiState(
 
 class LogIncidentViewModel(
     private val initialSapId: String?,
+    private val initialIncidentId: String? = null,
     private val siteRepository: SiteRepository,
     private val incidentRepository: IncidentRepository,
     private val outageRepository: OutageRepository,
@@ -68,6 +73,7 @@ class LogIncidentViewModel(
     private val _uiState = MutableStateFlow(
         LogIncidentUiState(
             initialSapId = initialSapId,
+            initialIncidentId = initialIncidentId,
             downAtMs = now,
             restoredAtMs = now
         )
@@ -89,8 +95,35 @@ class LogIncidentViewModel(
             }
         }
 
-        // If sapId is provided, pre-fetch the site
-        if (!initialSapId.isNullOrBlank()) {
+        // If incidentId is provided, load existing incident for editing
+        if (!initialIncidentId.isNullOrBlank()) {
+            viewModelScope.launch {
+                val existing = incidentRepository.getIncident(initialIncidentId)
+                if (existing != null) {
+                    val site = siteRepository.getSiteBySapId(existing.sapId)
+                    _uiState.update { current ->
+                        current.copy(
+                            isEditMode = true,
+                            existingIncidentId = existing.id,
+                            initialSapId = existing.sapId,
+                            selectedSite = site,
+                            category = existing.category,
+                            title = existing.title,
+                            description = existing.description ?: "",
+                            actionTaken = existing.actionTaken ?: "",
+                            engineer = existing.engineer ?: "",
+                            ticketRef = existing.ticketRef ?: "",
+                            downAtMs = existing.occurredAt,
+                            isOutage = existing.isOutage == 1,
+                            selectedReasonId = existing.reasonId
+                        )
+                    }
+                    incidentRepository.observePhotos(existing.id).collect { photos ->
+                        _uiState.update { it.copy(photos = photos) }
+                    }
+                }
+            }
+        } else if (!initialSapId.isNullOrBlank()) {
             viewModelScope.launch {
                 val site = siteRepository.getSiteBySapId(initialSapId)
                 _uiState.update { it.copy(selectedSite = site) }
@@ -266,8 +299,8 @@ class LogIncidentViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
             try {
-                val incidentId = UUID.randomUUID().toString()
                 val nowMs = clock.currentTimeMillis()
+                val incidentId = current.existingIncidentId ?: UUID.randomUUID().toString()
 
                 val incident = IncidentEntity(
                     id = incidentId,
@@ -291,7 +324,7 @@ class LogIncidentViewModel(
                     gpsLng = current.gpsLng,
                     gpsAccuracyM = current.gpsAccuracyM,
                     gpsDistanceFromSiteM = current.gpsDistanceFromSiteM,
-                    createdAt = nowMs,
+                    createdAt = if (current.isEditMode) current.downAtMs else nowMs,
                     updatedAt = nowMs
                 )
 
@@ -326,12 +359,33 @@ class LogIncidentViewModel(
         }
     }
 
+    fun setDeleteDialogVisible(visible: Boolean) {
+        _uiState.update { it.copy(showDeleteDialog = visible) }
+    }
+
+    fun deleteCurrentIncident(onSuccess: () -> Unit) {
+        val incidentId = _uiState.value.existingIncidentId ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSaving = true, showDeleteDialog = false) }
+            try {
+                incidentRepository.deleteIncident(incidentId, deletePermanently = true)
+                _uiState.update { it.copy(isSaving = false) }
+                onSuccess()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(isSaving = false, errorMessage = "Failed to delete: ${e.localizedMessage}")
+                }
+            }
+        }
+    }
+
     fun dismissError() {
         _uiState.update { it.copy(errorMessage = null) }
     }
 
     class Factory(
         private val sapId: String?,
+        private val incidentId: String? = null,
         private val siteRepository: SiteRepository,
         private val incidentRepository: IncidentRepository,
         private val outageRepository: OutageRepository,
@@ -342,6 +396,7 @@ class LogIncidentViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return LogIncidentViewModel(
                 initialSapId = sapId,
+                initialIncidentId = incidentId,
                 siteRepository = siteRepository,
                 incidentRepository = incidentRepository,
                 outageRepository = outageRepository,

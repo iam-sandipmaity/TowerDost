@@ -38,8 +38,13 @@ sealed class Screen(
     object ImportWizard : Screen("import_wizard", R.string.import_title, Icons.Default.UploadFile)
     object Search : Screen("search", R.string.action_search, Icons.Default.Search)
 
-    object LogIncident : Screen("log_incident?sapId={sapId}", R.string.title_log_incident, Icons.Default.AddAlert) {
-        fun createRoute(sapId: String? = null) = if (sapId.isNullOrBlank()) "log_incident" else "log_incident?sapId=$sapId"
+    object LogIncident : Screen("log_incident?sapId={sapId}&incidentId={incidentId}", R.string.title_log_incident, Icons.Default.AddAlert) {
+        fun createRoute(sapId: String? = null, incidentId: String? = null): String {
+            val params = mutableListOf<String>()
+            if (!sapId.isNullOrBlank()) params.add("sapId=$sapId")
+            if (!incidentId.isNullOrBlank()) params.add("incidentId=$incidentId")
+            return if (params.isEmpty()) "log_incident" else "log_incident?${params.joinToString("&")}"
+        }
     }
 
     companion object {

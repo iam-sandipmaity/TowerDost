@@ -90,6 +90,12 @@ interface IncidentDao {
     @Query("SELECT * FROM incidents WHERE deleted_at IS NULL ORDER BY occurred_at DESC")
     suspend fun getAllIncidentsList(): List<IncidentEntity>
 
+    @Query("UPDATE incidents SET deleted_at = :deletedAt, updated_at = :deletedAt WHERE id = :id")
+    suspend fun softDeleteIncident(id: String, deletedAt: Long)
+
+    @Query("DELETE FROM incidents WHERE id = :id")
+    suspend fun hardDeleteIncident(id: String)
+
     @Query("DELETE FROM incidents WHERE sap_id LIKE 'DEL-9%' OR sap_id LIKE 'MUM-9%' OR sap_id LIKE 'KOL-9%' OR sap_id LIKE 'CHN-9%' OR sap_id LIKE 'BLR-9%'")
     suspend fun deleteSampleIncidents()
 

@@ -86,6 +86,9 @@ fun AppNavGraph(
                 },
                 onAddLogClick = {
                     navController.navigate(Screen.LogIncident.createRoute())
+                },
+                onEditLogClick = { sapId, incidentId ->
+                    navController.navigate(Screen.LogIncident.createRoute(sapId = sapId, incidentId = incidentId))
                 }
             )
         }
@@ -141,7 +144,10 @@ fun AppNavGraph(
                 viewModel = siteDetailViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onLogIncident = { siteSapId ->
-                    navController.navigate(Screen.LogIncident.createRoute(siteSapId))
+                    navController.navigate(Screen.LogIncident.createRoute(sapId = siteSapId))
+                },
+                onEditLog = { siteSapId, incidentId ->
+                    navController.navigate(Screen.LogIncident.createRoute(sapId = siteSapId, incidentId = incidentId))
                 }
             )
         }
@@ -232,7 +238,7 @@ fun AppNavGraph(
             )
         }
 
-        // 9. Log Incident / Outage Screen
+        // 9. Log Incident / Outage Screen (Add or Edit)
         composable(
             route = Screen.LogIncident.route,
             arguments = listOf(
@@ -240,13 +246,20 @@ fun AppNavGraph(
                     type = NavType.StringType
                     nullable = true
                     defaultValue = null
+                },
+                navArgument("incidentId") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
                 }
             )
         ) { backStackEntry ->
             val sapId = backStackEntry.arguments?.getString("sapId")
-            val logIncidentViewModel: LogIncidentViewModel = viewModel(key = "log_$sapId") {
+            val incidentId = backStackEntry.arguments?.getString("incidentId")
+            val logIncidentViewModel: LogIncidentViewModel = viewModel(key = "log_${sapId}_$incidentId") {
                 LogIncidentViewModel(
                     initialSapId = sapId,
+                    initialIncidentId = incidentId,
                     siteRepository = app.siteRepository,
                     incidentRepository = app.incidentRepository,
                     outageRepository = app.outageRepository,
@@ -257,7 +270,10 @@ fun AppNavGraph(
             LogIncidentScreen(
                 viewModel = logIncidentViewModel,
                 onNavigateBack = { navController.popBackStack() },
-                onIncidentSaved = { targetSapId, incidentId ->
+                onIncidentSaved = { targetSapId, id ->
+                    navController.popBackStack()
+                },
+                onIncidentDeleted = {
                     navController.popBackStack()
                 }
             )

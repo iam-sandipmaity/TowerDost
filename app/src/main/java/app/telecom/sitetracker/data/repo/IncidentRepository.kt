@@ -105,6 +105,14 @@ class IncidentRepository(private val db: AppDatabase) {
 
     suspend fun getAllIncidentsList(): List<IncidentEntity> = incidentDao.getAllIncidentsList()
 
+    suspend fun deleteIncident(id: String, deletePermanently: Boolean = false) {
+        if (deletePermanently) {
+            incidentDao.hardDeleteIncident(id)
+        } else {
+            incidentDao.softDeleteIncident(id, System.currentTimeMillis())
+        }
+    }
+
     suspend fun clearSampleIncidents() {
         incidentDao.deleteSampleIncidents()
     }

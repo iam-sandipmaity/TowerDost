@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 data class ActivityUiState(
     val selectedFilter: String = "All", // "All", "Issue", "Maintenance", "Visit", "Note"
@@ -68,6 +69,12 @@ class ActivityViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+    }
+
+    fun deleteLog(incidentId: String) {
+        viewModelScope.launch {
+            incidentRepository.deleteIncident(incidentId, deletePermanently = true)
+        }
     }
 
     class Factory(

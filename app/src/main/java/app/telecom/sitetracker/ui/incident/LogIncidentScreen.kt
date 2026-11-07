@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,9 +33,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -104,6 +107,7 @@ fun LogIncidentScreen(
     viewModel: LogIncidentViewModel,
     onNavigateBack: () -> Unit,
     onIncidentSaved: (sapId: String, incidentId: String) -> Unit,
+    onIncidentDeleted: () -> Unit = onNavigateBack,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -111,15 +115,15 @@ fun LogIncidentScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scrollState = rememberScrollState()
 
-    var selectedType by remember {
-        mutableStateOf(
-            when (uiState.category.lowercase()) {
-                "maintenance" -> LogType.MAINTENANCE
-                "visit", "inspection" -> LogType.VISIT
-                "note", "general" -> LogType.NOTE
-                else -> LogType.ISSUE
-            }
-        )
+    var selectedType by remember { mutableStateOf(LogType.ISSUE) }
+
+    LaunchedEffect(uiState.category) {
+        selectedType = when (uiState.category.lowercase()) {
+            "maintenance" -> LogType.MAINTENANCE
+            "visit", "inspection" -> LogType.VISIT
+            "note", "general" -> LogType.NOTE
+            else -> LogType.ISSUE
+        }
     }
 
     var cameraCaptureUri by remember { mutableStateOf<Uri?>(null) }
@@ -158,13 +162,33 @@ fun LogIncidentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Add Site Log / Note", fontWeight = FontWeight.Bold) },
+                title = {
+                    Column {
+                        Text(
+                            text = if (uiState.isEditMode) "Edit Site Log" else "Add Site Log",
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (uiState.selectedSite != null) {
+                            Text(
+                                text = uiState.selectedSite!!.sapId,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
+                    if (uiState.isEditMode) {
+                        IconButton(onClick = { viewModel.setDeleteDialogVisible(true) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete Log", tint = TagIssueColor)
+                        }
+                    }
                     TextButton(
                         onClick = {
                             viewModel.setCategory(selectedType.label.split(" ").first())
@@ -477,8 +501,58 @@ fun LogIncidentScreen(
                 }
             }
 
+            if (uiState.isEditMode) {
+                OutlinedButton(
+                    onClick = { viewModel.setDeleteDialogVisible(true) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TagIssueColor),
+                    border = BorderStroke(1.dp, TagIssueColor),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = !uiState.isSaving
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = null, tint = TagIssueColor)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Delete This Log", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TagIssueColor)
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (uiState.showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.setDeleteDialogVisible(false) },
+            icon = {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = TagIssueColor, modifier = Modifier.size(36.dp))
+            },
+            title = {
+                Text("Delete Site Log?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    text = "⚠️ Warning: This will permanently remove this log from the database. Any notes, technician details, and photos attached to this log will be deleted.\n\nThis action cannot be undone. Are you sure you want to proceed?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteCurrentIncident(onSuccess = onIncidentDeleted)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = TagIssueColor)
+                ) {
+                    Text("Delete Permanently", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.setDeleteDialogVisible(false) }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     if (showDateTimePicker) {

@@ -82,6 +82,12 @@ class SiteDetailViewModel(
         }
     }
 
+    fun deleteIncident(incidentId: String) {
+        viewModelScope.launch {
+            incidentRepository.deleteIncident(incidentId, deletePermanently = true)
+        }
+    }
+
     fun reload() {
         loadSiteDetails()
     }

@@ -18,24 +18,36 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,10 +75,12 @@ fun ActivityScreen(
     viewModel: ActivityViewModel,
     onSiteClick: (String) -> Unit,
     onAddLogClick: () -> Unit,
+    onEditLogClick: (sapId: String, incidentId: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val filters = listOf("All", "Issue", "Maintenance", "Visit", "Note")
+    var logToDelete by remember { mutableStateOf<IncidentEntity?>(null) }
 
     Scaffold(
         topBar = {
@@ -182,7 +196,9 @@ fun ActivityScreen(
                     items(uiState.filteredLogs, key = { it.id }) { log ->
                         SiteLogFeedCard(
                             log = log,
-                            onSiteClick = { onSiteClick(log.sapId) }
+                            onSiteClick = { onSiteClick(log.sapId) },
+                            onEditClick = { onEditLogClick(log.sapId, log.id) },
+                            onDeleteClick = { logToDelete = log }
                         )
                     }
                     item { Spacer(modifier = Modifier.height(72.dp)) }
@@ -190,12 +206,49 @@ fun ActivityScreen(
             }
         }
     }
+
+    if (logToDelete != null) {
+        val target = logToDelete!!
+        AlertDialog(
+            onDismissRequest = { logToDelete = null },
+            icon = {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = TagIssueColor, modifier = Modifier.size(36.dp))
+            },
+            title = {
+                Text("Delete Site Log?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    text = "⚠️ Warning: This will permanently remove the log for site ${target.sapId} from the database. Any notes, technician details, and photos attached to this log will be deleted.\n\nThis action cannot be undone. Are you sure you want to proceed?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteLog(target.id)
+                        logToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = TagIssueColor)
+                ) {
+                    Text("Delete Permanently", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { logToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun SiteLogFeedCard(
     log: IncidentEntity,
-    onSiteClick: () -> Unit
+    onSiteClick: () -> Unit,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     val cat = log.category.lowercase()
     val (badgeText, badgeColor, badgeBg) = when {
@@ -207,7 +260,6 @@ private fun SiteLogFeedCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        onClick = onSiteClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = CardDefaults.outlinedCardBorder()
     ) {
@@ -227,7 +279,8 @@ private fun SiteLogFeedCard(
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
-                        color = BrandPrimary
+                        color = BrandPrimary,
+                        modifier = Modifier.clickable { onSiteClick() }
                     )
 
                     Box(
@@ -278,7 +331,7 @@ private fun SiteLogFeedCard(
 
             // Technician / Engineer
             if (!log.engineer.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Default.Person,
@@ -292,6 +345,47 @@ private fun SiteLogFeedCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+            // Action footer row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(
+                    onClick = onSiteClick,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.Default.CellTower, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Tower", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = onEditClick,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Edit", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    TextButton(
+                        onClick = onDeleteClick,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp), tint = TagIssueColor)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Delete", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TagIssueColor)
+                    }
                 }
             }
         }

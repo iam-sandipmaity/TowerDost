@@ -31,5 +31,8 @@ class ScreenNavigationTest {
         assertEquals("import_wizard", Screen.ImportWizard.route)
         assertEquals("search", Screen.Search.route)
         assertEquals("sitedetail/DEL123", Screen.SiteDetail.createRoute("DEL123"))
+        assertEquals("log_incident", Screen.LogIncident.createRoute())
+        assertEquals("log_incident?sapId=DEL123", Screen.LogIncident.createRoute(sapId = "DEL123"))
+        assertEquals("log_incident?sapId=DEL123&incidentId=INC456", Screen.LogIncident.createRoute(sapId = "DEL123", incidentId = "INC456"))
     }
 }
