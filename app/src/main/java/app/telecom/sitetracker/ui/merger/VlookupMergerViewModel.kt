@@ -6,8 +6,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.telecom.sitetracker.data.db.AppDatabase
 import app.telecom.sitetracker.data.import.CsvReader
+import app.telecom.sitetracker.data.import.DetectedFormat
 import app.telecom.sitetracker.data.import.FileSniffer
-import app.telecom.sitetracker.data.import.FileSniffer.DetectedFormat
 import app.telecom.sitetracker.data.import.TargetField
 import app.telecom.sitetracker.data.import.XlsxReader
 import app.telecom.sitetracker.data.merger.MergeStrategy
@@ -214,17 +214,22 @@ class VlookupMergerViewModel(
 
     private suspend fun handleCsv(file: File) = withContext(Dispatchers.IO) {
         val reader = CsvReader(file)
-        val headerData = reader.detectHeaders()
+        val headerData = reader.readHeaders()
         val headers = headerData.headers
-        val sample = reader.readPreviewRows(headerData, maxRows = 5)
+        val sample = reader.readPreviewRows(headerData.delimiter, headerData.charset, maxRows = 5)
 
         val fullRowList = mutableListOf<List<String>>()
-        reader.streamRows(headerData, skipHeader = true) { cells ->
-            val rowList = mutableListOf<String>()
-            for (c in 0 until headers.size) {
-                rowList.add(cells.getOrNull(c) ?: "")
+        var isHeader = true
+        reader.streamRecords(headerData.delimiter, headerData.charset) { row ->
+            if (isHeader) {
+                isHeader = false
+            } else {
+                val rowList = mutableListOf<String>()
+                for (c in 0 until headers.size) {
+                    rowList.add(row.getOrNull(c) ?: "")
+                }
+                fullRowList.add(rowList)
             }
-            fullRowList.add(rowList)
         }
         allRows = fullRowList
 

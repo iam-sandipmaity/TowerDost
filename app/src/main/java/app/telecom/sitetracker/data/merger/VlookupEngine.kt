@@ -235,7 +235,7 @@ class VlookupEngine(
                 val existing = siteByNorm[normKey]
 
                 if (existing != null) {
-                    var modifiedSite = existing
+                    var modifiedSite: SiteEntity = existing
                     var siteAttributeChanged = false
                     val sapId = existing.sapId
 
@@ -259,7 +259,7 @@ class VlookupEngine(
                     }
 
                     if (siteAttributeChanged) {
-                        modifiedSite = modifiedSite.copy(updatedAt = clock.nowMillis())
+                        modifiedSite = modifiedSite.copy(updatedAt = clock.currentTimeMillis())
                         siteDao.updateSite(modifiedSite)
                         siteByNorm[normKey] = modifiedSite
                         sitesUpdated++
@@ -315,8 +315,8 @@ class VlookupEngine(
                     var newSite = SiteEntity(
                         sapId = rawKey,
                         sapNorm = normKey,
-                        createdAt = clock.nowMillis(),
-                        updatedAt = clock.nowMillis()
+                        createdAt = clock.currentTimeMillis(),
+                        updatedAt = clock.currentTimeMillis()
                     )
 
                     for (mapping in activeMappings) {
