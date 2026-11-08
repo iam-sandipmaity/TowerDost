@@ -90,6 +90,78 @@ class SiteRepository(private val db: AppDatabase) {
         siteDao.insertSite(site)
     }
 
+    suspend fun createSite(
+        site: SiteEntity,
+        specs: List<SiteFieldEntity> = emptyList()
+    ): Result<Unit> {
+        val trimmedSap = site.sapId.trim()
+        if (trimmedSap.isEmpty()) {
+            return Result.failure(IllegalArgumentException("SAP ID cannot be blank"))
+        }
+
+        val sapNorm = SiteEntity.normalize(trimmedSap)
+        if (sapNorm.isEmpty()) {
+            return Result.failure(IllegalArgumentException("SAP ID must contain alphanumeric characters"))
+        }
+
+        val existing = siteDao.getSiteBySapId(trimmedSap) ?: siteDao.getSiteBySapNorm(sapNorm)
+        if (existing != null) {
+            return Result.failure(IllegalStateException("Site with SAP ID '$trimmedSap' already exists"))
+        }
+
+        if (site.lat != null && (site.lat < -90.0 || site.lat > 90.0)) {
+            return Result.failure(IllegalArgumentException("Latitude must be between -90 and 90 degrees"))
+        }
+        if (site.lng != null && (site.lng < -180.0 || site.lng > 180.0)) {
+            return Result.failure(IllegalArgumentException("Longitude must be between -180 and 180 degrees"))
+        }
+
+        val now = System.currentTimeMillis()
+        val siteToInsert = site.copy(
+            sapId = trimmedSap,
+            sapNorm = sapNorm,
+            createdAt = now,
+            updatedAt = now,
+            deletedAt = null
+        )
+
+        siteDao.insertSite(siteToInsert)
+
+        val validSpecs = specs.mapNotNull { spec ->
+            val key = spec.fieldKey.trim()
+            val value = spec.fieldValue?.trim()
+            if (key.isNotEmpty() && !value.isNullOrEmpty()) {
+                spec.copy(
+                    sapId = trimmedSap,
+                    fieldKey = key,
+                    fieldValue = value,
+                    groupName = spec.groupName?.trim()?.ifBlank { "GENERAL" } ?: "GENERAL"
+                )
+            } else null
+        }
+
+        if (validSpecs.isNotEmpty()) {
+            fieldDao.insertFields(validSpecs)
+        }
+
+        try {
+            val fieldText = validSpecs.joinToString(" ") { "${it.fieldKey} ${it.fieldValue ?: ""}" }
+            siteDao.deleteFts(sapNorm)
+            siteDao.insertFts(
+                listOf(
+                    SiteFts(
+                        sapNorm = sapNorm,
+                        name = siteToInsert.name,
+                        address = siteToInsert.address ?: siteToInsert.city ?: siteToInsert.district,
+                        fieldText = fieldText
+                    )
+                )
+            )
+        } catch (_: Exception) {}
+
+        return Result.success(Unit)
+    }
+
     suspend fun getAllFields(): List<SiteFieldEntity> = fieldDao.getAllFields()
 
     suspend fun updateSiteOverview(site: SiteEntity) {
