@@ -317,12 +317,25 @@ fun SiteDetailScreen(
                 // Tab Content
                 when (selectedTab) {
                     0 -> SpecsTab(
+                        site = site,
                         groupedSpecs = uiState.groupedSpecs,
                         filterQuery = specFilterQuery,
                         isEditMode = uiState.isEditMode,
+                        isEditingSpecs = uiState.isEditingSpecs,
+                        draftSections = uiState.draftSpecsSections,
                         onFilterChange = { specFilterQuery = it },
-                        onAddSpecClick = { viewModel.startAddingSpec() },
-                        onEditSpecClick = { spec -> viewModel.startEditingSpec(spec) },
+                        onStartEditSpecs = { viewModel.startEditingSpecs() },
+                        onCancelEditSpecs = { viewModel.cancelEditingSpecs() },
+                        onSaveSpecsClick = { viewModel.requestSaveSpecs() },
+                        onAddSpecItem = { secIdx -> viewModel.addDraftSpecItem(secIdx) },
+                        onUpdateSpecItem = { secIdx, itemIdx, k, v ->
+                            viewModel.updateDraftSpecItem(secIdx, itemIdx, k, v)
+                        },
+                        onRemoveSpecItem = { secIdx, itemIdx ->
+                            viewModel.removeDraftSpecItem(secIdx, itemIdx)
+                        },
+                        onShowAddSection = { viewModel.showAddSectionDialog() },
+                        onRemoveSection = { secIdx -> viewModel.removeDraftSection(secIdx) },
                         onCopySpec = { key, value ->
                             copyToClipboard(context, key, value)
                             scope.launch { snackbarHostState.showSnackbar("Copied $key to clipboard") }
@@ -376,6 +389,80 @@ fun SiteDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissSaveOverviewConfirmation() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Safeguard: Specifications Save Confirmation Dialog
+    if (uiState.confirmSaveSpecs && uiState.site != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissSaveSpecsConfirmation() },
+            icon = {
+                Icon(Icons.Default.Edit, contentDescription = null, tint = TelecomAmber, modifier = Modifier.size(36.dp))
+            },
+            title = {
+                Text("Save Specifications Changes?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    text = "You are updating technical specifications for site ${uiState.site?.sapId}.\n\nThese modifications will be permanently stored in the local database and will be reflected in all future CSV exports.\n\nDo you want to apply these changes?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmAndSaveSpecs() },
+                    colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber)
+                ) {
+                    Text("Confirm & Save", fontWeight = FontWeight.Bold, color = Color.Black)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissSaveSpecsConfirmation() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Dialog: Add Specification Section
+    if (uiState.isAddingSectionDialog) {
+        var sectionInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissAddSectionDialog() },
+            title = {
+                Text("Add Specification Section", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Enter a name for the new equipment category (e.g. TRANSMISSION, SECURITY, CLIMATE CONTROL, POWER).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = sectionInput,
+                        onValueChange = { sectionInput = it },
+                        label = { Text("Section Name") },
+                        placeholder = { Text("e.g. OPTICAL FIBRE") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.addDraftSection(sectionInput) },
+                    colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
+                    enabled = sectionInput.isNotBlank()
+                ) {
+                    Text("Add Section", fontWeight = FontWeight.Bold, color = Color.Black)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissAddSectionDialog() }) {
                     Text("Cancel")
                 }
             }
@@ -731,100 +818,371 @@ private fun SiteLogsTab(
 
 @Composable
 private fun SpecsTab(
+    site: SiteEntity,
     groupedSpecs: Map<String, List<SiteFieldEntity>>,
     filterQuery: String,
     isEditMode: Boolean,
+    isEditingSpecs: Boolean,
+    draftSections: List<SpecDraftSection>,
     onFilterChange: (String) -> Unit,
-    onAddSpecClick: () -> Unit,
-    onEditSpecClick: (SiteFieldEntity) -> Unit,
+    onStartEditSpecs: () -> Unit,
+    onCancelEditSpecs: () -> Unit,
+    onSaveSpecsClick: () -> Unit,
+    onAddSpecItem: (sectionIndex: Int) -> Unit,
+    onUpdateSpecItem: (sectionIndex: Int, itemIndex: Int, key: String, value: String) -> Unit,
+    onRemoveSpecItem: (sectionIndex: Int, itemIndex: Int) -> Unit,
+    onShowAddSection: () -> Unit,
+    onRemoveSection: (sectionIndex: Int) -> Unit,
     onCopySpec: (String, String) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
+    if (isEditingSpecs) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            SearchCapsule(
-                query = filterQuery,
-                onQueryChange = onFilterChange,
-                placeholder = "Filter specifications...",
-                modifier = Modifier.weight(1f)
-            )
-
-            if (isEditMode) {
-                OutlinedButton(
-                    onClick = onAddSpecClick,
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    modifier = Modifier.height(44.dp)
+            // Editing Header Banner (matching Overview's TagMaintBg styling)
+            Surface(
+                color = TagMaintBg,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add Spec", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = TagMaintColor, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "Editing Specifications: ${site.sapId}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TagMaintColor
+                        )
+                        Text(
+                            text = "Modifications will update master records and reflect in all CSV exports.",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
-        }
 
-        val filteredGroups = remember(groupedSpecs, filterQuery) {
-            if (filterQuery.isBlank()) groupedSpecs
-            else {
-                val q = filterQuery.trim().lowercase(Locale.US)
-                groupedSpecs.mapValues { (_, fields) ->
-                    fields.filter {
-                        it.fieldKey.lowercase(Locale.US).contains(q) ||
-                                (it.fieldValue?.lowercase(Locale.US)?.contains(q) == true)
+            // Section Cards
+            if (draftSections.isEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "No specification sections exist yet. Tap Add New Section below to begin.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            } else {
+                draftSections.forEachIndexed { secIdx, section ->
+                    Card(
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            // Section Card Header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = section.sectionName.uppercase(),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RFCyan,
+                                    letterSpacing = 0.5.sp
+                                )
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = { onAddSpecItem(secIdx) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("Add Field", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+
+                                    IconButton(
+                                        onClick = { onRemoveSection(secIdx) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Delete Section ${section.sectionName}",
+                                            tint = TagIssueColor,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            HorizontalDivider(
+                                thickness = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+
+                            // Item Rows with 2 Data Boxes (Field Name + Field Value)
+                            if (section.items.isEmpty()) {
+                                Text(
+                                    text = "No fields in this section. Tap 'Add Field' above.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(vertical = 6.dp)
+                                )
+                            } else {
+                                section.items.forEachIndexed { itemIdx, item ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        OutlinedTextField(
+                                            value = item.fieldKey,
+                                            onValueChange = { newKey ->
+                                                onUpdateSpecItem(secIdx, itemIdx, newKey, item.fieldValue)
+                                            },
+                                            label = { Text("Field Name", fontSize = 11.sp) },
+                                            placeholder = { Text("e.g. CAPACITY") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1.1f)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = item.fieldValue,
+                                            onValueChange = { newVal ->
+                                                onUpdateSpecItem(secIdx, itemIdx, item.fieldKey, newVal)
+                                            },
+                                            label = { Text("Value", fontSize = 11.sp) },
+                                            placeholder = { Text("e.g. 48V 100A") },
+                                            singleLine = true,
+                                            modifier = Modifier.weight(1.1f)
+                                        )
+
+                                        IconButton(
+                                            onClick = { onRemoveSpecItem(secIdx, itemIdx) },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete Field",
+                                                tint = TagIssueColor,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
-                }.filterValues { it.isNotEmpty() }
+                }
             }
-        }
 
-        if (filteredGroups.isEmpty()) {
-            Box(
+            // Add New Section Button
+            OutlinedButton(
+                onClick = onShowAddSection,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, TelecomAmber),
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .height(44.dp)
             ) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = TelecomAmber, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (filterQuery.isBlank()) "No equipment specifications available." else "No specs match \"$filterQuery\"",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Add New Section",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = TelecomAmber
                 )
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Action Buttons: Cancel and Save Changes (Matching Overview Tab)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                filteredGroups.forEach { (groupName, fields) ->
-                    item(key = groupName) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                OutlinedButton(
+                    onClick = onCancelEditSpecs,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Cancel")
+                }
+
+                Button(
+                    onClick = onSaveSpecsClick,
+                    modifier = Modifier.weight(1.5f),
+                    colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Save Changes", fontWeight = FontWeight.Bold, color = Color.Black)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    } else {
+        // Locked / View Mode
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Overview-parity View Only Banner
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = if (isEditMode) Icons.Default.Edit else Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = if (isEditMode) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            val totalCount = groupedSpecs.values.sumOf { it.size }
                             Text(
-                                text = groupName.uppercase(),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = RFCyan,
-                                letterSpacing = 0.5.sp,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                text = if (isEditMode) "Specs Editable" else "Specifications ($totalCount fields)",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isEditMode) "Tap Edit Specs to modify equipment data" else "Locked against accidental edits",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
-                    items(fields, key = { "${it.groupName}_${it.fieldKey}" }) { field ->
-                        EnterpriseSpecRow(
-                            field = field,
-                            isEditMode = isEditMode,
-                            onEdit = { onEditSpecClick(field) },
-                            onCopy = { onCopySpec(field.fieldKey, field.fieldValue ?: "") }
-                        )
+                    OutlinedButton(
+                        onClick = onStartEditSpecs,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(if (isEditMode) "Edit Specs" else "Unlock to Edit", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                item { Spacer(modifier = Modifier.height(32.dp)) }
+            }
+
+            // Search Capsule Filter
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SearchCapsule(
+                    query = filterQuery,
+                    onQueryChange = onFilterChange,
+                    placeholder = "Filter specifications...",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            val filteredGroups = remember(groupedSpecs, filterQuery) {
+                if (filterQuery.isBlank()) groupedSpecs
+                else {
+                    val q = filterQuery.trim().lowercase(Locale.US)
+                    groupedSpecs.mapValues { (_, fields) ->
+                        fields.filter {
+                            it.fieldKey.lowercase(Locale.US).contains(q) ||
+                                    (it.fieldValue?.lowercase(Locale.US)?.contains(q) == true)
+                        }
+                    }.filterValues { it.isNotEmpty() }
+                }
+            }
+
+            if (filteredGroups.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (filterQuery.isBlank()) "No equipment specifications available." else "No specs match \"$filterQuery\"",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    filteredGroups.forEach { (groupName, fields) ->
+                        item(key = groupName) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = groupName.uppercase(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = RFCyan,
+                                    letterSpacing = 0.5.sp,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+
+                        items(fields, key = { "${it.groupName}_${it.fieldKey}" }) { field ->
+                            EnterpriseSpecRow(
+                                field = field,
+                                isEditMode = isEditMode,
+                                onEdit = onStartEditSpecs,
+                                onCopy = { onCopySpec(field.fieldKey, field.fieldValue ?: "") }
+                            )
+                        }
+                    }
+                    item { Spacer(modifier = Modifier.height(32.dp)) }
+                }
             }
         }
     }
