@@ -27,7 +27,6 @@ android {
 
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
-            arg("room.incremental", "true")
         }
     }
 
@@ -128,4 +127,9 @@ dependencies {
     androidTestImplementation(libs.androidx.room.testing)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// Serialize KSP tasks across variants to prevent Room schema write collision in parallel builds
+tasks.matching { it.name.startsWith("kspRelease") }.configureEach {
+    mustRunAfter(tasks.matching { it.name.startsWith("kspDebug") })
 }
