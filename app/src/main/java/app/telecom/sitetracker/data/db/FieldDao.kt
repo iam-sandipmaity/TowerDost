@@ -1,5 +1,6 @@
 package app.telecom.sitetracker.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -8,6 +9,12 @@ import androidx.room.Transaction
 import androidx.room.Update
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import kotlinx.coroutines.flow.Flow
+
+data class DistinctFieldSpec(
+    @ColumnInfo(name = "group_name") val groupName: String,
+    @ColumnInfo(name = "field_key") val fieldKey: String,
+    @ColumnInfo(name = "min_sort") val minSort: Int
+)
 
 @Dao
 interface FieldDao {
@@ -37,6 +44,9 @@ interface FieldDao {
 
     @Query("SELECT * FROM site_fields ORDER BY sap_id, sort_order ASC")
     suspend fun getAllFields(): List<SiteFieldEntity>
+
+    @Query("SELECT COALESCE(NULLIF(TRIM(group_name), ''), 'General Specifications') AS group_name, field_key, MIN(sort_order) AS min_sort FROM site_fields WHERE field_key IS NOT NULL AND TRIM(field_key) != '' GROUP BY UPPER(COALESCE(NULLIF(TRIM(group_name), ''), 'General Specifications')), UPPER(field_key) ORDER BY min_sort ASC, group_name ASC, field_key ASC")
+    suspend fun getDistinctSpecsFromSites(): List<DistinctFieldSpec>
 
     @Query("DELETE FROM site_fields WHERE sap_id = :sapId")
     suspend fun deleteFieldsForSite(sapId: String)

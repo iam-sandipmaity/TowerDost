@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.data.repo.SiteRepository
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,8 +14,10 @@ import kotlinx.coroutines.launch
 
 data class UniversalTemplateUiState(
     val isLoading: Boolean = true,
+    val searchQuery: String = "",
     val groupedFields: Map<String, List<UniversalFieldEntity>> = emptyMap(),
     val totalFieldCount: Int = 0,
+    val siteSpecsAvailableCount: Int = 0,
     val userMessage: String? = null,
     val errorMessage: String? = null,
     val isAddingField: Boolean = false,
@@ -24,8 +27,8 @@ data class UniversalTemplateUiState(
     val fieldToEdit: UniversalFieldEntity? = null,
     val confirmDeleteField: UniversalFieldEntity? = null,
     val confirmDeleteSection: String? = null,
-    val confirmResetDefaults: Boolean = false,
-    val confirmClearAll: Boolean = false
+    val confirmClearAll: Boolean = false,
+    val confirmSyncFromSites: Boolean = false
 )
 
 class UniversalTemplateViewModel(
@@ -43,6 +46,21 @@ class UniversalTemplateViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
 
+            try {
+                // If template is empty, populate directly from real imported site specifications
+                val existing = siteRepository.getAllUniversalFields()
+                if (existing.isEmpty()) {
+                    val siteSpecs = siteRepository.getDistinctSpecsFromSites()
+                    if (siteSpecs.isNotEmpty()) {
+                        siteRepository.replaceAllUniversalFields(siteSpecs)
+                    }
+                }
+                val siteSpecsCount = siteRepository.countDistinctSiteSpecs()
+                _uiState.update { it.copy(siteSpecsAvailableCount = siteSpecsCount) }
+            } catch (e: Exception) {
+                // Ignore initialization sync error and continue observing
+            }
+
             siteRepository.observeUniversalFields()
                 .catch { e ->
                     _uiState.update {
@@ -53,7 +71,7 @@ class UniversalTemplateViewModel(
                     }
                 }
                 .collect { fields ->
-                    val grouped = fields.groupBy { it.groupName.uppercase() }
+                    val grouped = fields.groupBy { it.groupName.uppercase(Locale.US) }
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -63,6 +81,10 @@ class UniversalTemplateViewModel(
                     }
                 }
         }
+    }
+
+    fun onSearchQueryChange(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
     }
 
     fun startAddField(sectionName: String) {
@@ -222,29 +244,33 @@ class UniversalTemplateViewModel(
         }
     }
 
-    fun requestResetDefaults() {
-        _uiState.update { it.copy(confirmResetDefaults = true) }
+    fun requestSyncFromSites() {
+        _uiState.update { it.copy(confirmSyncFromSites = true) }
     }
 
-    fun cancelResetDefaults() {
-        _uiState.update { it.copy(confirmResetDefaults = false) }
+    fun cancelSyncFromSites() {
+        _uiState.update { it.copy(confirmSyncFromSites = false) }
     }
 
-    fun confirmResetDefaults() {
+    fun confirmSyncFromSites() {
         viewModelScope.launch {
             try {
-                siteRepository.seedDefaultUniversalFields()
+                val syncedCount = siteRepository.syncUniversalTemplateFromSites()
                 _uiState.update {
                     it.copy(
-                        confirmResetDefaults = false,
-                        userMessage = "Universal specifications reset to standard telecom templates."
+                        confirmSyncFromSites = false,
+                        userMessage = if (syncedCount > 0) {
+                            "Synchronized $syncedCount specifications from imported site records."
+                        } else {
+                            "No imported site specifications found in database."
+                        }
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
-                        confirmResetDefaults = false,
-                        errorMessage = "Failed to reset defaults: ${e.localizedMessage}"
+                        confirmSyncFromSites = false,
+                        errorMessage = "Failed to sync from sites: ${e.localizedMessage}"
                     )
                 }
             }

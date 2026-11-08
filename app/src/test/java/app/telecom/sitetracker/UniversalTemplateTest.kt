@@ -1,7 +1,9 @@
 package app.telecom.sitetracker
 
+import app.telecom.sitetracker.data.db.DistinctFieldSpec
 import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.ui.template.UniversalTemplateUiState
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -17,12 +19,15 @@ class UniversalTemplateTest {
         assertTrue(state.isLoading)
         assertTrue(state.groupedFields.isEmpty())
         assertEquals(0, state.totalFieldCount)
+        assertEquals("", state.searchQuery)
+        assertEquals(0, state.siteSpecsAvailableCount)
         assertFalse(state.isAddingField)
         assertFalse(state.isAddingSection)
         assertNull(state.targetSectionForAdd)
         assertNull(state.confirmDeleteField)
         assertNull(state.confirmDeleteSection)
-        assertFalse(state.confirmResetDefaults)
+        assertFalse(state.confirmClearAll)
+        assertFalse(state.confirmSyncFromSites)
     }
 
     @Test
@@ -34,7 +39,7 @@ class UniversalTemplateTest {
             UniversalFieldEntity("DG KVA", "DG", "15KVA", 4)
         )
 
-        val grouped = fields.groupBy { it.groupName.uppercase() }
+        val grouped = fields.groupBy { it.groupName.uppercase(Locale.US) }
         assertEquals(3, grouped.size)
         assertTrue(grouped.containsKey("POWER"))
         assertTrue(grouped.containsKey("BATTERY"))
@@ -45,6 +50,75 @@ class UniversalTemplateTest {
         assertEquals("SMPS MAKE & MODEL", powerFields[0].fieldKey)
         assertEquals("RECTIFIER MODULES", powerFields[1].fieldKey)
         assertEquals("4 Modules", powerFields[1].defaultValue)
+    }
+
+    @Test
+    fun testSearchFilterMatchesFieldKeyOrValue() {
+        val fields = listOf(
+            UniversalFieldEntity("SMPS MAKE & MODEL", "POWER", "Delta 48V", 1),
+            UniversalFieldEntity("BATTERY BANK (AH)", "BATTERY", "600 AH", 2),
+            UniversalFieldEntity("DG RATING KVA", "GENERATOR", "15 KVA", 3),
+            UniversalFieldEntity("AIR CONDITIONER", "CLIMATE", "1.5 TON", 4)
+        )
+        val grouped = fields.groupBy { it.groupName.uppercase(Locale.US) }
+
+        // Filter by key "battery"
+        val query1 = "battery"
+        val filtered1 = grouped.mapValues { (_, fList) ->
+            fList.filter {
+                it.fieldKey.lowercase(Locale.US).contains(query1) ||
+                        (it.defaultValue?.lowercase(Locale.US)?.contains(query1) == true)
+            }
+        }.filterValues { it.isNotEmpty() }
+
+        assertEquals(1, filtered1.size)
+        assertTrue(filtered1.containsKey("BATTERY"))
+        assertEquals("BATTERY BANK (AH)", filtered1["BATTERY"]!!.first().fieldKey)
+
+        // Filter by value "48v"
+        val query2 = "48v"
+        val filtered2 = grouped.mapValues { (_, fList) ->
+            fList.filter {
+                it.fieldKey.lowercase(Locale.US).contains(query2) ||
+                        (it.defaultValue?.lowercase(Locale.US)?.contains(query2) == true)
+            }
+        }.filterValues { it.isNotEmpty() }
+
+        assertEquals(1, filtered2.size)
+        assertTrue(filtered2.containsKey("POWER"))
+        assertEquals("SMPS MAKE & MODEL", filtered2["POWER"]!!.first().fieldKey)
+    }
+
+    @Test
+    fun testDerivingBlueprintFromDistinctSiteSpecs() {
+        // Given distinct specs extracted from imported site_fields
+        val distinctSpecs = listOf(
+            DistinctFieldSpec(groupName = "Power", fieldKey = "Smps Capacity", minSort = 1),
+            DistinctFieldSpec(groupName = "Battery", fieldKey = "Battery Bank (Ah)", minSort = 5),
+            DistinctFieldSpec(groupName = "DG", fieldKey = "DG Rating KVA", minSort = 10)
+        )
+
+        val universalEntities = distinctSpecs.mapIndexed { idx, spec ->
+            UniversalFieldEntity(
+                fieldKey = spec.fieldKey.trim().uppercase(Locale.US),
+                groupName = spec.groupName.trim().uppercase(Locale.US),
+                defaultValue = null,
+                sortOrder = if (spec.minSort > 0) spec.minSort else idx + 1
+            )
+        }
+
+        assertEquals(3, universalEntities.size)
+        assertEquals("SMPS CAPACITY", universalEntities[0].fieldKey)
+        assertEquals("POWER", universalEntities[0].groupName)
+        assertEquals(1, universalEntities[0].sortOrder)
+
+        assertEquals("BATTERY BANK (AH)", universalEntities[1].fieldKey)
+        assertEquals("BATTERY", universalEntities[1].groupName)
+        assertEquals(5, universalEntities[1].sortOrder)
+
+        assertEquals("DG RATING KVA", universalEntities[2].fieldKey)
+        assertEquals("DG", universalEntities[2].groupName)
+        assertEquals(10, universalEntities[2].sortOrder)
     }
 
     @Test

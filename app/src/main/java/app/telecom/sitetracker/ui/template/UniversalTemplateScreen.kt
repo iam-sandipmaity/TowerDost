@@ -2,7 +2,7 @@ package app.telecom.sitetracker.ui.template
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,17 +17,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -66,8 +64,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.ui.components.EnterpriseTopBar
+import app.telecom.sitetracker.ui.components.SearchCapsule
+import app.telecom.sitetracker.ui.theme.MetricMonoStyle
+import app.telecom.sitetracker.ui.theme.RFCyan
 import app.telecom.sitetracker.ui.theme.StatusDownRed
+import app.telecom.sitetracker.ui.theme.TagIssueColor
 import app.telecom.sitetracker.ui.theme.TelecomAmber
+import java.util.Locale
 
 @Composable
 fun UniversalTemplateScreen(
@@ -89,10 +92,22 @@ fun UniversalTemplateScreen(
     Scaffold(
         topBar = {
             EnterpriseTopBar(
-                title = "Universal Specs Template",
-                subtitle = "Standard equipment specs inherited by all sites",
+                title = "Universal Template",
+                subtitle = "Global equipment blueprint for all sites",
                 onBack = onNavigateBack,
                 actions = {
+                    if (uiState.siteSpecsAvailableCount > 0) {
+                        IconButton(
+                            onClick = { viewModel.requestSyncFromSites() },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Sync,
+                                contentDescription = "Sync from Sites",
+                                tint = RFCyan
+                            )
+                        }
+                    }
                     if (uiState.groupedFields.isNotEmpty()) {
                         IconButton(
                             onClick = { viewModel.requestClearAll() },
@@ -100,20 +115,10 @@ fun UniversalTemplateScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteSweep,
-                                contentDescription = "Clear All Template Specs",
+                                contentDescription = "Clear All Blueprint Specs",
                                 tint = StatusDownRed.copy(alpha = 0.9f)
                             )
                         }
-                    }
-                    IconButton(
-                        onClick = { viewModel.requestResetDefaults() },
-                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Reset Defaults",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
             )
@@ -131,190 +136,290 @@ fun UniversalTemplateScreen(
                 CircularProgressIndicator(color = TelecomAmber)
             }
         } else {
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                item(key = "template_info_banner") {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    // Header explanatory card
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                // Header Info Strip (Identical styling to SpecsTab in SiteDetailScreen)
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(TelecomAmber.copy(alpha = 0.15f))
-                                    .border(1.dp, TelecomAmber, RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Tune, contentDescription = null, tint = TelecomAmber)
-                            }
-                            Spacer(modifier = Modifier.width(14.dp))
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = null,
+                                tint = TelecomAmber,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "Universal Equipment Blueprint",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
+                                    text = "Specifications (${uiState.totalFieldCount} fields in ${uiState.groupedFields.size} categories)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = "Specifications defined here appear across all telecom sites in View and Edit modes.",
+                                    text = "Global blueprint inherited across all telecom sites",
                                     style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedButton(
+                                onClick = { viewModel.startAddSection() },
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add Category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
 
-                if (uiState.groupedFields.isEmpty()) {
-                    item(key = "empty_template_state") {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(52.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Tune,
-                                        contentDescription = null,
-                                        tint = TelecomAmber,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                                Text(
-                                    text = "No Universal Specs Active",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Your sites currently show only their exact imported spreadsheet columns without duplicate or blank template rows.\n\nYou can add custom universal specifications below, or restore standard telecom defaults if needed.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Button(
-                                        onClick = { viewModel.startAddSection() },
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.sizeIn(minHeight = 44.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Add Custom Spec", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    }
+                // Search Capsule Filter
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SearchCapsule(
+                        query = uiState.searchQuery,
+                        onQueryChange = viewModel::onSearchQueryChange,
+                        placeholder = "Filter specifications...",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
-                                    OutlinedButton(
-                                        onClick = { viewModel.requestResetDefaults() },
-                                        shape = RoundedCornerShape(8.dp),
-                                        modifier = Modifier.sizeIn(minHeight = 44.dp)
+                val filteredGroups = remember(uiState.groupedFields, uiState.searchQuery) {
+                    if (uiState.searchQuery.isBlank()) uiState.groupedFields
+                    else {
+                        val q = uiState.searchQuery.trim().lowercase(Locale.US)
+                        uiState.groupedFields.mapValues { (_, fields) ->
+                            fields.filter {
+                                it.fieldKey.lowercase(Locale.US).contains(q) ||
+                                        (it.defaultValue?.lowercase(Locale.US)?.contains(q) == true)
+                            }
+                        }.filterValues { it.isNotEmpty() }
+                    }
+                }
+
+                if (filteredGroups.isEmpty()) {
+                    if (uiState.searchQuery.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No specifications match \"${uiState.searchQuery}\"",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        // Clean empty template state - zero dummy data
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(20.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
-                                        Text("Load Telecom Defaults", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        Icon(
+                                            imageVector = Icons.Default.Tune,
+                                            contentDescription = null,
+                                            tint = TelecomAmber,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = "Universal Blueprint Empty",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = if (uiState.siteSpecsAvailableCount > 0) {
+                                            "Found ${uiState.siteSpecsAvailableCount} equipment specifications in your imported site records. You can sync them now into the global template or define custom categories."
+                                        } else {
+                                            "No equipment specifications defined yet. When you import telecom site records, the blueprint will automatically reflect their columns, or you can add custom categories below."
+                                        },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        textAlign = TextAlign.Center
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (uiState.siteSpecsAvailableCount > 0) {
+                                            Button(
+                                                onClick = { viewModel.requestSyncFromSites() },
+                                                colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.sizeIn(minHeight = 44.dp)
+                                            ) {
+                                                Icon(Icons.Default.Sync, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Sync From Sites (${uiState.siteSpecsAvailableCount})",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 13.sp,
+                                                    color = Color.Black
+                                                )
+                                            }
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = { viewModel.startAddSection() },
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.sizeIn(minHeight = 44.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("Add Category", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 } else {
-                    item(key = "template_stats_row") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "${uiState.groupedFields.size} CATEGORIES • ${uiState.totalFieldCount} GLOBAL SPECS",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        filteredGroups.entries.forEachIndexed { groupIndex, (groupName, fields) ->
+                            item(key = "header_${groupIndex}_$groupName") {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = groupName.uppercase(Locale.US),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = RFCyan,
+                                            letterSpacing = 0.5.sp
+                                        )
 
-                            OutlinedButton(
-                                onClick = { viewModel.startAddSection() },
-                                shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.sizeIn(minHeight = 40.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("+ Add Category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.surface
+                                            ) {
+                                                Text(
+                                                    text = "${fields.size}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = { viewModel.startAddField(groupName) },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Add,
+                                                    contentDescription = "Add specification to $groupName",
+                                                    tint = RFCyan,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = { viewModel.requestDeleteSection(groupName) },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.DeleteOutline,
+                                                    contentDescription = "Delete category $groupName",
+                                                    tint = TagIssueColor.copy(alpha = 0.8f),
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            itemsIndexed(
+                                items = fields,
+                                key = { index, field ->
+                                    if (field.id > 0L) "template_spec_${field.id}_$index"
+                                    else "template_spec_${groupIndex}_${field.fieldKey}_$index"
+                                }
+                            ) { _, field ->
+                                EnterpriseTemplateSpecRow(
+                                    field = field,
+                                    onEdit = { viewModel.startEditField(field) },
+                                    onDelete = { viewModel.requestDeleteField(field) }
+                                )
                             }
                         }
-                    }
 
-                    // Render each Section Card
-                    items(
-                        items = uiState.groupedFields.entries.toList(),
-                        key = { it.key }
-                    ) { (groupName, fields) ->
-                        UniversalSectionCard(
-                            groupName = groupName,
-                            fields = fields,
-                            onAddField = { viewModel.startAddField(groupName) },
-                            onEditField = { viewModel.startEditField(it) },
-                            onDeleteField = { viewModel.requestDeleteField(it) },
-                            onDeleteSection = { viewModel.requestDeleteSection(groupName) }
-                        )
-                    }
-
-                    item(key = "bottom_add_section_action") {
-                        Button(
-                            onClick = { viewModel.startAddSection() },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp)
-                                .sizeIn(minHeight = 48.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Add Another Equipment Category",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
+                        item(key = "bottom_spacer") {
+                            Spacer(modifier = Modifier.height(32.dp))
                         }
-                        Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
             }
@@ -353,7 +458,7 @@ fun UniversalTemplateScreen(
     if (uiState.confirmClearAll) {
         AlertDialog(
             onDismissRequest = { viewModel.cancelClearAll() },
-            title = { Text("Clear All Universal Specs?") },
+            title = { Text("Clear All Blueprint Specs?") },
             text = {
                 Text("Are you sure you want to remove all universal specification fields? Sites will display only their imported spreadsheet data without any placeholder specs.\n\nYour existing site records are safe and will not be deleted.")
             },
@@ -419,23 +524,25 @@ fun UniversalTemplateScreen(
         )
     }
 
-    if (uiState.confirmResetDefaults) {
+    if (uiState.confirmSyncFromSites) {
         AlertDialog(
-            onDismissRequest = { viewModel.cancelResetDefaults() },
-            title = { Text("Reset to Telecom Defaults?") },
+            onDismissRequest = { viewModel.cancelSyncFromSites() },
+            title = { Text("Sync Blueprint from Sites?") },
             text = {
-                Text("This will restore the standard telecom blueprint (POWER, BATTERY, DG, TRANSMISSION, etc.). Custom fields you added may need to be re-entered.")
+                Text(
+                    "This will scan your imported telecom sites and populate the universal blueprint with all distinct equipment columns (${uiState.siteSpecsAvailableCount} specifications found across your sites).\n\nExisting site records remain untouched."
+                )
             },
             confirmButton = {
                 Button(
-                    onClick = { viewModel.confirmResetDefaults() },
+                    onClick = { viewModel.confirmSyncFromSites() },
                     colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber)
                 ) {
-                    Text("Reset Defaults")
+                    Text("Sync Specifications", color = Color.Black, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.cancelResetDefaults() }) {
+                TextButton(onClick = { viewModel.cancelSyncFromSites() }) {
                     Text("Cancel")
                 }
             }
@@ -444,157 +551,75 @@ fun UniversalTemplateScreen(
 }
 
 @Composable
-private fun UniversalSectionCard(
-    groupName: String,
-    fields: List<UniversalFieldEntity>,
-    onAddField: () -> Unit,
-    onEditField: (UniversalFieldEntity) -> Unit,
-    onDeleteField: (UniversalFieldEntity) -> Unit,
-    onDeleteSection: () -> Unit,
-    modifier: Modifier = Modifier
+private fun EnterpriseTemplateSpecRow(
+    field: UniversalFieldEntity,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // Header Row
+        Column {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Text(
+                    text = field.fieldKey,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1.2f)
+                )
+
+                Text(
+                    text = field.defaultValue ?: "—",
+                    style = MetricMonoStyle.copy(
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(TelecomAmber.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            Icons.Default.Category,
-                            contentDescription = null,
-                            tint = TelecomAmber,
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit ${field.fieldKey}",
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = groupName.uppercase(),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Text(
-                            text = "${fields.size}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(
-                        onClick = onAddField,
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(6.dp),
-                        modifier = Modifier.sizeIn(minHeight = 36.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("+ Field", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
                     IconButton(
-                        onClick = onDeleteSection,
-                        modifier = Modifier.sizeIn(minWidth = 40.dp, minHeight = 40.dp)
+                        onClick = onDelete,
+                        modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            Icons.Default.DeleteOutline,
-                            contentDescription = "Delete Section",
-                            tint = StatusDownRed.copy(alpha = 0.8f),
-                            modifier = Modifier.size(18.dp)
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = "Delete ${field.fieldKey}",
+                            tint = TagIssueColor.copy(alpha = 0.8f),
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-            // Specs List
-            fields.forEachIndexed { index, field ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = field.fieldKey.uppercase(),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        val subText = if (!field.defaultValue.isNullOrBlank()) {
-                            "Default: ${field.defaultValue}"
-                        } else {
-                            "Blank template (field input required)"
-                        }
-                        Text(
-                            text = subText,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(
-                            onClick = { onEditField(field) },
-                            modifier = Modifier.sizeIn(minWidth = 40.dp, minHeight = 40.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "Edit Spec",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        IconButton(
-                            onClick = { onDeleteField(field) },
-                            modifier = Modifier.sizeIn(minWidth = 40.dp, minHeight = 40.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.DeleteOutline,
-                                contentDescription = "Delete Spec",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                }
-                if (index < fields.lastIndex) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                }
-            }
+            HorizontalDivider(
+                thickness = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
         }
     }
 }
