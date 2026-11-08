@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import kotlinx.coroutines.flow.Flow
@@ -42,4 +43,10 @@ interface FieldDao {
 
     @Query("DELETE FROM site_fields")
     suspend fun deleteAllFields()
+
+    @Transaction
+    suspend fun replaceFieldsForSite(sapId: String, fields: List<SiteFieldEntity>) {
+        deleteFieldsForSite(sapId)
+        insertFields(fields)
+    }
 }

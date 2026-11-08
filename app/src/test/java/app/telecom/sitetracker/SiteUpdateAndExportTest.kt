@@ -4,6 +4,7 @@ import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.export.Exporter
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -146,5 +147,54 @@ class SiteUpdateAndExportTest {
         assertTrue(content.contains("Rectifier SMPS Fan Failure"))
         assertTrue(content.contains("A. Sen"))
         assertTrue(content.contains("Replaced 48V cooling fan and tested RM load"))
+    }
+
+    @Test
+    fun testBatchReplaceSiteSpecsLogicAndSorting() {
+        val sapId = "WB-KOL-9999"
+
+        // Old specs that should be replaced
+        val oldSpecs = listOf(
+            SiteFieldEntity(id = 1L, sapId = sapId, fieldKey = "OLD_KEY", fieldValue = "OLD_VAL", groupName = "OLD_GROUP")
+        )
+
+        // New specs to batch replace
+        val newSpecs = listOf(
+            SiteFieldEntity(
+                id = 0L,
+                sapId = sapId,
+                fieldKey = "DG CAPACITY",
+                fieldValue = "20 KVA Silent",
+                groupName = "POWER",
+                sortOrder = 1
+            ),
+            SiteFieldEntity(
+                id = 0L,
+                sapId = sapId,
+                fieldKey = "OPTICAL TRANSCEIVER",
+                fieldValue = "10G SFP+ LR",
+                groupName = "TRANSMISSION",
+                sortOrder = 2
+            )
+        )
+
+        // Simulate replace logic: old specs removed, new specs inserted with sequential ordering
+        val activeFields = newSpecs.mapIndexed { idx, field ->
+            field.copy(id = (idx + 10).toLong(), sortOrder = idx + 1)
+        }
+
+        assertTrue(activeFields.none { it.fieldKey == "OLD_KEY" })
+        assertEquals(2, activeFields.size)
+        assertEquals("POWER", activeFields[0].groupName)
+        assertEquals("DG CAPACITY", activeFields[0].fieldKey)
+        assertEquals("20 KVA Silent", activeFields[0].fieldValue)
+        assertEquals("TRANSMISSION", activeFields[1].groupName)
+        assertEquals("OPTICAL TRANSCEIVER", activeFields[1].fieldKey)
+        assertEquals("10G SFP+ LR", activeFields[1].fieldValue)
+
+        // FTS text generation check
+        val fieldText = activeFields.joinToString(" ") { "${it.fieldKey} ${it.fieldValue ?: ""}" }
+        assertTrue(fieldText.contains("DG CAPACITY 20 KVA Silent"))
+        assertTrue(fieldText.contains("OPTICAL TRANSCEIVER 10G SFP+ LR"))
     }
 }

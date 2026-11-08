@@ -152,6 +152,28 @@ class SiteRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun replaceSiteSpecs(sapId: String, fields: List<SiteFieldEntity>) {
+        fieldDao.replaceFieldsForSite(sapId, fields)
+        val site = siteDao.getSiteBySapId(sapId)
+        if (site != null) {
+            siteDao.updateSite(site.copy(updatedAt = System.currentTimeMillis()))
+            try {
+                val fieldText = fields.joinToString(" ") { "${it.fieldKey} ${it.fieldValue ?: ""}" }
+                siteDao.deleteFts(site.sapNorm)
+                siteDao.insertFts(
+                    listOf(
+                        SiteFts(
+                            sapNorm = site.sapNorm,
+                            name = site.name,
+                            address = site.address ?: site.city ?: site.district,
+                            fieldText = fieldText
+                        )
+                    )
+                )
+            } catch (_: Exception) {}
+        }
+    }
+
     suspend fun deleteSiteSpec(fieldId: Long, sapId: String) {
         fieldDao.deleteFieldById(fieldId)
         val site = siteDao.getSiteBySapId(sapId)
