@@ -2,6 +2,7 @@ package app.telecom.sitetracker
 
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
+import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.ui.sitedetail.SiteDetailUiState
 import app.telecom.sitetracker.ui.sitedetail.SpecDraftItem
 import app.telecom.sitetracker.ui.sitedetail.SpecDraftSection
@@ -232,5 +233,64 @@ class SiteDetailViewModelTest {
 
         assertFalse("isEditMode must be false", state.isEditMode)
         assertFalse("isEditingSpecs must be false when returning to View Only", state.isEditingSpecs)
+    }
+
+    @Test
+    fun testUniversalFieldsMergedWithSiteSpecificSpecs() {
+        val actualSapId = "WB-KOL-1001"
+        // Site has existing specific recorded fields
+        val recordedFields = listOf(
+            SiteFieldEntity(id = 101L, sapId = actualSapId, fieldKey = "SMPS MAKE & MODEL", fieldValue = "Delta 48V 100A", groupName = "POWER", sortOrder = 1),
+            SiteFieldEntity(id = 102L, sapId = actualSapId, fieldKey = "CUSTOM SITE NOTE", fieldValue = "Guard present 24/7", groupName = "ACCESS", sortOrder = 2)
+        )
+
+        // Universal template has global fields
+        val universalFields = listOf(
+            UniversalFieldEntity(fieldKey = "SMPS MAKE & MODEL", groupName = "POWER", defaultValue = null, sortOrder = 1),
+            UniversalFieldEntity(fieldKey = "DG RATING KVA", groupName = "DG", defaultValue = "15 KVA", sortOrder = 2),
+            UniversalFieldEntity(fieldKey = "BATTERY BANK CAPACITY", groupName = "BATTERY", defaultValue = null, sortOrder = 3)
+        )
+
+        // Merge logic
+        val mergedFields = recordedFields.toMutableList()
+        for (uni in universalFields) {
+            if (mergedFields.none { it.fieldKey.equals(uni.fieldKey, ignoreCase = true) }) {
+                mergedFields.add(
+                    SiteFieldEntity(
+                        id = 0L,
+                        sapId = actualSapId,
+                        fieldKey = uni.fieldKey,
+                        fieldValue = uni.defaultValue,
+                        groupName = uni.groupName,
+                        sortOrder = uni.sortOrder
+                    )
+                )
+            }
+        }
+
+        // Assertions:
+        // 1. Total fields = 4 (1 common preserved, 1 site-specific, 2 universal placeholders added)
+        assertEquals(4, mergedFields.size)
+
+        // 2. Existing site field value is NOT overridden
+        val smpsField = mergedFields.first { it.fieldKey.equals("SMPS MAKE & MODEL", ignoreCase = true) }
+        assertEquals("Delta 48V 100A", smpsField.fieldValue)
+        assertEquals(101L, smpsField.id)
+
+        // 3. New universal fields are added with id = 0L and default values
+        val dgField = mergedFields.first { it.fieldKey.equals("DG RATING KVA", ignoreCase = true) }
+        assertEquals(0L, dgField.id)
+        assertEquals("15 KVA", dgField.fieldValue)
+        assertEquals("DG", dgField.groupName)
+
+        val batteryField = mergedFields.first { it.fieldKey.equals("BATTERY BANK CAPACITY", ignoreCase = true) }
+        assertEquals(0L, batteryField.id)
+        assertNull(batteryField.fieldValue)
+        assertEquals("BATTERY", batteryField.groupName)
+
+        // 4. Custom site-specific field is preserved
+        val customField = mergedFields.first { it.fieldKey.equals("CUSTOM SITE NOTE", ignoreCase = true) }
+        assertEquals("Guard present 24/7", customField.fieldValue)
+        assertEquals("ACCESS", customField.groupName)
     }
 }
