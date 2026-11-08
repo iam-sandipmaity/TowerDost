@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -1122,8 +1123,8 @@ private fun SpecsTab(
                 LazyColumn(
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    filteredGroups.forEach { (groupName, fields) ->
-                        item(key = groupName) {
+                    filteredGroups.entries.forEachIndexed { groupIndex, (groupName, fields) ->
+                        item(key = "group_header_${groupIndex}_$groupName") {
                             Surface(
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                 modifier = Modifier.fillMaxWidth()
@@ -1139,7 +1140,13 @@ private fun SpecsTab(
                             }
                         }
 
-                        items(fields, key = { "${it.groupName}_${it.fieldKey}" }) { field ->
+                        itemsIndexed(
+                            items = fields,
+                            key = { index, field ->
+                                if (field.id > 0L) "spec_id_${field.id}_$index"
+                                else "spec_group_${groupIndex}_${field.fieldKey}_$index"
+                            }
+                        ) { _, field ->
                             EnterpriseSpecRow(
                                 field = field,
                                 onCopy = { onCopySpec(field.fieldKey, field.fieldValue ?: "") }

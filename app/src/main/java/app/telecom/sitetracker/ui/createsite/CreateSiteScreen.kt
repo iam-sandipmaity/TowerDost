@@ -449,8 +449,8 @@ fun CreateSiteScreen(
             }
 
             val groupedSpecs = uiState.specs.groupBy { it.groupName.uppercase() }
-            groupedSpecs.forEach { (groupName, specItems) ->
-                item(key = groupName) {
+            groupedSpecs.entries.forEachIndexed { groupIndex, (groupName, specItems) ->
+                item(key = "create_spec_group_${groupIndex}_$groupName") {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),

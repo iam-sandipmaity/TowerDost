@@ -331,4 +331,26 @@ class SiteDetailViewModelTest {
         assertEquals("EXIDE", mergedFields[1].fieldValue)
         assertFalse(mergedFields.any { it.fieldKey.contains("CAPACITY") })
     }
+
+    @Test
+    fun testSpecsListKeyGenerationNeverProducesDuplicateKeysForIdenticalFieldNames() {
+        // Site has multiple identical field keys under the same group name (e.g. two Contact No fields)
+        val duplicateFields = listOf(
+            SiteFieldEntity(id = 101L, sapId = "IN-UPW-1002", fieldKey = "Contact No", fieldValue = "9876543210", groupName = "General Specifications"),
+            SiteFieldEntity(id = 102L, sapId = "IN-UPW-1002", fieldKey = "Contact No", fieldValue = "9123456780", groupName = "General Specifications"),
+            SiteFieldEntity(id = 0L, sapId = "IN-UPW-1002", fieldKey = "Contact No", fieldValue = null, groupName = "General Specifications")
+        )
+
+        // Key generation algorithm must produce 100% unique keys across all items
+        val groupIndex = 0
+        val generatedKeys = duplicateFields.mapIndexed { index, field ->
+            if (field.id > 0L) "spec_id_${field.id}_$index"
+            else "spec_group_${groupIndex}_${field.fieldKey}_$index"
+        }
+
+        assertEquals(3, generatedKeys.size)
+        assertEquals(3, generatedKeys.toSet().size) // strictly unique!
+        assertTrue(generatedKeys[0] != generatedKeys[1])
+        assertTrue(generatedKeys[1] != generatedKeys[2])
+    }
 }
