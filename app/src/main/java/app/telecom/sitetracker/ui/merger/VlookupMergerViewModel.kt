@@ -271,10 +271,57 @@ class VlookupMergerViewModel(
         _uiState.update { state ->
             val updated = state.columnMappings.map { mapping ->
                 if (mapping.columnIndex == columnIndex) {
+                    val prev = if (target != TargetField.IGNORE) target else mapping.previousTarget
                     mapping.copy(
                         targetField = target,
                         specGroup = specGroup ?: mapping.specGroup,
-                        specKey = specKey ?: mapping.specKey
+                        specKey = specKey ?: mapping.specKey,
+                        previousTarget = prev
+                    )
+                } else mapping
+            }
+            state.copy(columnMappings = updated)
+        }
+    }
+
+    fun toggleColumnSelection(columnIndex: Int, isIncluded: Boolean) {
+        _uiState.update { state ->
+            val updated = state.columnMappings.map { mapping ->
+                if (mapping.columnIndex == columnIndex) {
+                    if (isIncluded) {
+                        val restored = if (mapping.previousTarget != TargetField.IGNORE) mapping.previousTarget else TargetField.CUSTOM_SPEC
+                        mapping.copy(targetField = restored)
+                    } else {
+                        val prev = if (mapping.targetField != TargetField.IGNORE) mapping.targetField else mapping.previousTarget
+                        mapping.copy(targetField = TargetField.IGNORE, previousTarget = prev)
+                    }
+                } else mapping
+            }
+            state.copy(columnMappings = updated)
+        }
+    }
+
+    fun selectAllColumns() {
+        _uiState.update { state ->
+            val keyCol = state.keyColumnIndex
+            val updated = state.columnMappings.map { mapping ->
+                if (mapping.columnIndex != keyCol && mapping.targetField == TargetField.IGNORE) {
+                    val restored = if (mapping.previousTarget != TargetField.IGNORE) mapping.previousTarget else TargetField.CUSTOM_SPEC
+                    mapping.copy(targetField = restored)
+                } else mapping
+            }
+            state.copy(columnMappings = updated)
+        }
+    }
+
+    fun deselectAllColumns() {
+        _uiState.update { state ->
+            val keyCol = state.keyColumnIndex
+            val updated = state.columnMappings.map { mapping ->
+                if (mapping.columnIndex != keyCol && mapping.targetField != TargetField.IGNORE) {
+                    mapping.copy(
+                        targetField = TargetField.IGNORE,
+                        previousTarget = mapping.targetField
                     )
                 } else mapping
             }

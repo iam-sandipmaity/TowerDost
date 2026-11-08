@@ -278,7 +278,80 @@ class ImportWizardViewModel(
         _uiState.update { state ->
             val updated = state.columnMappings.toMutableList()
             if (index in updated.indices) {
-                updated[index] = updated[index].copy(targetField = targetField)
+                val current = updated[index]
+                val prev = if (targetField != TargetField.IGNORE) targetField else current.previousTarget
+                updated[index] = current.copy(targetField = targetField, previousTarget = prev)
+            }
+            state.copy(columnMappings = updated)
+        }
+    }
+
+    fun toggleColumnSelection(index: Int, isIncluded: Boolean) {
+        _uiState.update { state ->
+            val updated = state.columnMappings.toMutableList()
+            if (index in updated.indices) {
+                val current = updated[index]
+                if (isIncluded) {
+                    val restored = if (current.previousTarget != TargetField.IGNORE) {
+                        current.previousTarget
+                    } else {
+                        TargetField.CUSTOM_SPEC
+                    }
+                    updated[index] = current.copy(targetField = restored)
+                } else {
+                    val prev = if (current.targetField != TargetField.IGNORE) current.targetField else current.previousTarget
+                    updated[index] = current.copy(
+                        targetField = TargetField.IGNORE,
+                        previousTarget = prev
+                    )
+                }
+            }
+            state.copy(columnMappings = updated)
+        }
+    }
+
+    fun selectAllColumns() {
+        _uiState.update { state ->
+            val updated = state.columnMappings.map { mapping ->
+                if (mapping.targetField == TargetField.IGNORE) {
+                    val restored = if (mapping.previousTarget != TargetField.IGNORE) mapping.previousTarget else TargetField.CUSTOM_SPEC
+                    mapping.copy(targetField = restored)
+                } else {
+                    mapping
+                }
+            }
+            state.copy(columnMappings = updated)
+        }
+    }
+
+    fun deselectAllSpecs() {
+        _uiState.update { state ->
+            val updated = state.columnMappings.map { mapping ->
+                if (mapping.targetField == TargetField.CUSTOM_SPEC) {
+                    mapping.copy(
+                        targetField = TargetField.IGNORE,
+                        previousTarget = TargetField.CUSTOM_SPEC
+                    )
+                } else {
+                    mapping
+                }
+            }
+            state.copy(columnMappings = updated)
+        }
+    }
+
+    fun deselectAllOptional() {
+        _uiState.update { state ->
+            val updated = state.columnMappings.map { mapping ->
+                if (mapping.targetField != TargetField.SAP_ID) {
+                    val prev = if (mapping.targetField != TargetField.IGNORE) mapping.targetField else mapping.previousTarget
+                    mapping.copy(
+                        targetField = TargetField.IGNORE,
+                        previousTarget = prev
+                    )
+                } else {
+                    mapping
+                }
             }
             state.copy(columnMappings = updated)
         }

@@ -29,7 +29,8 @@ data class VlookupColumnMapping(
     val sourceHeader: String,
     var targetField: TargetField,
     var specGroup: String? = null,
-    var specKey: String = sourceHeader
+    var specKey: String = sourceHeader,
+    var previousTarget: TargetField = if (targetField != TargetField.IGNORE) targetField else TargetField.CUSTOM_SPEC
 )
 
 data class FieldDiff(

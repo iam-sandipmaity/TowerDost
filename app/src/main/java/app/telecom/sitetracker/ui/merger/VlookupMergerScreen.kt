@@ -13,6 +13,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -39,6 +41,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -188,6 +192,11 @@ fun VlookupMergerScreen(
                             onUpdateTarget = { col, target, group, key ->
                                 viewModel.updateColumnTarget(col, target, group, key)
                             },
+                            onToggleColumn = { col, isIncluded ->
+                                viewModel.toggleColumnSelection(col, isIncluded)
+                            },
+                            onSelectAll = { viewModel.selectAllColumns() },
+                            onDeselectAll = { viewModel.deselectAllColumns() },
                             onSetStrategy = { viewModel.setMergeStrategy(it) },
                             onSetOverwritePolicy = { viewModel.setOverwritePolicy(it) },
                             onGeneratePreview = { viewModel.generatePreview() }
@@ -557,13 +566,21 @@ private fun StepSelectKeyColumn(
 private fun StepMapColumns(
     uiState: VlookupMergerUiState,
     onUpdateTarget: (Int, TargetField, String?, String?) -> Unit,
+    onToggleColumn: (Int, Boolean) -> Unit,
+    onSelectAll: () -> Unit,
+    onDeselectAll: () -> Unit,
     onSetStrategy: (MergeStrategy) -> Unit,
     onSetOverwritePolicy: (OverwritePolicy) -> Unit,
     onGeneratePreview: () -> Unit
 ) {
+    val nonKeyMappings = uiState.columnMappings.filter { it.columnIndex != uiState.keyColumnIndex }
+    val totalNonKey = nonKeyMappings.size
+    val includedCount = nonKeyMappings.count { it.targetField != TargetField.IGNORE }
+    val skippedCount = totalNonKey - includedCount
+
     Column(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Strategy & Overwrite Policy Card
         Card(
@@ -663,16 +680,60 @@ private fun StepMapColumns(
             }
         }
 
-        // Column Mappings List
+        // Column Selection Toolbar
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$includedCount OF $totalNonKey COLUMNS SELECTED • $skippedCount SKIPPED",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    color = if (skippedCount > 0) TelecomAmber else MaterialTheme.colorScheme.primary
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(
+                        onClick = onSelectAll,
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        modifier = Modifier.sizeIn(minHeight = 32.dp)
+                    ) {
+                        Text("All", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = onDeselectAll,
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        modifier = Modifier.sizeIn(minHeight = 32.dp)
+                    ) {
+                        Text("None", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // Column Mappings List with Checkboxes
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val nonKeyMappings = uiState.columnMappings.filter { it.columnIndex != uiState.keyColumnIndex }
             items(nonKeyMappings) { mapping ->
                 ColumnMappingCard(
                     mapping = mapping,
                     sampleValues = uiState.sampleRows.mapNotNull { it.getOrNull(mapping.columnIndex) }.filter { it.isNotBlank() },
+                    onToggleSelected = { isIncluded -> onToggleColumn(mapping.columnIndex, isIncluded) },
                     onTargetChanged = { target, group, key ->
                         onUpdateTarget(mapping.columnIndex, target, group, key)
                     }
@@ -691,7 +752,7 @@ private fun StepMapColumns(
                 .fillMaxWidth()
                 .height(48.dp)
         ) {
-            Text("Preview Match & Changes", fontWeight = FontWeight.Bold)
+            Text("Preview Match & Changes ($includedCount columns)", fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.width(8.dp))
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
         }
@@ -702,33 +763,60 @@ private fun StepMapColumns(
 private fun ColumnMappingCard(
     mapping: VlookupColumnMapping,
     sampleValues: List<String>,
+    onToggleSelected: (Boolean) -> Unit,
     onTargetChanged: (TargetField, String?, String?) -> Unit
 ) {
+    val isIncluded = mapping.targetField != TargetField.IGNORE
     var isExpanded by remember { mutableStateOf(false) }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isIncluded) MaterialTheme.colorScheme.surface
+            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        ),
         border = BorderStroke(
             1.dp,
-            if (mapping.targetField == TargetField.IGNORE) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-            else MaterialTheme.colorScheme.outlineVariant
+            if (isIncluded) MaterialTheme.colorScheme.outlineVariant
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
         ),
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                // 1-tap Checkbox to include / skip column
+                Checkbox(
+                    checked = isIncluded,
+                    onCheckedChange = { onToggleSelected(it) },
+                    colors = CheckboxDefaults.colors(checkedColor = TelecomAmber),
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                )
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onToggleSelected(!isIncluded) }
+                ) {
                     Text(
                         text = mapping.sourceHeader,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = if (isIncluded) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (sampleValues.isNotEmpty()) {
+                    if (!isIncluded) {
+                        Text(
+                            text = "SKIPPED (NOT MERGED)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    } else if (sampleValues.isNotEmpty()) {
                         Text(
                             text = "Sample: ${sampleValues.take(2).joinToString(", ")}",
                             style = MaterialTheme.typography.bodySmall.copy(
@@ -738,6 +826,8 @@ private fun ColumnMappingCard(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 // Target field selector badge / button
                 Box {
@@ -760,6 +850,7 @@ private fun ColumnMappingCard(
                     ) {
                         Text(
                             text = when (mapping.targetField) {
+                                TargetField.IGNORE -> "Skipped"
                                 TargetField.CUSTOM_SPEC -> "${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
                                 else -> mapping.targetField.displayName
                             },

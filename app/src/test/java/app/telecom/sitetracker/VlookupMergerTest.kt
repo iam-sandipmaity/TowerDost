@@ -167,4 +167,27 @@ class VlookupMergerTest {
         assertEquals(listOf("DEL-1001", "MUM-2002"), matched)
         assertEquals(listOf("CHN-4004", "PUN-5005"), unmatched)
     }
+
+    @Test
+    fun testVlookupIgnoreColumnSkipsMerge() {
+        val mapping = app.telecom.sitetracker.data.merger.VlookupColumnMapping(
+            columnIndex = 2,
+            sourceHeader = "UNWANTED_COLUMN",
+            targetField = TargetField.CUSTOM_SPEC,
+            specGroup = "MISC"
+        )
+
+        // User unchecks unwanted column to skip it
+        val skipped = mapping.copy(
+            targetField = TargetField.IGNORE,
+            previousTarget = mapping.targetField
+        )
+        assertEquals(TargetField.IGNORE, skipped.targetField)
+        assertEquals(TargetField.CUSTOM_SPEC, skipped.previousTarget)
+
+        // Filter active mappings (same as VlookupEngine does)
+        val activeMappings = listOf(mapping, skipped).filter { it.targetField != TargetField.IGNORE }
+        assertEquals(1, activeMappings.size)
+        assertEquals("UNWANTED_COLUMN", activeMappings[0].sourceHeader)
+    }
 }

@@ -61,4 +61,53 @@ class ColumnMapperTest {
         assertEquals(TargetField.CUSTOM_SPEC, smpsMapping!!.targetField)
         assertEquals("SMPS", smpsMapping.specGroup)
     }
+
+    @Test
+    fun testColumnCanBeIgnoredAndRestored() {
+        val mapping = app.telecom.sitetracker.data.import.ColumnMapping(
+            columnIndex = 3,
+            sourceHeader = "DG FUEL TANK CAPACITY",
+            targetField = TargetField.CUSTOM_SPEC,
+            specGroup = "Diesel Generator"
+        )
+
+        // User unchecks the column to skip it
+        val skipped = mapping.copy(
+            targetField = TargetField.IGNORE,
+            previousTarget = mapping.targetField
+        )
+        assertEquals(TargetField.IGNORE, skipped.targetField)
+        assertEquals(TargetField.CUSTOM_SPEC, skipped.previousTarget)
+
+        // User re-checks the column to include it back
+        val restored = skipped.copy(
+            targetField = skipped.previousTarget
+        )
+        assertEquals(TargetField.CUSTOM_SPEC, restored.targetField)
+        assertEquals("Diesel Generator", restored.specGroup)
+    }
+
+    @Test
+    fun testDeselectAllSpecsIgnoresSpecsWhilePreservingStandardFields() {
+        val headers = listOf("SAP ID", "Site Name", "Latitude", "Battery AH", "DG KVA")
+        val mappings = ColumnMapper.generateInitialMappings(headers)
+
+        // Bulk action: Deselect all specs
+        val updated = mappings.map { m ->
+            if (m.targetField == TargetField.CUSTOM_SPEC) {
+                m.copy(targetField = TargetField.IGNORE, previousTarget = TargetField.CUSTOM_SPEC)
+            } else {
+                m
+            }
+        }
+
+        // Standard fields remain included
+        assertEquals(TargetField.SAP_ID, updated[0].targetField)
+        assertEquals(TargetField.NAME, updated[1].targetField)
+        assertEquals(TargetField.LAT, updated[2].targetField)
+
+        // Spec fields are skipped
+        assertEquals(TargetField.IGNORE, updated[3].targetField)
+        assertEquals(TargetField.IGNORE, updated[4].targetField)
+    }
 }

@@ -3,11 +3,14 @@ package app.telecom.sitetracker.ui.importwizard
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -31,6 +35,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -64,6 +70,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.import.MergePolicy
 import app.telecom.sitetracker.data.import.TargetField
+import app.telecom.sitetracker.ui.theme.TelecomAmber
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -182,6 +189,10 @@ fun ImportWizardScreen(
                             StepMapColumns(
                                 uiState = uiState,
                                 onUpdateMapping = { idx, target -> viewModel.onUpdateMapping(idx, target) },
+                                onToggleColumn = { idx, isIncluded -> viewModel.toggleColumnSelection(idx, isIncluded) },
+                                onSelectAll = { viewModel.selectAllColumns() },
+                                onDeselectSpecs = { viewModel.deselectAllSpecs() },
+                                onDeselectAllOptional = { viewModel.deselectAllOptional() },
                                 onProceed = { viewModel.onProceedToValidation() }
                             )
                         }
@@ -353,20 +364,29 @@ private fun StepSelectSheet(
 private fun StepMapColumns(
     uiState: ImportWizardUiState,
     onUpdateMapping: (Int, TargetField) -> Unit,
+    onToggleColumn: (Int, Boolean) -> Unit,
+    onSelectAll: () -> Unit,
+    onDeselectSpecs: () -> Unit,
+    onDeselectAllOptional: () -> Unit,
     onProceed: () -> Unit
 ) {
+    val totalCount = uiState.columnMappings.size
+    val includedCount = uiState.columnMappings.count { it.targetField != TargetField.IGNORE }
+    val skippedCount = totalCount - includedCount
+    val specCount = uiState.columnMappings.count { it.targetField == TargetField.CUSTOM_SPEC }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
         Text(
-            text = "Map Columns",
+            text = "Map & Choose Columns",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Verify mapping for standard fields. Unmapped columns are automatically saved as equipment specifications.",
+            text = "Select which columns to import into TowerDost. Uncheck any column you want to skip. Unchecked columns will NOT be saved to your database.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -378,7 +398,7 @@ private fun StepMapColumns(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(140.dp)
+                    .height(130.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -421,11 +441,71 @@ private fun StepMapColumns(
                     }
                 }
             }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        // Selection & Quick Filter Toolbar
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "$includedCount OF $totalCount COLUMNS INCLUDED • $skippedCount SKIPPED",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = if (skippedCount > 0) TelecomAmber else MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onSelectAll,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.sizeIn(minHeight = 36.dp)
+                    ) {
+                        Text("Select All", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = onDeselectSpecs,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.sizeIn(minHeight = 36.dp)
+                    ) {
+                        Text("Skip All Specs ($specCount)", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = onDeselectAllOptional,
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.sizeIn(minHeight = 36.dp)
+                    ) {
+                        Text("Keep Only SAP ID", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Mapping List
+        // Mapping List with Checkboxes
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
@@ -435,6 +515,7 @@ private fun StepMapColumns(
             itemsIndexed(uiState.columnMappings) { index, mapping ->
                 ColumnMappingItem(
                     mapping = mapping,
+                    onToggleSelected = { isIncluded -> onToggleColumn(index, isIncluded) },
                     onFieldSelected = { target -> onUpdateMapping(index, target) }
                 )
             }
@@ -447,7 +528,7 @@ private fun StepMapColumns(
                 .fillMaxWidth()
                 .height(48.dp)
         ) {
-            Text("Validate & Review")
+            Text("Validate & Review ($includedCount columns)")
         }
         Spacer(modifier = Modifier.height(8.dp))
     }
@@ -457,49 +538,108 @@ private fun StepMapColumns(
 @Composable
 private fun ColumnMappingItem(
     mapping: app.telecom.sitetracker.data.import.ColumnMapping,
+    onToggleSelected: (Boolean) -> Unit,
     onFieldSelected: (TargetField) -> Unit
 ) {
+    val isSapId = mapping.targetField == TargetField.SAP_ID
+    val isIncluded = mapping.targetField != TargetField.IGNORE
     var expanded by remember { mutableStateOf(false) }
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isIncluded) MaterialTheme.colorScheme.surface
+            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isIncluded) MaterialTheme.colorScheme.outlineVariant
+            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        ),
+        shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // 1-tap Checkbox for column inclusion / skip
+            Checkbox(
+                checked = isIncluded,
+                onCheckedChange = { onToggleSelected(it) },
+                enabled = !isSapId,
+                colors = CheckboxDefaults.colors(checkedColor = TelecomAmber),
+                modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            )
+
+            Spacer(modifier = Modifier.width(4.dp))
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clickable(enabled = !isSapId) { onToggleSelected(!isIncluded) }
+            ) {
                 Text(
                     text = mapping.sourceHeader,
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = if (isIncluded) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (mapping.targetField == TargetField.CUSTOM_SPEC && mapping.specGroup != null) {
-                    Text(
-                        text = "Group: ${mapping.specGroup}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
+                Spacer(modifier = Modifier.height(2.dp))
+                when {
+                    isSapId -> {
+                        Text(
+                            text = "REQUIRED MASTER KEY",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = TelecomAmber
+                        )
+                    }
+                    !isIncluded -> {
+                        Text(
+                            text = "SKIPPED (NOT IMPORTED)",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                    mapping.targetField == TargetField.CUSTOM_SPEC -> {
+                        Text(
+                            text = "EQUIPMENT SPEC: ${mapping.specGroup ?: "General"}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                    else -> {
+                        Text(
+                            text = "SITE ATTRIBUTE: ${mapping.targetField.displayName}",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
 
             ExposedDropdownMenuBox(
                 expanded = expanded,
                 onExpandedChange = { expanded = !expanded }
             ) {
                 OutlinedTextField(
-                    value = mapping.targetField.displayName,
+                    value = if (isIncluded) mapping.targetField.displayName else "Skipped",
                     onValueChange = {},
                     readOnly = true,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     modifier = Modifier
                         .menuAnchor()
-                        .width(170.dp),
-                    textStyle = MaterialTheme.typography.bodySmall
+                        .width(165.dp),
+                    textStyle = MaterialTheme.typography.bodySmall,
+                    shape = RoundedCornerShape(8.dp)
                 )
                 ExposedDropdownMenu(
                     expanded = expanded,
@@ -507,7 +647,13 @@ private fun ColumnMappingItem(
                 ) {
                     TargetField.standardFields().forEach { target ->
                         DropdownMenuItem(
-                            text = { Text(target.displayName, style = MaterialTheme.typography.bodySmall) },
+                            text = {
+                                Text(
+                                    text = target.displayName,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = if (target == mapping.targetField) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
                             onClick = {
                                 onFieldSelected(target)
                                 expanded = false
