@@ -31,7 +31,7 @@ import app.telecom.sitetracker.data.entity.UniversalFieldEntity
         OrphanIncidentView::class
     ],
     version = 3,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun siteDao(): SiteDao
