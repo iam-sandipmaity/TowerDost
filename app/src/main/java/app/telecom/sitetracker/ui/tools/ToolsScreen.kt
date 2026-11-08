@@ -24,7 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AltRoute
+import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -373,7 +373,7 @@ fun ToolsScreen(
             ToolActionCard(
                 title = "VLOOKUP Sheet Column Merger",
                 description = "Merge supplemental Excel (.xlsx) or CSV columns against master sites by SAP ID with preview.",
-                icon = Icons.Default.AltRoute,
+                icon = Icons.AutoMirrored.Filled.AltRoute,
                 buttonText = "Open Merger",
                 onClick = onNavigateToMerger
             )

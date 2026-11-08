@@ -27,8 +27,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FileDownload
@@ -1028,7 +1028,7 @@ private fun StepPreview(
                     .weight(2f)
                     .height(48.dp)
             ) {
-                Icon(Icons.Default.AltRoute, contentDescription = null)
+                Icon(Icons.AutoMirrored.Filled.AltRoute, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Execute Batch Merge", fontWeight = FontWeight.Bold)
             }

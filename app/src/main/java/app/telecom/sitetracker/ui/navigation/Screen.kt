@@ -1,10 +1,10 @@
 package app.telecom.sitetracker.ui.navigation
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddAlert
-import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CellTower
@@ -41,7 +41,7 @@ sealed class Screen(
     object Search : Screen("search", R.string.action_search, Icons.Default.Search)
     object UniversalTemplate : Screen("universal_template", R.string.title_universal_template, Icons.Default.Tune)
     object CreateSite : Screen("create_site", R.string.title_create_site, Icons.Default.Add)
-    object VlookupMerger : Screen("vlookup_merger", R.string.title_vlookup_merger, Icons.Default.AltRoute)
+    object VlookupMerger : Screen("vlookup_merger", R.string.title_vlookup_merger, Icons.AutoMirrored.Filled.AltRoute)
 
     object LogIncident : Screen("log_incident?sapId={sapId}&incidentId={incidentId}", R.string.title_log_incident, Icons.Default.AddAlert) {
         fun createRoute(sapId: String? = null, incidentId: String? = null): String {

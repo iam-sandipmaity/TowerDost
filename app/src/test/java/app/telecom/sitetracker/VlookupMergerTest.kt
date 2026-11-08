@@ -24,9 +24,13 @@ class VlookupMergerTest {
         val keyIndex2 = VlookupEngine.detectKeyColumn(headers2)
         assertEquals(0, keyIndex2)
 
-        val headers3 = listOf("Tower Code", "Tower ID", "Status")
+        val headers3 = listOf("Circle", "Tower ID", "Status")
         val keyIndex3 = VlookupEngine.detectKeyColumn(headers3)
-        assertEquals(0, keyIndex3) // "tower code" matches or "tower id" matches
+        assertEquals(1, keyIndex3)
+
+        val headers4 = listOf("Tower Code", "Status")
+        val keyIndex4 = VlookupEngine.detectKeyColumn(headers4)
+        assertEquals(0, keyIndex4)
     }
 
     @Test

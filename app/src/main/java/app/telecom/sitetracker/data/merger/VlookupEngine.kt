@@ -22,8 +22,8 @@ class VlookupEngine(
 
     companion object {
         private val KEY_ALIASES = listOf(
-            "sap id", "sap_id", "sapid", "site id", "site_id", "sitecode",
-            "site code", "tower id", "site no", "site_no", "sap"
+            "sap id", "sap_id", "sapid", "sap code", "site id", "site_id", "sitecode",
+            "site code", "tower id", "tower_id", "tower code", "tower_code", "site no", "site_no", "sap"
         )
 
         fun detectKeyColumn(headers: List<String>): Int {
