@@ -37,6 +37,7 @@ sealed class Screen(
 
     object ImportWizard : Screen("import_wizard", R.string.import_title, Icons.Default.UploadFile)
     object Search : Screen("search", R.string.action_search, Icons.Default.Search)
+    object UniversalTemplate : Screen("universal_template", R.string.title_universal_template, Icons.Default.Tune)
 
     object LogIncident : Screen("log_incident?sapId={sapId}&incidentId={incidentId}", R.string.title_log_incident, Icons.Default.AddAlert) {
         fun createRoute(sapId: String? = null, incidentId: String? = null): String {

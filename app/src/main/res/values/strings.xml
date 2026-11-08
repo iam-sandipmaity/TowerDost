@@ -117,4 +117,5 @@
     <string name="incident_logged_success">Incident logged successfully.</string>
     <string name="site_restored_success">Site marked restored.</string>
     <string name="undo_restored">Outage re-opened.</string>
+    <string name="title_universal_template">Universal Specs Template</string>
 </resources>

@@ -106,6 +106,7 @@ data class StagedLogFileData(
 @Composable
 fun ToolsScreen(
     onNavigateToImport: () -> Unit,
+    onNavigateToTemplate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -356,6 +357,14 @@ fun ToolsScreen(
                 icon = Icons.Default.UploadFile,
                 buttonText = "Open Wizard",
                 onClick = onNavigateToImport
+            )
+
+            ToolActionCard(
+                title = "Universal Specs Template",
+                description = "Define global equipment & spec fields that appear across every site in View and Edit modes.",
+                icon = Icons.Default.Tune,
+                buttonText = "Manage Template",
+                onClick = onNavigateToTemplate
             )
 
             // ==========================================

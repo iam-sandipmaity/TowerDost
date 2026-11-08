@@ -31,6 +31,8 @@ import app.telecom.sitetracker.ui.sitedetail.SiteDetailScreen
 import app.telecom.sitetracker.ui.sitedetail.SiteDetailViewModel
 import app.telecom.sitetracker.ui.sitelist.SiteListScreen
 import app.telecom.sitetracker.ui.sitelist.SiteListViewModel
+import app.telecom.sitetracker.ui.template.UniversalTemplateScreen
+import app.telecom.sitetracker.ui.template.UniversalTemplateViewModel
 
 @Composable
 fun AppNavGraph(
@@ -98,6 +100,9 @@ fun AppNavGraph(
             ToolsScreen(
                 onNavigateToImport = {
                     navController.navigate(Screen.ImportWizard.route)
+                },
+                onNavigateToTemplate = {
+                    navController.navigate(Screen.UniversalTemplate.route)
                 }
             )
         }
@@ -143,6 +148,9 @@ fun AppNavGraph(
             SiteDetailScreen(
                 viewModel = siteDetailViewModel,
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateToTemplate = {
+                    navController.navigate(Screen.UniversalTemplate.route)
+                },
                 onLogIncident = { siteSapId ->
                     navController.navigate(Screen.LogIncident.createRoute(sapId = siteSapId))
                 },
@@ -286,6 +294,17 @@ fun AppNavGraph(
             }
             ReasonCatalogueScreen(
                 viewModel = reasonViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // 11. Universal Specs Template Screen
+        composable(Screen.UniversalTemplate.route) {
+            val templateViewModel: UniversalTemplateViewModel = viewModel {
+                UniversalTemplateViewModel(app.siteRepository)
+            }
+            UniversalTemplateScreen(
+                viewModel = templateViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

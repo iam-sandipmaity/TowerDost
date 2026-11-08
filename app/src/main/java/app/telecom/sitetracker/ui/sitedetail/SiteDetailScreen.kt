@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -103,6 +104,7 @@ fun SiteDetailScreen(
     onNavigateBack: () -> Unit,
     onLogIncident: (String) -> Unit,
     onEditLog: (sapId: String, incidentId: String) -> Unit = { _, _ -> },
+    onNavigateToTemplate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -345,6 +347,7 @@ fun SiteDetailScreen(
                         isEditingSpecs = uiState.isEditingSpecs,
                         draftSections = uiState.draftSpecsSections,
                         onFilterChange = { specFilterQuery = it },
+                        onNavigateToTemplate = onNavigateToTemplate,
                         onStartEditSpecs = { viewModel.startEditingSpecs() },
                         onCancelEditSpecs = { viewModel.cancelEditingSpecs() },
                         onSaveSpecsClick = { viewModel.requestSaveSpecs() },
@@ -794,6 +797,7 @@ private fun SpecsTab(
     isEditingSpecs: Boolean,
     draftSections: List<SpecDraftSection>,
     onFilterChange: (String) -> Unit,
+    onNavigateToTemplate: () -> Unit = {},
     onStartEditSpecs: () -> Unit,
     onCancelEditSpecs: () -> Unit,
     onSaveSpecsClick: () -> Unit,
@@ -1039,14 +1043,29 @@ private fun SpecsTab(
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = onStartEditSpecs,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(8.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Edit Specs", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        OutlinedButton(
+                            onClick = onNavigateToTemplate,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Template", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = onStartEditSpecs,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Edit Specs", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
