@@ -25,7 +25,7 @@ class UniversalFieldTest {
     }
 
     @Test
-    fun testUniversalFieldsMergeWithExistingSiteSpecs() {
+    fun testExistingSiteSpecsTakePrecedenceOverUniversalPlaceholders() {
         // Universal template defines 3 standard fields
         val universalTemplate = listOf(
             UniversalFieldEntity(fieldKey = "SMPS MAKE", groupName = "POWER", sortOrder = 1),
@@ -33,52 +33,45 @@ class UniversalFieldTest {
             UniversalFieldEntity(fieldKey = "FIRE EXT EXPIRY", groupName = "SAFETY", sortOrder = 3)
         )
 
-        // Site has data for SMPS MAKE and a custom field unique to this site, but missing BATTERY SOH and FIRE EXT EXPIRY
+        // Site has data for SMPS MAKE and a custom field unique to this site
         val siteSapId = "WB-KOL-8888"
         val existingSiteSpecs = listOf(
             SiteFieldEntity(id = 10L, sapId = siteSapId, fieldKey = "SMPS MAKE", fieldValue = "Delta 48V", groupName = "POWER"),
             SiteFieldEntity(id = 11L, sapId = siteSapId, fieldKey = "CUSTOM RF JUMPER", fieldValue = "Din to Din 2m", groupName = "RF")
         )
 
-        // Merge logic
-        val mergedList = existingSiteSpecs.toMutableList()
-        for (uni in universalTemplate) {
-            val exists = mergedList.any { it.fieldKey.equals(uni.fieldKey, ignoreCase = true) }
-            if (!exists) {
-                mergedList.add(
-                    SiteFieldEntity(
-                        id = 0L,
-                        sapId = siteSapId,
-                        fieldKey = uni.fieldKey,
-                        fieldValue = uni.defaultValue,
-                        groupName = uni.groupName,
-                        sortOrder = uni.sortOrder
-                    )
+        // Policy: Existing recorded site fields take precedence exclusively to avoid blank placeholder pollution
+        val activeFields = if (existingSiteSpecs.isNotEmpty()) {
+            existingSiteSpecs
+        } else {
+            universalTemplate.map { uni ->
+                SiteFieldEntity(
+                    id = 0L,
+                    sapId = siteSapId,
+                    fieldKey = uni.fieldKey,
+                    fieldValue = uni.defaultValue,
+                    groupName = uni.groupName,
+                    sortOrder = uni.sortOrder
                 )
             }
         }
 
-        // Must now have 4 total fields
-        assertEquals(4, mergedList.size)
+        // Must preserve exactly the 2 existing site fields
+        assertEquals(2, activeFields.size)
 
         // 1. Existing SMPS MAKE value must be preserved exactly
-        val smpsField = mergedList.first { it.fieldKey.equals("SMPS MAKE", ignoreCase = true) }
+        val smpsField = activeFields.first { it.fieldKey.equals("SMPS MAKE", ignoreCase = true) }
         assertEquals("Delta 48V", smpsField.fieldValue)
         assertEquals(10L, smpsField.id)
 
         // 2. Custom site field must still exist
-        val customField = mergedList.firstOrNull { it.fieldKey.equals("CUSTOM RF JUMPER", ignoreCase = true) }
+        val customField = activeFields.firstOrNull { it.fieldKey.equals("CUSTOM RF JUMPER", ignoreCase = true) }
         assertNotNull(customField)
         assertEquals("Din to Din 2m", customField?.fieldValue)
 
-        // 3. Missing universal fields must be added with null values
-        val batteryField = mergedList.first { it.fieldKey.equals("BATTERY SOH", ignoreCase = true) }
-        assertNull(batteryField.fieldValue)
-        assertEquals("BATTERY", batteryField.groupName)
-
-        val fireField = mergedList.first { it.fieldKey.equals("FIRE EXT EXPIRY", ignoreCase = true) }
-        assertNull(fireField.fieldValue)
-        assertEquals("SAFETY", fireField.groupName)
+        // 3. No blank universal placeholders injected
+        assertFalse(activeFields.any { it.fieldKey.equals("BATTERY SOH", ignoreCase = true) })
+        assertFalse(activeFields.any { it.fieldKey.equals("FIRE EXT EXPIRY", ignoreCase = true) })
     }
 
     @Test

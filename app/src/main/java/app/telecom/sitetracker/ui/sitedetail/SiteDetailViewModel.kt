@@ -588,26 +588,26 @@ class SiteDetailViewModel(
                 val fields = siteRepository.getFieldsForSite(actualSapId)
                 val universalFields = siteRepository.getUniversalFields()
 
-                // Merge universal template fields with recorded site fields.
-                // Recorded site fields take precedence; missing universal template fields are added as placeholders.
-                val mergedFields = fields.toMutableList()
-                for (uni in universalFields) {
-                    if (mergedFields.none { it.fieldKey.equals(uni.fieldKey, ignoreCase = true) }) {
-                        mergedFields.add(
-                            SiteFieldEntity(
-                                id = 0L,
-                                sapId = actualSapId,
-                                fieldKey = uni.fieldKey,
-                                fieldValue = uni.defaultValue,
-                                groupName = uni.groupName,
-                                sortOrder = uni.sortOrder
-                            )
+                // If site already has recorded technical specifications, display them exclusively.
+                // Never inject repetitive blank placeholder fields into existing sites.
+                // If site has NO recorded specifications yet, inherit the global blueprint.
+                val activeFields = if (fields.isNotEmpty()) {
+                    fields
+                } else {
+                    universalFields.map { uni ->
+                        SiteFieldEntity(
+                            id = 0L,
+                            sapId = actualSapId,
+                            fieldKey = uni.fieldKey,
+                            fieldValue = uni.defaultValue,
+                            groupName = uni.groupName,
+                            sortOrder = uni.sortOrder
                         )
                     }
                 }
 
                 // Detect contact phone number from specs
-                val phoneField = mergedFields.firstOrNull { field ->
+                val phoneField = activeFields.firstOrNull { field ->
                     val k = field.fieldKey.lowercase()
                     (k.contains("number") || k.contains("phone") || k.contains("mobile") || k.contains("tech no")) &&
                             field.fieldValue?.any { it.isDigit() } == true
@@ -615,7 +615,7 @@ class SiteDetailViewModel(
                 val phone = phoneField?.fieldValue?.filter { it.isDigit() || it == '+' }
 
                 // Group specs by groupName
-                val grouped = mergedFields.groupBy { it.groupName ?: "General Specifications" }
+                val grouped = activeFields.groupBy { it.groupName?.ifBlank { "General Specifications" } ?: "General Specifications" }
 
                 _uiState.update {
                     it.copy(

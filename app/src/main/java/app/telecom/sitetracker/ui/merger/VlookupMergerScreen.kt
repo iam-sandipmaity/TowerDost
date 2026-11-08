@@ -494,7 +494,10 @@ private fun StepSelectKeyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(uiState.headers.mapIndexed { idx, h -> idx to h }) { (idx, header) ->
+            items(
+                items = uiState.headers.mapIndexed { idx, h -> idx to h },
+                key = { it.first }
+            ) { (idx, header) ->
                 val isSelected = uiState.keyColumnIndex == idx
                 Card(
                     colors = CardDefaults.cardColors(
@@ -729,7 +732,10 @@ private fun StepMapColumns(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(nonKeyMappings) { mapping ->
+            items(
+                items = nonKeyMappings,
+                key = { it.sourceHeader }
+            ) { mapping ->
                 ColumnMappingCard(
                     mapping = mapping,
                     sampleValues = uiState.sampleRows.mapNotNull { it.getOrNull(mapping.columnIndex) }.filter { it.isNotBlank() },
@@ -1030,7 +1036,10 @@ private fun StepPreview(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(preview.samplePreviews) { rowPreview ->
+            items(
+                items = preview.samplePreviews,
+                key = { "${it.siteSapId}_${it.rowNumber}" }
+            ) { rowPreview ->
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
