@@ -20,9 +20,12 @@ data class UniversalTemplateUiState(
     val isAddingField: Boolean = false,
     val targetSectionForAdd: String? = null,
     val isAddingSection: Boolean = false,
+    val isEditingField: Boolean = false,
+    val fieldToEdit: UniversalFieldEntity? = null,
     val confirmDeleteField: UniversalFieldEntity? = null,
     val confirmDeleteSection: String? = null,
-    val confirmResetDefaults: Boolean = false
+    val confirmResetDefaults: Boolean = false,
+    val confirmClearAll: Boolean = false
 )
 
 class UniversalTemplateViewModel(
@@ -39,15 +42,6 @@ class UniversalTemplateViewModel(
     private fun observeTemplate() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            try {
-                // Ensure default seed if empty
-                val existing = siteRepository.getUniversalFields()
-                if (existing.isEmpty()) {
-                    siteRepository.seedDefaultUniversalFields()
-                }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(errorMessage = "Failed to initialize defaults: ${e.localizedMessage}") }
-            }
 
             siteRepository.observeUniversalFields()
                 .catch { e ->
@@ -251,6 +245,96 @@ class UniversalTemplateViewModel(
                     it.copy(
                         confirmResetDefaults = false,
                         errorMessage = "Failed to reset defaults: ${e.localizedMessage}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun startEditField(field: UniversalFieldEntity) {
+        _uiState.update {
+            it.copy(
+                isEditingField = true,
+                fieldToEdit = field
+            )
+        }
+    }
+
+    fun dismissEditField() {
+        _uiState.update {
+            it.copy(
+                isEditingField = false,
+                fieldToEdit = null
+            )
+        }
+    }
+
+    fun confirmEditField(
+        oldKey: String,
+        newKey: String,
+        newGroup: String,
+        newDefaultValue: String?
+    ) {
+        val trimmedKey = newKey.trim().uppercase()
+        val trimmedGroup = newGroup.trim().uppercase()
+        if (trimmedKey.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Specification field key cannot be blank.") }
+            return
+        }
+        if (trimmedGroup.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Section name cannot be blank.") }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val currentField = _uiState.value.fieldToEdit
+                val sort = currentField?.sortOrder ?: 0
+                val updatedEntity = UniversalFieldEntity(
+                    fieldKey = trimmedKey,
+                    groupName = trimmedGroup,
+                    defaultValue = newDefaultValue?.trim()?.ifBlank { null },
+                    sortOrder = sort
+                )
+                siteRepository.updateUniversalField(oldKey, updatedEntity)
+                _uiState.update {
+                    it.copy(
+                        isEditingField = false,
+                        fieldToEdit = null,
+                        userMessage = "Universal specification '$trimmedKey' updated."
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to update specification: ${e.localizedMessage}")
+                }
+            }
+        }
+    }
+
+    fun requestClearAll() {
+        _uiState.update { it.copy(confirmClearAll = true) }
+    }
+
+    fun cancelClearAll() {
+        _uiState.update { it.copy(confirmClearAll = false) }
+    }
+
+    fun confirmClearAll() {
+        viewModelScope.launch {
+            try {
+                siteRepository.clearAllUniversalFields()
+                _uiState.update {
+                    it.copy(
+                        confirmClearAll = false,
+                        userMessage = "All universal specifications cleared. Your site records from Excel are untouched."
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        confirmClearAll = false,
+                        errorMessage = "Failed to clear template: ${e.localizedMessage}"
                     )
                 }
             }

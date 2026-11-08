@@ -26,6 +26,9 @@ interface FieldDao {
     @Query("DELETE FROM site_fields WHERE sap_id = :sapId AND field_key = :fieldKey")
     suspend fun deleteFieldByKey(sapId: String, fieldKey: String)
 
+    @Query("UPDATE site_fields SET field_key = :newKey, group_name = :newGroup WHERE LOWER(field_key) = LOWER(:oldKey)")
+    suspend fun renameFieldKey(oldKey: String, newKey: String, newGroup: String)
+
     @Query("SELECT * FROM site_fields WHERE sap_id = :sapId ORDER BY sort_order ASC, id ASC")
     fun observeFieldsForSite(sapId: String): Flow<List<SiteFieldEntity>>
 

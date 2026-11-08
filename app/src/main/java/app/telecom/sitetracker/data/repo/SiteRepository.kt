@@ -278,16 +278,19 @@ class SiteRepository(private val db: AppDatabase) {
         universalFieldDao.observeAllUniversalFields()
 
     suspend fun getUniversalFields(): List<UniversalFieldEntity> {
-        val existing = universalFieldDao.getAllUniversalFields()
-        if (existing.isEmpty()) {
-            seedDefaultUniversalFields()
-            return universalFieldDao.getAllUniversalFields()
-        }
-        return existing
+        return universalFieldDao.getAllUniversalFields()
     }
 
     suspend fun saveUniversalField(field: UniversalFieldEntity) {
         universalFieldDao.insertOrUpdateField(field)
+    }
+
+    suspend fun updateUniversalField(oldFieldKey: String, updatedField: UniversalFieldEntity) {
+        if (!oldFieldKey.equals(updatedField.fieldKey, ignoreCase = true)) {
+            universalFieldDao.deleteField(oldFieldKey)
+        }
+        universalFieldDao.insertOrUpdateField(updatedField)
+        fieldDao.renameFieldKey(oldFieldKey, updatedField.fieldKey, updatedField.groupName)
     }
 
     suspend fun deleteUniversalField(fieldKey: String) {
@@ -296,6 +299,10 @@ class SiteRepository(private val db: AppDatabase) {
 
     suspend fun deleteUniversalSection(groupName: String) {
         universalFieldDao.deleteSection(groupName)
+    }
+
+    suspend fun clearAllUniversalFields() {
+        universalFieldDao.clearAll()
     }
 
     suspend fun replaceAllUniversalFields(fields: List<UniversalFieldEntity>) {

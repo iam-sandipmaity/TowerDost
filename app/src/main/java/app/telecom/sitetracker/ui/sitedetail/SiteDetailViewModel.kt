@@ -73,6 +73,15 @@ class SiteDetailViewModel(
     init {
         loadSiteDetails()
         observeIncidents()
+        observeUniversalTemplate()
+    }
+
+    private fun observeUniversalTemplate() {
+        viewModelScope.launch {
+            siteRepository.observeUniversalFields().collect {
+                loadSiteDetails()
+            }
+        }
     }
 
     private fun observeIncidents() {
@@ -119,6 +128,10 @@ class SiteDetailViewModel(
     }
 
     fun reload() {
+        loadSiteDetails()
+    }
+
+    fun refreshSiteDetails() {
         loadSiteDetails()
     }
 

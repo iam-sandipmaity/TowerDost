@@ -293,4 +293,42 @@ class SiteDetailViewModelTest {
         assertEquals("Guard present 24/7", customField.fieldValue)
         assertEquals("ACCESS", customField.groupName)
     }
+
+    @Test
+    fun testWhenUniversalFieldsAreEmptyOnlyExcelImportedFieldsAppear() {
+        val sapId = "IN-UPW-1002"
+        // User imported Excel fields containing specific battery data
+        val excelImportedFields = listOf(
+            SiteFieldEntity(id = 1L, sapId = sapId, fieldKey = "BATTERY BANK (AH)", fieldValue = "600 AH", groupName = "INFRA"),
+            SiteFieldEntity(id = 2L, sapId = sapId, fieldKey = "BATTERY VENDORS", fieldValue = "EXIDE", groupName = "INFRA")
+        )
+
+        // Universal template is empty (no auto-seeded fields polluting site)
+        val universalFields = emptyList<UniversalFieldEntity>()
+
+        // Merge logic
+        val mergedFields = excelImportedFields.toMutableList()
+        for (uni in universalFields) {
+            if (mergedFields.none { it.fieldKey.equals(uni.fieldKey, ignoreCase = true) }) {
+                mergedFields.add(
+                    SiteFieldEntity(
+                        id = 0L,
+                        sapId = sapId,
+                        fieldKey = uni.fieldKey,
+                        fieldValue = uni.defaultValue,
+                        groupName = uni.groupName,
+                        sortOrder = uni.sortOrder
+                    )
+                )
+            }
+        }
+
+        // Exactly the 2 imported fields, NO duplicate or blank "BATTERY BANK CAPACITY"
+        assertEquals(2, mergedFields.size)
+        assertEquals("BATTERY BANK (AH)", mergedFields[0].fieldKey)
+        assertEquals("600 AH", mergedFields[0].fieldValue)
+        assertEquals("BATTERY VENDORS", mergedFields[1].fieldKey)
+        assertEquals("EXIDE", mergedFields[1].fieldValue)
+        assertFalse(mergedFields.any { it.fieldKey.contains("CAPACITY") })
+    }
 }

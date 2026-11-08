@@ -74,6 +74,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.IncidentEntity
@@ -114,6 +115,11 @@ fun SiteDetailScreen(
     var logToDelete by remember { mutableStateOf<IncidentEntity?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+
+    LifecycleResumeEffect(Unit) {
+        viewModel.reload()
+        onPauseOrDispose { }
+    }
 
     LaunchedEffect(uiState.userMessage, uiState.errorMessage) {
         val msg = uiState.userMessage ?: uiState.errorMessage

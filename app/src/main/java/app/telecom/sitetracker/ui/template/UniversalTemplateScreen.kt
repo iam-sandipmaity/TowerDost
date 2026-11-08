@@ -1,5 +1,6 @@
 package app.telecom.sitetracker.ui.template
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -57,6 +60,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -89,6 +93,18 @@ fun UniversalTemplateScreen(
                 subtitle = "Standard equipment specs inherited by all sites",
                 onBack = onNavigateBack,
                 actions = {
+                    if (uiState.groupedFields.isNotEmpty()) {
+                        IconButton(
+                            onClick = { viewModel.requestClearAll() },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteSweep,
+                                contentDescription = "Clear All Template Specs",
+                                tint = StatusDownRed.copy(alpha = 0.9f)
+                            )
+                        }
+                    }
                     IconButton(
                         onClick = { viewModel.requestResetDefaults() },
                         modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
@@ -129,7 +145,7 @@ fun UniversalTemplateScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Row(
                             modifier = Modifier
@@ -155,7 +171,7 @@ fun UniversalTemplateScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Specifications defined here automatically appear across all telecom sites in View and Edit modes.",
+                                    text = "Specifications defined here appear across all telecom sites in View and Edit modes.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -164,69 +180,142 @@ fun UniversalTemplateScreen(
                     }
                 }
 
-                item(key = "template_stats_row") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${uiState.groupedFields.size} CATEGORIES • ${uiState.totalFieldCount} GLOBAL SPECS",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        OutlinedButton(
-                            onClick = { viewModel.startAddSection() },
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            modifier = Modifier.sizeIn(minHeight = 40.dp)
+                if (uiState.groupedFields.isEmpty()) {
+                    item(key = "empty_template_state") {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("+ Add Category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Tune,
+                                        contentDescription = null,
+                                        tint = TelecomAmber,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "No Universal Specs Active",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Your sites currently show only their exact imported spreadsheet columns without duplicate or blank template rows.\n\nYou can add custom universal specifications below, or restore standard telecom defaults if needed.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Button(
+                                        onClick = { viewModel.startAddSection() },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.sizeIn(minHeight = 44.dp)
+                                    ) {
+                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Add Custom Spec", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = { viewModel.requestResetDefaults() },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.sizeIn(minHeight = 44.dp)
+                                    ) {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Load Telecom Defaults", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                }
+                            }
                         }
                     }
-                }
+                } else {
+                    item(key = "template_stats_row") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${uiState.groupedFields.size} CATEGORIES • ${uiState.totalFieldCount} GLOBAL SPECS",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
 
-                // Render each Section Card
-                items(
-                    items = uiState.groupedFields.entries.toList(),
-                    key = { it.key }
-                ) { (groupName, fields) ->
-                    UniversalSectionCard(
-                        groupName = groupName,
-                        fields = fields,
-                        onAddField = { viewModel.startAddField(groupName) },
-                        onDeleteField = { viewModel.requestDeleteField(it) },
-                        onDeleteSection = { viewModel.requestDeleteSection(groupName) }
-                    )
-                }
+                            OutlinedButton(
+                                onClick = { viewModel.startAddSection() },
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.sizeIn(minHeight = 40.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("+ Add Category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
 
-                item(key = "bottom_add_section_action") {
-                    Button(
-                        onClick = { viewModel.startAddSection() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp)
-                            .sizeIn(minHeight = 48.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Add Another Equipment Category",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                    // Render each Section Card
+                    items(
+                        items = uiState.groupedFields.entries.toList(),
+                        key = { it.key }
+                    ) { (groupName, fields) ->
+                        UniversalSectionCard(
+                            groupName = groupName,
+                            fields = fields,
+                            onAddField = { viewModel.startAddField(groupName) },
+                            onEditField = { viewModel.startEditField(it) },
+                            onDeleteField = { viewModel.requestDeleteField(it) },
+                            onDeleteSection = { viewModel.requestDeleteSection(groupName) }
                         )
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
+
+                    item(key = "bottom_add_section_action") {
+                        Button(
+                            onClick = { viewModel.startAddSection() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp)
+                                .sizeIn(minHeight = 48.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Add Another Equipment Category",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
                 }
             }
         }
@@ -247,6 +336,39 @@ fun UniversalTemplateScreen(
             onDismiss = { viewModel.dismissAddSection() },
             onConfirm = { sectionName, key, defaultVal ->
                 viewModel.confirmAddSection(sectionName, key, defaultVal)
+            }
+        )
+    }
+
+    if (uiState.isEditingField && uiState.fieldToEdit != null) {
+        EditFieldDialog(
+            field = uiState.fieldToEdit!!,
+            onDismiss = { viewModel.dismissEditField() },
+            onConfirm = { oldKey, newKey, newGroup, defaultVal ->
+                viewModel.confirmEditField(oldKey, newKey, newGroup, defaultVal)
+            }
+        )
+    }
+
+    if (uiState.confirmClearAll) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelClearAll() },
+            title = { Text("Clear All Universal Specs?") },
+            text = {
+                Text("Are you sure you want to remove all universal specification fields? Sites will display only their imported spreadsheet data without any placeholder specs.\n\nYour existing site records are safe and will not be deleted.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmClearAll() },
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusDownRed)
+                ) {
+                    Text("Clear All")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelClearAll() }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -326,6 +448,7 @@ private fun UniversalSectionCard(
     groupName: String,
     fields: List<UniversalFieldEntity>,
     onAddField: () -> Unit,
+    onEditField: (UniversalFieldEntity) -> Unit,
     onDeleteField: (UniversalFieldEntity) -> Unit,
     onDeleteSection: () -> Unit,
     modifier: Modifier = Modifier
@@ -334,7 +457,7 @@ private fun UniversalSectionCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             // Header Row
@@ -443,16 +566,29 @@ private fun UniversalSectionCard(
                         )
                     }
 
-                    IconButton(
-                        onClick = { onDeleteField(field) },
-                        modifier = Modifier.sizeIn(minWidth = 40.dp, minHeight = 40.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.DeleteOutline,
-                            contentDescription = "Delete Spec",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.size(18.dp)
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { onEditField(field) },
+                            modifier = Modifier.sizeIn(minWidth = 40.dp, minHeight = 40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edit Spec",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { onDeleteField(field) },
+                            modifier = Modifier.sizeIn(minWidth = 40.dp, minHeight = 40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.DeleteOutline,
+                                contentDescription = "Delete Spec",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
                 if (index < fields.lastIndex) {
@@ -461,6 +597,67 @@ private fun UniversalSectionCard(
             }
         }
     }
+}
+
+@Composable
+private fun EditFieldDialog(
+    field: UniversalFieldEntity,
+    onDismiss: () -> Unit,
+    onConfirm: (oldKey: String, newKey: String, newGroup: String, defaultValue: String?) -> Unit
+) {
+    var fieldKey by remember { mutableStateOf(field.fieldKey) }
+    var groupName by remember { mutableStateOf(field.groupName) }
+    var defaultValue by remember { mutableStateOf(field.defaultValue ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Specification") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = groupName,
+                    onValueChange = { groupName = it },
+                    label = { Text("Category / Section *") },
+                    placeholder = { Text("e.g. POWER, BATTERY, DG") },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = fieldKey,
+                    onValueChange = { fieldKey = it },
+                    label = { Text("Specification Key *") },
+                    placeholder = { Text("e.g. DG RATING KVA") },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = defaultValue,
+                    onValueChange = { defaultValue = it },
+                    label = { Text("Default Value (Optional)") },
+                    placeholder = { Text("Leave blank if site-dependent") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(field.fieldKey, fieldKey, groupName, defaultValue) },
+                enabled = fieldKey.isNotBlank() && groupName.isNotBlank()
+            ) {
+                Text("Save Changes")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }
 
 @Composable

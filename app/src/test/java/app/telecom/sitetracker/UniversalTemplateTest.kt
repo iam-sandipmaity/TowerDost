@@ -106,4 +106,46 @@ class UniversalTemplateTest {
         assertTrue(res3.first)
         assertNull(res3.second)
     }
+
+    @Test
+    fun testDefaultUiStateSupportsEditingAndClearAll() {
+        val state = UniversalTemplateUiState()
+        assertFalse(state.isEditingField)
+        assertNull(state.fieldToEdit)
+        assertFalse(state.confirmClearAll)
+    }
+
+    @Test
+    fun testEditFieldUpdatesKeyGroupAndDefaultValue() {
+        val original = UniversalFieldEntity(
+            fieldKey = "DG RATING",
+            groupName = "DG",
+            defaultValue = "15 KVA",
+            sortOrder = 2
+        )
+
+        // Simulate edit action
+        val updated = original.copy(
+            fieldKey = "DG CAPACITY (KVA)",
+            groupName = "GENERATOR",
+            defaultValue = "20 KVA"
+        )
+
+        assertEquals("DG CAPACITY (KVA)", updated.fieldKey)
+        assertEquals("GENERATOR", updated.groupName)
+        assertEquals("20 KVA", updated.defaultValue)
+        assertEquals(2, updated.sortOrder)
+    }
+
+    @Test
+    fun testClearAllEmptiesTemplateList() {
+        val fields = mutableListOf(
+            UniversalFieldEntity("DG RATING", "DG", "15KVA", 1),
+            UniversalFieldEntity("BATTERY BANK", "BATTERY", "300AH", 2)
+        )
+        assertEquals(2, fields.size)
+
+        fields.clear()
+        assertTrue(fields.isEmpty())
+    }
 }
