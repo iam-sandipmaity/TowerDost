@@ -62,10 +62,12 @@ class SiteTrackerApp : Application() {
         outageRepository = OutageRepository(database)
         statsRepository = StatsRepository(database)
 
-        // Seed default Indian telecom reasons catalogue if empty
+        // Seed default Indian telecom reasons catalogue if empty, and purge any remaining demo data
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
             try {
                 reasonRepository.ensureDefaultReasonsSeeded(clock)
+                siteRepository.deleteSampleSites()
+                incidentRepository.clearSampleIncidents()
             } catch (_: Throwable) {
                 // Defensive against initial storage lock
             }

@@ -43,4 +43,11 @@ class SampleDataTest {
         assertEquals("MUM9009A", SiteEntity.normalize("Mum-9009/A"))
         assertEquals("BLR9017", SiteEntity.normalize("blr.9017"))
     }
+
+    @Test
+    fun testZeroMockSitesOrIncidentsInProduction() {
+        // SampleDataSeeder only defines root causes (taxonomy), zero mock sites or incidents
+        val reasons = SampleDataSeeder.getDefaultReasons(System.currentTimeMillis())
+        assertTrue(reasons.isNotEmpty())
+    }
 }

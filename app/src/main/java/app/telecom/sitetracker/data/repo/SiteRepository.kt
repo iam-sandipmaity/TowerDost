@@ -266,6 +266,14 @@ class SiteRepository(private val db: AppDatabase) {
 
     suspend fun deleteSampleSites() {
         siteDao.deleteSampleSites()
+        siteDao.deleteSampleFts()
+        fieldDao.deleteSampleFields()
+        val totalSites = siteDao.getActiveSiteCount()
+        if (totalSites == 0) {
+            universalFieldDao.clearAll()
+        } else {
+            syncUniversalTemplateFromSites()
+        }
     }
 
     suspend fun deleteAllSites() {

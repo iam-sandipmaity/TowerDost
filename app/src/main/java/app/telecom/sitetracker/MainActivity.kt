@@ -175,7 +175,6 @@ fun MainAppShell(
             AppNavGraph(
                 navController = navController,
                 homeUiState = homeUiState,
-                onSeedSampleData = { homeViewModel.seedSampleData() },
                 onDismissHomeMessage = { homeViewModel.dismissUserMessage() }
             )
         }

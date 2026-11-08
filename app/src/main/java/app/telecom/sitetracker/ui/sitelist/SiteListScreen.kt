@@ -90,7 +90,6 @@ fun SiteListScreen(
     onSearchClick: () -> Unit,
     onImportClick: () -> Unit,
     onAddSiteClick: () -> Unit = {},
-    onSeedSampleData: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val pagedSites = viewModel.pagedSites.collectAsLazyPagingItems()
@@ -285,8 +284,7 @@ fun SiteListScreen(
                         }
                         pagedSites.itemCount == 0 && pagedSites.loadState.refresh !is LoadState.Loading -> {
                             EmptySitesView(
-                                onImportClick = onImportClick,
-                                onSeedClick = onSeedSampleData
+                                onImportClick = onImportClick
                             )
                         }
                         else -> {
@@ -547,8 +545,7 @@ private fun EmptySearchResultsView(
 
 @Composable
 private fun EmptySitesView(
-    onImportClick: () -> Unit,
-    onSeedClick: () -> Unit
+    onImportClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -585,16 +582,6 @@ private fun EmptySitesView(
             shape = RoundedCornerShape(8.dp)
         ) {
             Text("Import Excel / CSV Master", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-        }
-        Spacer(modifier = Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = onSeedClick,
-            modifier = Modifier
-                .fillMaxWidth(0.85f)
-                .height(48.dp),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text("Load Sample Dataset")
         }
     }
 }

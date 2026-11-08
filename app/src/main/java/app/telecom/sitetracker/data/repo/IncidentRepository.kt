@@ -115,6 +115,7 @@ class IncidentRepository(private val db: AppDatabase) {
 
     suspend fun clearSampleIncidents() {
         incidentDao.deleteSampleIncidents()
+        incidentDao.deleteOrphanIncidentHistory()
     }
 
     suspend fun clearAllIncidents() {

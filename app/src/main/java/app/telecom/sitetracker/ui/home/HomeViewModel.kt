@@ -7,7 +7,6 @@ import app.telecom.sitetracker.SiteTrackerApp
 import app.telecom.sitetracker.data.db.TopProblemSiteRow
 import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.repo.HomeKpiData
-import app.telecom.sitetracker.data.seed.SampleDataSeeder
 import app.telecom.sitetracker.util.Dates
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,13 +20,11 @@ data class HomeUiState(
     val kpis: HomeKpiData = HomeKpiData(),
     val openOutages: List<IncidentEntity> = emptyList(),
     val topProblemSites: List<TopProblemSiteRow> = emptyList(),
-    val isSeeding: Boolean = false,
     val userMessage: String? = null
 )
 
 class HomeViewModel(private val app: SiteTrackerApp) : ViewModel() {
 
-    private val _isSeeding = MutableStateFlow(false)
     private val _userMessage = MutableStateFlow<String?>(null)
     private val _calculatedKpis = MutableStateFlow(HomeKpiData())
 
@@ -76,13 +73,11 @@ class HomeViewModel(private val app: SiteTrackerApp) : ViewModel() {
     val uiState: StateFlow<HomeUiState> = combine(
         baseKpisFlow,
         outageRepo.observeOpenOutages(),
-        _isSeeding,
         _userMessage
-    ) { kpis, openOutages, isSeeding, userMessage ->
+    ) { kpis, openOutages, userMessage ->
         HomeUiState(
             kpis = kpis,
             openOutages = openOutages,
-            isSeeding = isSeeding,
             userMessage = userMessage
         )
     }.stateIn(
@@ -91,30 +86,15 @@ class HomeViewModel(private val app: SiteTrackerApp) : ViewModel() {
         initialValue = HomeUiState()
     )
 
-    fun seedSampleData() {
-        viewModelScope.launch {
-            _isSeeding.value = true
-            try {
-                SampleDataSeeder.seedDatabase(app.database, app.clock)
-                refreshCalculatedMetrics()
-                _userMessage.value = "Loaded 40 sites and 90 incidents successfully."
-            } catch (e: Exception) {
-                _userMessage.value = "Failed to load sample data: ${e.message}"
-            } finally {
-                _isSeeding.value = false
-            }
-        }
-    }
-
     fun clearSampleData() {
         viewModelScope.launch {
             try {
                 app.siteRepository.deleteSampleSites()
                 app.incidentRepository.clearSampleIncidents()
                 refreshCalculatedMetrics()
-                _userMessage.value = "Sample data cleared. Ready for real field operations."
+                _userMessage.value = "Demo data removed. Ready for real field operations."
             } catch (e: Exception) {
-                _userMessage.value = "Failed to clear sample data: ${e.message}"
+                _userMessage.value = "Failed to clear demo data: ${e.message}"
             }
         }
     }
