@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.IncidentHistoryEntity
@@ -13,11 +14,13 @@ import app.telecom.sitetracker.data.entity.ReasonEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.entity.SiteFts
+import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 
 @Database(
     entities = [
         SiteEntity::class,
         SiteFieldEntity::class,
+        UniversalFieldEntity::class,
         ReasonEntity::class,
         IncidentEntity::class,
         IncidentHistoryEntity::class,
@@ -27,12 +30,13 @@ import app.telecom.sitetracker.data.entity.SiteFts
     views = [
         OrphanIncidentView::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun siteDao(): SiteDao
     abstract fun fieldDao(): FieldDao
+    abstract fun universalFieldDao(): UniversalFieldDao
     abstract fun reasonDao(): ReasonDao
     abstract fun incidentDao(): IncidentDao
     abstract fun outageDao(): OutageDao
@@ -40,6 +44,21 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         const val DATABASE_NAME = "telecom_sitetracker.db"
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `universal_fields` (
+                        `field_key` TEXT NOT NULL PRIMARY KEY,
+                        `group_name` TEXT NOT NULL,
+                        `default_value` TEXT,
+                        `sort_order` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
 
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -65,6 +84,7 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 DATABASE_NAME
             )
+            .addMigrations(MIGRATION_2_3)
             .fallbackToDestructiveMigration()
             .fallbackToDestructiveMigrationOnDowngrade()
             .addCallback(object : Callback() {

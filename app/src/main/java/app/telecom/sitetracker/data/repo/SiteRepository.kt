@@ -7,6 +7,7 @@ import app.telecom.sitetracker.data.db.AppDatabase
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.entity.SiteFts
+import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.util.Geo
 import kotlinx.coroutines.flow.Flow
 
@@ -20,6 +21,7 @@ data class SiteWithDistance(
 class SiteRepository(private val db: AppDatabase) {
     private val siteDao = db.siteDao()
     private val fieldDao = db.fieldDao()
+    private val universalFieldDao = db.universalFieldDao()
 
     fun observeActiveSites(): Flow<List<SiteEntity>> = siteDao.getAllActiveSites()
 
@@ -196,5 +198,58 @@ class SiteRepository(private val db: AppDatabase) {
     suspend fun deleteAllSites() {
         siteDao.deleteAllSites()
         siteDao.clearFts()
+    }
+
+    // --- Universal Specifications Template Methods ---
+
+    fun observeUniversalFields(): Flow<List<UniversalFieldEntity>> =
+        universalFieldDao.observeAllUniversalFields()
+
+    suspend fun getUniversalFields(): List<UniversalFieldEntity> {
+        val existing = universalFieldDao.getAllUniversalFields()
+        if (existing.isEmpty()) {
+            seedDefaultUniversalFields()
+            return universalFieldDao.getAllUniversalFields()
+        }
+        return existing
+    }
+
+    suspend fun saveUniversalField(field: UniversalFieldEntity) {
+        universalFieldDao.insertOrUpdateField(field)
+    }
+
+    suspend fun deleteUniversalField(fieldKey: String) {
+        universalFieldDao.deleteField(fieldKey)
+    }
+
+    suspend fun deleteUniversalSection(groupName: String) {
+        universalFieldDao.deleteSection(groupName)
+    }
+
+    suspend fun replaceAllUniversalFields(fields: List<UniversalFieldEntity>) {
+        universalFieldDao.replaceAll(fields)
+    }
+
+    suspend fun seedDefaultUniversalFields() {
+        val defaults = listOf(
+            UniversalFieldEntity("SMPS MAKE & MODEL", "POWER", null, 1),
+            UniversalFieldEntity("SMPS CAPACITY", "POWER", null, 2),
+            UniversalFieldEntity("RECTIFIER MODULE COUNT", "POWER", null, 3),
+            UniversalFieldEntity("EB SANCTIONED LOAD", "POWER", null, 4),
+            UniversalFieldEntity("BATTERY BANK CAPACITY", "BATTERY", null, 5),
+            UniversalFieldEntity("BATTERY BACKUP HOURS", "BATTERY", null, 6),
+            UniversalFieldEntity("BATTERY BANK MAKE", "BATTERY", null, 7),
+            UniversalFieldEntity("DG RATING KVA", "DG", null, 8),
+            UniversalFieldEntity("DG FUEL TANK CAPACITY", "DG", null, 9),
+            UniversalFieldEntity("DG BATTERY STATUS", "DG", null, 10),
+            UniversalFieldEntity("TRANSMISSION MEDIA", "TRANSMISSION", null, 11),
+            UniversalFieldEntity("OPTICAL FIBRE STATUS", "TRANSMISSION", null, 12),
+            UniversalFieldEntity("MW ANTENNA SPEC", "TRANSMISSION", null, 13),
+            UniversalFieldEntity("TOWER HEIGHT", "CIVIL", null, 14),
+            UniversalFieldEntity("AC PRECISION UNITS", "ENVIRONMENT", null, 15),
+            UniversalFieldEntity("FIRE EXTINGUISHER EXPIRY", "SAFETY", null, 16),
+            UniversalFieldEntity("SECURITY GUARD CONTACT", "SECURITY", null, 17)
+        )
+        universalFieldDao.insertOrUpdateFields(defaults)
     }
 }
