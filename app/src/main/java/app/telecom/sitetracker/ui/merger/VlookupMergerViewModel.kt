@@ -69,6 +69,18 @@ class VlookupMergerViewModel(
     private var stagedFile: File? = null
     private var allRows: List<List<String>> = emptyList()
     private val mergerEngine = VlookupEngine(db, clock)
+    private var existingSpecKeys: Set<String> = emptySet()
+
+    private fun checkIsExistingInDb(target: TargetField, specKey: String?, existingKeys: Set<String>): Boolean {
+        return when (target) {
+            TargetField.CUSTOM_SPEC -> {
+                val k = specKey?.trim()?.uppercase(java.util.Locale.US) ?: ""
+                existingKeys.contains(k)
+            }
+            TargetField.SAP_ID, TargetField.IGNORE -> false
+            else -> true // Core fields (NAME, LAT, LNG, etc.) belong to master site schema
+        }
+    }
 
     fun onFileSelected(uri: Uri, displayName: String?, fileSize: Long) {
         viewModelScope.launch {
@@ -200,6 +212,14 @@ class VlookupMergerViewModel(
         val detectedKey = VlookupEngine.detectKeyColumn(headers)
         val initialMappings = VlookupEngine.autoMapColumns(headers, detectedKey)
 
+        val distinctSpecs = db.fieldDao().getDistinctSpecsFromSites()
+        val keys = distinctSpecs.map { it.fieldKey.trim().uppercase(java.util.Locale.US) }.toSet()
+        existingSpecKeys = keys
+
+        for (m in initialMappings) {
+            m.isExistingInDatabase = checkIsExistingInDb(m.targetField, m.specKey, keys)
+        }
+
         _uiState.update {
             it.copy(
                 isProcessing = false,
@@ -235,6 +255,14 @@ class VlookupMergerViewModel(
 
         val detectedKey = VlookupEngine.detectKeyColumn(headers)
         val initialMappings = VlookupEngine.autoMapColumns(headers, detectedKey)
+
+        val distinctSpecs = db.fieldDao().getDistinctSpecsFromSites()
+        val keys = distinctSpecs.map { it.fieldKey.trim().uppercase(java.util.Locale.US) }.toSet()
+        existingSpecKeys = keys
+
+        for (m in initialMappings) {
+            m.isExistingInDatabase = checkIsExistingInDb(m.targetField, m.specKey, keys)
+        }
 
         _uiState.update {
             it.copy(
@@ -272,11 +300,14 @@ class VlookupMergerViewModel(
             val updated = state.columnMappings.map { mapping ->
                 if (mapping.columnIndex == columnIndex) {
                     val prev = if (target != TargetField.IGNORE) target else mapping.previousTarget
+                    val effectiveKey = specKey ?: mapping.specKey
+                    val isExisting = checkIsExistingInDb(target, effectiveKey, existingSpecKeys)
                     mapping.copy(
                         targetField = target,
                         specGroup = specGroup ?: mapping.specGroup,
-                        specKey = specKey ?: mapping.specKey,
-                        previousTarget = prev
+                        specKey = effectiveKey,
+                        previousTarget = prev,
+                        isExistingInDatabase = isExisting
                     )
                 } else mapping
             }
@@ -290,7 +321,11 @@ class VlookupMergerViewModel(
                 if (mapping.columnIndex == columnIndex) {
                     if (isIncluded) {
                         val restored = if (mapping.previousTarget != TargetField.IGNORE) mapping.previousTarget else TargetField.CUSTOM_SPEC
-                        mapping.copy(targetField = restored)
+                        val isExisting = checkIsExistingInDb(restored, mapping.specKey, existingSpecKeys)
+                        mapping.copy(
+                            targetField = restored,
+                            isExistingInDatabase = isExisting
+                        )
                     } else {
                         val prev = if (mapping.targetField != TargetField.IGNORE) mapping.targetField else mapping.previousTarget
                         mapping.copy(targetField = TargetField.IGNORE, previousTarget = prev)
@@ -307,7 +342,11 @@ class VlookupMergerViewModel(
             val updated = state.columnMappings.map { mapping ->
                 if (mapping.columnIndex != keyCol && mapping.targetField == TargetField.IGNORE) {
                     val restored = if (mapping.previousTarget != TargetField.IGNORE) mapping.previousTarget else TargetField.CUSTOM_SPEC
-                    mapping.copy(targetField = restored)
+                    val isExisting = checkIsExistingInDb(restored, mapping.specKey, existingSpecKeys)
+                    mapping.copy(
+                        targetField = restored,
+                        isExistingInDatabase = isExisting
+                    )
                 } else mapping
             }
             state.copy(columnMappings = updated)

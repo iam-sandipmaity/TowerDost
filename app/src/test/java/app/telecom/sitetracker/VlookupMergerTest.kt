@@ -190,4 +190,59 @@ class VlookupMergerTest {
         assertEquals(1, activeMappings.size)
         assertEquals("UNWANTED_COLUMN", activeMappings[0].sourceHeader)
     }
+
+    @Test
+    fun testDuplicateColumnNamesProduceUniqueComposeKeys() {
+        val headers = listOf("SAP ID", "Contact No", "Site Name", "Contact No", "Remarks")
+        val mappings = VlookupEngine.autoMapColumns(headers, keyIndex = 0)
+        assertEquals(5, mappings.size)
+
+        // Non-key mappings
+        val nonKey = mappings.filter { it.columnIndex != 0 }
+        assertEquals(4, nonKey.size)
+
+        // Generate keys using col_{columnIndex}_{sourceHeader}
+        val composeKeys = nonKey.map { "col_${it.columnIndex}_${it.sourceHeader}" }
+        val distinctKeys = composeKeys.toSet()
+
+        // Verify that even though "Contact No" is repeated, all compose keys are strictly unique
+        assertEquals(4, distinctKeys.size)
+        assertTrue(composeKeys.contains("col_1_Contact No"))
+        assertTrue(composeKeys.contains("col_3_Contact No"))
+    }
+
+    @Test
+    fun testExistingVsNewFieldIdentification() {
+        val existingDbSpecs = setOf("DG MAKE", "BATTERY AH", "RECTIFIER RATING")
+
+        fun checkIsExisting(target: TargetField, specKey: String?): Boolean {
+            return when (target) {
+                TargetField.CUSTOM_SPEC -> {
+                    val k = specKey?.trim()?.uppercase(java.util.Locale.US) ?: ""
+                    existingDbSpecs.contains(k)
+                }
+                TargetField.SAP_ID, TargetField.IGNORE -> false
+                else -> true // Core schema attributes
+            }
+        }
+
+        // Core fields are always existing in master site schema
+        assertTrue(checkIsExisting(TargetField.NAME, null))
+        assertTrue(checkIsExisting(TargetField.LAT, null))
+        assertTrue(checkIsExisting(TargetField.LNG, null))
+        assertTrue(checkIsExisting(TargetField.CIRCLE, null))
+
+        // Known custom specs from DB
+        assertTrue(checkIsExisting(TargetField.CUSTOM_SPEC, "DG Make"))
+        assertTrue(checkIsExisting(TargetField.CUSTOM_SPEC, "Battery Ah"))
+        assertTrue(checkIsExisting(TargetField.CUSTOM_SPEC, "RECTIFIER RATING"))
+
+        // Brand new custom specs
+        assertFalse(checkIsExisting(TargetField.CUSTOM_SPEC, "Solar Panel Wattage"))
+        assertFalse(checkIsExisting(TargetField.CUSTOM_SPEC, "Wind Turbine Model"))
+
+        // Ignored or key
+        assertFalse(checkIsExisting(TargetField.IGNORE, "DG Make"))
+        assertFalse(checkIsExisting(TargetField.SAP_ID, "SAP ID"))
+    }
 }

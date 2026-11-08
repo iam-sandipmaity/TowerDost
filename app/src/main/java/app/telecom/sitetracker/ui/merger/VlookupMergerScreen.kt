@@ -691,39 +691,66 @@ private fun StepMapColumns(
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(
-                    text = "$includedCount OF $totalNonKey COLUMNS SELECTED • $skippedCount SKIPPED",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold,
-                    color = if (skippedCount > 0) TelecomAmber else MaterialTheme.colorScheme.primary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "$includedCount OF $totalNonKey COLUMNS SELECTED • $skippedCount SKIPPED",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = if (skippedCount > 0) TelecomAmber else MaterialTheme.colorScheme.primary
+                    )
 
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(
-                        onClick = onSelectAll,
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        modifier = Modifier.sizeIn(minHeight = 32.dp)
-                    ) {
-                        Text("All", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(
+                            onClick = onSelectAll,
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            modifier = Modifier.sizeIn(minHeight = 32.dp)
+                        ) {
+                            Text("All", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
 
-                    OutlinedButton(
-                        onClick = onDeselectAll,
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        modifier = Modifier.sizeIn(minHeight = 32.dp)
-                    ) {
-                        Text("None", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        OutlinedButton(
+                            onClick = onDeselectAll,
+                            shape = RoundedCornerShape(6.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                            modifier = Modifier.sizeIn(minHeight = 32.dp)
+                        ) {
+                            Text("None", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
+                }
+
+                val existingCount = nonKeyMappings.count { it.targetField != TargetField.IGNORE && it.isExistingInDatabase }
+                val newCount = nonKeyMappings.count { it.targetField != TargetField.IGNORE && !it.isExistingInDatabase }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "• $existingCount Existing in Data",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = RFCyan
+                    )
+                    Text(
+                        text = "• $newCount New Attribute",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = StatusRestoredGreen
+                    )
                 }
             }
         }
@@ -735,7 +762,7 @@ private fun StepMapColumns(
         ) {
             items(
                 items = nonKeyMappings,
-                key = { it.sourceHeader }
+                key = { "col_${it.columnIndex}_${it.sourceHeader}" }
             ) { mapping ->
                 ColumnMappingCard(
                     mapping = mapping,
@@ -810,12 +837,38 @@ private fun ColumnMappingCard(
                         .weight(1f)
                         .clickable { onToggleSelected(!isIncluded) }
                 ) {
-                    Text(
-                        text = mapping.sourceHeader,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isIncluded) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = mapping.sourceHeader,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isIncluded) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (isIncluded) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (mapping.isExistingInDatabase) RFCyan.copy(alpha = 0.15f) else StatusRestoredGreen.copy(alpha = 0.15f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (mapping.isExistingInDatabase) RFCyan.copy(alpha = 0.6f) else StatusRestoredGreen.copy(alpha = 0.6f)
+                                )
+                            ) {
+                                Text(
+                                    text = if (mapping.isExistingInDatabase) "EXISTING" else "NEW",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 9.sp,
+                                        color = if (mapping.isExistingInDatabase) RFCyan else StatusRestoredGreen
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
                     if (!isIncluded) {
                         Text(
                             text = "SKIPPED (NOT MERGED)",
