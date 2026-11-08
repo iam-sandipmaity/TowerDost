@@ -27,7 +27,6 @@ android {
 
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
-            arg("room.incremental", "true")
         }
     }
 
@@ -128,4 +127,20 @@ dependencies {
     androidTestImplementation(libs.androidx.room.testing)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
+}
+
+// Automatically delete any empty/0-byte schema files before KSP runs
+tasks.matching { it.name.startsWith("ksp") }.configureEach {
+    doFirst {
+        fileTree("$projectDir/schemas").matching { include("**/*.json") }.forEach { file ->
+            if (file.length() == 0L) {
+                file.delete()
+            }
+        }
+    }
+}
+
+// Serialize KSP tasks across variants to prevent Room schema write collision in parallel builds
+tasks.matching { it.name.startsWith("kspRelease") }.configureEach {
+    mustRunAfter(tasks.matching { it.name.startsWith("kspDebug") })
 }

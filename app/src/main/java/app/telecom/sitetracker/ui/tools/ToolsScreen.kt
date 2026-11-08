@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -106,6 +108,8 @@ data class StagedLogFileData(
 @Composable
 fun ToolsScreen(
     onNavigateToImport: () -> Unit,
+    onNavigateToTemplate: () -> Unit = {},
+    onNavigateToMerger: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -356,6 +360,22 @@ fun ToolsScreen(
                 icon = Icons.Default.UploadFile,
                 buttonText = "Open Wizard",
                 onClick = onNavigateToImport
+            )
+
+            ToolActionCard(
+                title = "Universal Specs Template",
+                description = "Define global equipment & spec fields that appear across every site in View and Edit modes.",
+                icon = Icons.Default.Tune,
+                buttonText = "Manage Template",
+                onClick = onNavigateToTemplate
+            )
+
+            ToolActionCard(
+                title = "VLOOKUP Sheet Column Merger",
+                description = "Merge supplemental Excel (.xlsx) or CSV columns against master sites by SAP ID with preview.",
+                icon = Icons.AutoMirrored.Filled.AltRoute,
+                buttonText = "Open Merger",
+                onClick = onNavigateToMerger
             )
 
             // ==========================================

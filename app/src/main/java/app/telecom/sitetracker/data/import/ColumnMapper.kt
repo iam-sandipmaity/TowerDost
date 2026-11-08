@@ -38,7 +38,8 @@ data class ColumnMapping(
     val sourceHeader: String,
     var targetField: TargetField,
     var specKey: String = sourceHeader,
-    var specGroup: String? = null
+    var specGroup: String? = null,
+    var previousTarget: TargetField = if (targetField != TargetField.IGNORE) targetField else TargetField.CUSTOM_SPEC
 )
 
 object ColumnMapper {

@@ -7,7 +7,9 @@ import app.telecom.sitetracker.data.db.AppDatabase
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.entity.SiteFts
+import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.util.Geo
+import java.util.Locale
 import kotlinx.coroutines.flow.Flow
 
 data class SiteWithDistance(
@@ -20,6 +22,7 @@ data class SiteWithDistance(
 class SiteRepository(private val db: AppDatabase) {
     private val siteDao = db.siteDao()
     private val fieldDao = db.fieldDao()
+    private val universalFieldDao = db.universalFieldDao()
 
     fun observeActiveSites(): Flow<List<SiteEntity>> = siteDao.getAllActiveSites()
 
@@ -88,6 +91,78 @@ class SiteRepository(private val db: AppDatabase) {
         siteDao.insertSite(site)
     }
 
+    suspend fun createSite(
+        site: SiteEntity,
+        specs: List<SiteFieldEntity> = emptyList()
+    ): Result<Unit> {
+        val trimmedSap = site.sapId.trim()
+        if (trimmedSap.isEmpty()) {
+            return Result.failure(IllegalArgumentException("SAP ID cannot be blank"))
+        }
+
+        val sapNorm = SiteEntity.normalize(trimmedSap)
+        if (sapNorm.isEmpty()) {
+            return Result.failure(IllegalArgumentException("SAP ID must contain alphanumeric characters"))
+        }
+
+        val existing = siteDao.getSiteBySapId(trimmedSap) ?: siteDao.getSiteBySapNorm(sapNorm)
+        if (existing != null) {
+            return Result.failure(IllegalStateException("Site with SAP ID '$trimmedSap' already exists"))
+        }
+
+        if (site.lat != null && (site.lat < -90.0 || site.lat > 90.0)) {
+            return Result.failure(IllegalArgumentException("Latitude must be between -90 and 90 degrees"))
+        }
+        if (site.lng != null && (site.lng < -180.0 || site.lng > 180.0)) {
+            return Result.failure(IllegalArgumentException("Longitude must be between -180 and 180 degrees"))
+        }
+
+        val now = System.currentTimeMillis()
+        val siteToInsert = site.copy(
+            sapId = trimmedSap,
+            sapNorm = sapNorm,
+            createdAt = now,
+            updatedAt = now,
+            deletedAt = null
+        )
+
+        siteDao.insertSite(siteToInsert)
+
+        val validSpecs = specs.mapNotNull { spec ->
+            val key = spec.fieldKey.trim()
+            val value = spec.fieldValue?.trim()
+            if (key.isNotEmpty() && !value.isNullOrEmpty()) {
+                spec.copy(
+                    sapId = trimmedSap,
+                    fieldKey = key,
+                    fieldValue = value,
+                    groupName = spec.groupName?.trim()?.ifBlank { "GENERAL" } ?: "GENERAL"
+                )
+            } else null
+        }
+
+        if (validSpecs.isNotEmpty()) {
+            fieldDao.insertFields(validSpecs)
+        }
+
+        try {
+            val fieldText = validSpecs.joinToString(" ") { "${it.fieldKey} ${it.fieldValue ?: ""}" }
+            siteDao.deleteFts(sapNorm)
+            siteDao.insertFts(
+                listOf(
+                    SiteFts(
+                        sapNorm = sapNorm,
+                        name = siteToInsert.name,
+                        address = siteToInsert.address ?: siteToInsert.city ?: siteToInsert.district,
+                        fieldText = fieldText
+                    )
+                )
+            )
+        } catch (_: Exception) {}
+
+        return Result.success(Unit)
+    }
+
     suspend fun getAllFields(): List<SiteFieldEntity> = fieldDao.getAllFields()
 
     suspend fun updateSiteOverview(site: SiteEntity) {
@@ -152,6 +227,28 @@ class SiteRepository(private val db: AppDatabase) {
         }
     }
 
+    suspend fun replaceSiteSpecs(sapId: String, fields: List<SiteFieldEntity>) {
+        fieldDao.replaceFieldsForSite(sapId, fields)
+        val site = siteDao.getSiteBySapId(sapId)
+        if (site != null) {
+            siteDao.updateSite(site.copy(updatedAt = System.currentTimeMillis()))
+            try {
+                val fieldText = fields.joinToString(" ") { "${it.fieldKey} ${it.fieldValue ?: ""}" }
+                siteDao.deleteFts(site.sapNorm)
+                siteDao.insertFts(
+                    listOf(
+                        SiteFts(
+                            sapNorm = site.sapNorm,
+                            name = site.name,
+                            address = site.address ?: site.city ?: site.district,
+                            fieldText = fieldText
+                        )
+                    )
+                )
+            } catch (_: Exception) {}
+        }
+    }
+
     suspend fun deleteSiteSpec(fieldId: Long, sapId: String) {
         fieldDao.deleteFieldById(fieldId)
         val site = siteDao.getSiteBySapId(sapId)
@@ -174,5 +271,79 @@ class SiteRepository(private val db: AppDatabase) {
     suspend fun deleteAllSites() {
         siteDao.deleteAllSites()
         siteDao.clearFts()
+    }
+
+    // --- Universal Specifications Template Methods ---
+
+    fun observeUniversalFields(): Flow<List<UniversalFieldEntity>> =
+        universalFieldDao.observeAllUniversalFields()
+
+    suspend fun getUniversalFields(): List<UniversalFieldEntity> {
+        val existing = universalFieldDao.getAllUniversalFields()
+        if (existing.isNotEmpty()) {
+            return existing
+        }
+        val siteSpecs = getDistinctSpecsFromSites()
+        if (siteSpecs.isNotEmpty()) {
+            universalFieldDao.insertOrUpdateFields(siteSpecs)
+            return universalFieldDao.getAllUniversalFields()
+        }
+        return emptyList()
+    }
+
+    suspend fun getAllUniversalFields(): List<UniversalFieldEntity> {
+        return universalFieldDao.getAllUniversalFields()
+    }
+
+    suspend fun getDistinctSpecsFromSites(): List<UniversalFieldEntity> {
+        val distinctSpecs = fieldDao.getDistinctSpecsFromSites()
+        return distinctSpecs.mapIndexed { idx, spec ->
+            UniversalFieldEntity(
+                fieldKey = spec.fieldKey.trim().uppercase(Locale.US),
+                groupName = spec.groupName.trim().uppercase(Locale.US),
+                defaultValue = null,
+                sortOrder = if (spec.minSort > 0) spec.minSort else idx + 1
+            )
+        }
+    }
+
+    suspend fun syncUniversalTemplateFromSites(): Int {
+        val siteSpecs = getDistinctSpecsFromSites()
+        if (siteSpecs.isNotEmpty()) {
+            universalFieldDao.replaceAll(siteSpecs)
+        }
+        return siteSpecs.size
+    }
+
+    suspend fun countDistinctSiteSpecs(): Int {
+        return fieldDao.getDistinctSpecsFromSites().size
+    }
+
+    suspend fun saveUniversalField(field: UniversalFieldEntity) {
+        universalFieldDao.insertOrUpdateField(field)
+    }
+
+    suspend fun updateUniversalField(oldFieldKey: String, updatedField: UniversalFieldEntity) {
+        if (!oldFieldKey.equals(updatedField.fieldKey, ignoreCase = true)) {
+            universalFieldDao.deleteField(oldFieldKey)
+        }
+        universalFieldDao.insertOrUpdateField(updatedField)
+        fieldDao.renameFieldKey(oldFieldKey, updatedField.fieldKey, updatedField.groupName)
+    }
+
+    suspend fun deleteUniversalField(fieldKey: String) {
+        universalFieldDao.deleteField(fieldKey)
+    }
+
+    suspend fun deleteUniversalSection(groupName: String) {
+        universalFieldDao.deleteSection(groupName)
+    }
+
+    suspend fun clearAllUniversalFields() {
+        universalFieldDao.clearAll()
+    }
+
+    suspend fun replaceAllUniversalFields(fields: List<UniversalFieldEntity>) {
+        universalFieldDao.replaceAll(fields)
     }
 }

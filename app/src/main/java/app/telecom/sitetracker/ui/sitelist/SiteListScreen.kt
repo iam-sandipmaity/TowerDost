@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -41,6 +42,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -87,6 +89,7 @@ fun SiteListScreen(
     onSiteClick: (String) -> Unit,
     onSearchClick: () -> Unit,
     onImportClick: () -> Unit,
+    onAddSiteClick: () -> Unit = {},
     onSeedSampleData: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -131,6 +134,13 @@ fun SiteListScreen(
                     else -> "$activeCount active towers"
                 },
                 actions = {
+                    IconButton(onClick = onAddSiteClick) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Create New Site",
+                            tint = TelecomAmber
+                        )
+                    }
                     IconButton(onClick = onImportClick) {
                         Icon(
                             Icons.Default.FileDownload,
@@ -140,6 +150,16 @@ fun SiteListScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddSiteClick,
+                containerColor = TelecomAmber,
+                contentColor = Color(0xFF0F172A),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Add New Site")
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier

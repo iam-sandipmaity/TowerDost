@@ -11,6 +11,8 @@ import androidx.navigation.navArgument
 import app.telecom.sitetracker.SiteTrackerApp
 import app.telecom.sitetracker.ui.activity.ActivityScreen
 import app.telecom.sitetracker.ui.activity.ActivityViewModel
+import app.telecom.sitetracker.ui.createsite.CreateSiteScreen
+import app.telecom.sitetracker.ui.createsite.CreateSiteViewModel
 import app.telecom.sitetracker.ui.tools.ToolsScreen
 import app.telecom.sitetracker.ui.home.HomeScreen
 import app.telecom.sitetracker.ui.home.HomeUiState
@@ -21,6 +23,8 @@ import app.telecom.sitetracker.ui.incident.LogIncidentViewModel
 import app.telecom.sitetracker.ui.insights.InsightsScreen
 import app.telecom.sitetracker.ui.insights.InsightsViewModel
 import app.telecom.sitetracker.ui.map.MapScreen
+import app.telecom.sitetracker.ui.merger.VlookupMergerScreen
+import app.telecom.sitetracker.ui.merger.VlookupMergerViewModel
 import app.telecom.sitetracker.ui.outages.DownRegisterScreen
 import app.telecom.sitetracker.ui.outages.DownRegisterViewModel
 import app.telecom.sitetracker.ui.reasons.ReasonCatalogueScreen
@@ -31,6 +35,8 @@ import app.telecom.sitetracker.ui.sitedetail.SiteDetailScreen
 import app.telecom.sitetracker.ui.sitedetail.SiteDetailViewModel
 import app.telecom.sitetracker.ui.sitelist.SiteListScreen
 import app.telecom.sitetracker.ui.sitelist.SiteListViewModel
+import app.telecom.sitetracker.ui.template.UniversalTemplateScreen
+import app.telecom.sitetracker.ui.template.UniversalTemplateViewModel
 
 @Composable
 fun AppNavGraph(
@@ -68,6 +74,9 @@ fun AppNavGraph(
                 onImportClick = {
                     navController.navigate(Screen.ImportWizard.route)
                 },
+                onAddSiteClick = {
+                    navController.navigate(Screen.CreateSite.route)
+                },
                 onSeedSampleData = onSeedSampleData
             )
         }
@@ -98,6 +107,12 @@ fun AppNavGraph(
             ToolsScreen(
                 onNavigateToImport = {
                     navController.navigate(Screen.ImportWizard.route)
+                },
+                onNavigateToTemplate = {
+                    navController.navigate(Screen.UniversalTemplate.route)
+                },
+                onNavigateToMerger = {
+                    navController.navigate(Screen.VlookupMerger.route)
                 }
             )
         }
@@ -143,6 +158,9 @@ fun AppNavGraph(
             SiteDetailScreen(
                 viewModel = siteDetailViewModel,
                 onNavigateBack = { navController.popBackStack() },
+                onNavigateToTemplate = {
+                    navController.navigate(Screen.UniversalTemplate.route)
+                },
                 onLogIncident = { siteSapId ->
                     navController.navigate(Screen.LogIncident.createRoute(sapId = siteSapId))
                 },
@@ -287,6 +305,53 @@ fun AppNavGraph(
             ReasonCatalogueScreen(
                 viewModel = reasonViewModel,
                 onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // 11. Universal Specs Template Screen
+        composable(Screen.UniversalTemplate.route) {
+            val templateViewModel: UniversalTemplateViewModel = viewModel {
+                UniversalTemplateViewModel(app.siteRepository)
+            }
+            UniversalTemplateScreen(
+                viewModel = templateViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // 12. Create New Master Site Screen (Pillar 2)
+        composable(Screen.CreateSite.route) {
+            val createSiteViewModel: CreateSiteViewModel = viewModel {
+                CreateSiteViewModel(app.siteRepository)
+            }
+            CreateSiteScreen(
+                viewModel = createSiteViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onSiteCreated = { sapId ->
+                    navController.navigate(Screen.SiteDetail.createRoute(sapId)) {
+                        popUpTo(Screen.Sites.route)
+                    }
+                }
+            )
+        }
+
+        // 13. VLOOKUP Sheet Column Merger (Pillar 3)
+        composable(Screen.VlookupMerger.route) {
+            val mergerViewModel: VlookupMergerViewModel = viewModel {
+                VlookupMergerViewModel(
+                    application = app,
+                    db = app.database,
+                    clock = app.clock
+                )
+            }
+            VlookupMergerScreen(
+                viewModel = mergerViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onComplete = {
+                    navController.navigate(Screen.Sites.route) {
+                        popUpTo(Screen.Sites.route) { inclusive = true }
+                    }
+                }
             )
         }
     }

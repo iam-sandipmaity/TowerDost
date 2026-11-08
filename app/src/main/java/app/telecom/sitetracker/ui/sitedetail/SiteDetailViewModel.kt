@@ -18,6 +18,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class SpecDraftItem(
+    val id: Long = 0L,
+    val tempId: String = java.util.UUID.randomUUID().toString(),
+    val fieldKey: String = "",
+    val fieldValue: String = ""
+)
+
+data class SpecDraftSection(
+    val sectionName: String,
+    val items: List<SpecDraftItem> = emptyList()
+)
+
 data class SiteDetailUiState(
     val isLoading: Boolean = true,
     val site: SiteEntity? = null,
@@ -38,7 +50,11 @@ data class SiteDetailUiState(
     val isEditingOverview: Boolean = false,
     val draftOverview: SiteEntity? = null,
     val confirmSaveOverview: Boolean = false,
-    // Spec edit & safeguards
+    // Spec edit & safeguards (inline editor + legacy single-dialog fallback)
+    val isEditingSpecs: Boolean = false,
+    val draftSpecsSections: List<SpecDraftSection> = emptyList(),
+    val confirmSaveSpecs: Boolean = false,
+    val isAddingSectionDialog: Boolean = false,
     val specToEdit: SiteFieldEntity? = null,
     val isAddingSpec: Boolean = false,
     val confirmDeleteSpec: SiteFieldEntity? = null
@@ -57,6 +73,15 @@ class SiteDetailViewModel(
     init {
         loadSiteDetails()
         observeIncidents()
+        observeUniversalTemplate()
+    }
+
+    private fun observeUniversalTemplate() {
+        viewModelScope.launch {
+            siteRepository.observeUniversalFields().collect {
+                loadSiteDetails()
+            }
+        }
     }
 
     private fun observeIncidents() {
@@ -106,6 +131,10 @@ class SiteDetailViewModel(
         loadSiteDetails()
     }
 
+    fun refreshSiteDetails() {
+        loadSiteDetails()
+    }
+
     fun restoreCurrentOutage(engineer: String? = null) {
         val outage = _uiState.value.openOutage ?: return
         viewModelScope.launch {
@@ -130,7 +159,8 @@ class SiteDetailViewModel(
             val newMode = !current.isEditMode
             current.copy(
                 isEditMode = newMode,
-                isEditingOverview = if (!newMode) false else current.isEditingOverview
+                isEditingOverview = if (!newMode) false else current.isEditingOverview,
+                isEditingSpecs = if (!newMode) false else current.isEditingSpecs
             )
         }
     }
@@ -139,7 +169,8 @@ class SiteDetailViewModel(
         _uiState.update { current ->
             current.copy(
                 isEditMode = enabled,
-                isEditingOverview = if (!enabled) false else current.isEditingOverview
+                isEditingOverview = if (!enabled) false else current.isEditingOverview,
+                isEditingSpecs = if (!enabled) false else current.isEditingSpecs
             )
         }
     }
@@ -217,7 +248,232 @@ class SiteDetailViewModel(
         }
     }
 
-    // --- Specifications Edit & Accidental Modification Safeguards ---
+    // --- Specifications Inline Card Editing & Safeguards ---
+
+    fun startEditingSpecs() {
+        val grouped = _uiState.value.groupedSpecs
+        val sections = if (grouped.isNotEmpty()) {
+            grouped.map { (groupName, fields) ->
+                SpecDraftSection(
+                    sectionName = groupName,
+                    items = fields.map { SpecDraftItem(id = it.id, fieldKey = it.fieldKey, fieldValue = it.fieldValue ?: "") }
+                )
+            }
+        } else {
+            listOf(
+                SpecDraftSection(
+                    sectionName = "GENERAL SPECIFICATIONS",
+                    items = listOf(SpecDraftItem())
+                )
+            )
+        }
+        _uiState.update {
+            it.copy(
+                isEditMode = true,
+                isEditingSpecs = true,
+                draftSpecsSections = sections,
+                confirmSaveSpecs = false
+            )
+        }
+    }
+
+    fun updateDraftSpecItem(sectionIndex: Int, tempId: String, key: String, value: String) {
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            if (sectionIndex in sections.indices) {
+                val sec = sections[sectionIndex]
+                val items = sec.items.map {
+                    if (it.tempId == tempId) it.copy(fieldKey = key, fieldValue = value) else it
+                }
+                sections[sectionIndex] = sec.copy(items = items)
+            }
+            state.copy(draftSpecsSections = sections)
+        }
+    }
+
+    fun updateDraftSpecItem(sectionIndex: Int, itemIndex: Int, key: String, value: String) {
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            if (sectionIndex in sections.indices) {
+                val sec = sections[sectionIndex]
+                val items = sec.items.toMutableList()
+                if (itemIndex in items.indices) {
+                    items[itemIndex] = items[itemIndex].copy(fieldKey = key, fieldValue = value)
+                    sections[sectionIndex] = sec.copy(items = items)
+                }
+            }
+            state.copy(draftSpecsSections = sections)
+        }
+    }
+
+    fun addDraftSpecItem(sectionIndex: Int) {
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            if (sectionIndex in sections.indices) {
+                val sec = sections[sectionIndex]
+                val items = sec.items.toMutableList()
+                items.add(SpecDraftItem())
+                sections[sectionIndex] = sec.copy(items = items)
+            }
+            state.copy(draftSpecsSections = sections)
+        }
+    }
+
+    fun removeDraftSpecItem(sectionIndex: Int, tempId: String) {
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            if (sectionIndex in sections.indices) {
+                val sec = sections[sectionIndex]
+                val items = sec.items.filter { it.tempId != tempId }
+                sections[sectionIndex] = sec.copy(items = items)
+            }
+            state.copy(draftSpecsSections = sections)
+        }
+    }
+
+    fun removeDraftSpecItem(sectionIndex: Int, itemIndex: Int) {
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            if (sectionIndex in sections.indices) {
+                val sec = sections[sectionIndex]
+                val items = sec.items.toMutableList()
+                if (itemIndex in items.indices) {
+                    items.removeAt(itemIndex)
+                    sections[sectionIndex] = sec.copy(items = items)
+                }
+            }
+            state.copy(draftSpecsSections = sections)
+        }
+    }
+
+    fun showAddSectionDialog() {
+        _uiState.update { it.copy(isAddingSectionDialog = true) }
+    }
+
+    fun dismissAddSectionDialog() {
+        _uiState.update { it.copy(isAddingSectionDialog = false) }
+    }
+
+    fun addDraftSection(name: String) {
+        val cleanName = name.trim().ifBlank { "NEW SECTION" }.uppercase()
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            val existingIdx = sections.indexOfFirst { it.sectionName.equals(cleanName, ignoreCase = true) }
+            if (existingIdx != -1) {
+                val sec = sections[existingIdx]
+                val items = sec.items.toMutableList()
+                items.add(SpecDraftItem())
+                sections[existingIdx] = sec.copy(items = items)
+            } else {
+                sections.add(
+                    SpecDraftSection(
+                        sectionName = cleanName,
+                        items = listOf(SpecDraftItem())
+                    )
+                )
+            }
+            state.copy(draftSpecsSections = sections, isAddingSectionDialog = false)
+        }
+    }
+
+    fun renameDraftSection(sectionIndex: Int, newName: String) {
+        val cleanName = newName.trim().ifBlank { "SECTION" }.uppercase()
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            if (sectionIndex in sections.indices) {
+                sections[sectionIndex] = sections[sectionIndex].copy(sectionName = cleanName)
+            }
+            state.copy(draftSpecsSections = sections)
+        }
+    }
+
+    fun removeDraftSection(sectionIndex: Int) {
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            if (sectionIndex in sections.indices) {
+                sections.removeAt(sectionIndex)
+            }
+            state.copy(draftSpecsSections = sections)
+        }
+    }
+
+    fun cancelEditingSpecs() {
+        _uiState.update {
+            it.copy(
+                isEditingSpecs = false,
+                draftSpecsSections = emptyList(),
+                confirmSaveSpecs = false,
+                isAddingSectionDialog = false
+            )
+        }
+    }
+
+    fun requestSaveSpecs() {
+        val sections = _uiState.value.draftSpecsSections
+        for (sec in sections) {
+            for (item in sec.items) {
+                if (item.fieldKey.isBlank() && item.fieldValue.isNotBlank()) {
+                    _uiState.update { it.copy(errorMessage = "Specification in '${sec.sectionName}' has a value without a field name.") }
+                    return
+                }
+            }
+        }
+        _uiState.update { it.copy(confirmSaveSpecs = true) }
+    }
+
+    fun dismissSaveSpecsConfirmation() {
+        _uiState.update { it.copy(confirmSaveSpecs = false) }
+    }
+
+    fun confirmAndSaveSpecs() {
+        val site = _uiState.value.site ?: return
+        val sections = _uiState.value.draftSpecsSections
+        val newEntities = mutableListOf<SiteFieldEntity>()
+        var sortIndex = 1
+
+        for (sec in sections) {
+            val secName = sec.sectionName.trim().ifBlank { "GENERAL SPECIFICATIONS" }.uppercase()
+            for (item in sec.items) {
+                val key = item.fieldKey.trim()
+                val value = item.fieldValue.trim()
+                if (key.isNotBlank()) {
+                    newEntities.add(
+                        SiteFieldEntity(
+                            sapId = site.sapId,
+                            fieldKey = key,
+                            fieldValue = value.ifBlank { null },
+                            groupName = secName,
+                            sortOrder = sortIndex++
+                        )
+                    )
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            try {
+                siteRepository.replaceSiteSpecs(site.sapId, newEntities)
+                _uiState.update {
+                    it.copy(
+                        isEditingSpecs = false,
+                        draftSpecsSections = emptyList(),
+                        confirmSaveSpecs = false,
+                        userMessage = "Technical specifications updated successfully."
+                    )
+                }
+                loadSiteDetails()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        confirmSaveSpecs = false,
+                        errorMessage = "Failed to save specifications: ${e.localizedMessage}"
+                    )
+                }
+            }
+        }
+    }
+
+    // --- Legacy Dialog-based Specification Actions (Fallback) ---
 
     fun startEditingSpec(spec: SiteFieldEntity) {
         _uiState.update { it.copy(specToEdit = spec, isAddingSpec = false) }
@@ -330,9 +586,28 @@ class SiteDetailViewModel(
                     ?: siteRepository.getSiteBySapNorm(SiteEntity.normalize(sapId))
                 val actualSapId = site?.sapId ?: sapId
                 val fields = siteRepository.getFieldsForSite(actualSapId)
+                val universalFields = siteRepository.getUniversalFields()
+
+                // Merge universal template fields with recorded site fields.
+                // Recorded site fields take precedence; missing universal template fields are added as placeholders.
+                val mergedFields = fields.toMutableList()
+                for (uni in universalFields) {
+                    if (mergedFields.none { it.fieldKey.equals(uni.fieldKey, ignoreCase = true) }) {
+                        mergedFields.add(
+                            SiteFieldEntity(
+                                id = 0L,
+                                sapId = actualSapId,
+                                fieldKey = uni.fieldKey,
+                                fieldValue = uni.defaultValue,
+                                groupName = uni.groupName,
+                                sortOrder = uni.sortOrder
+                            )
+                        )
+                    }
+                }
 
                 // Detect contact phone number from specs
-                val phoneField = fields.firstOrNull { field ->
+                val phoneField = mergedFields.firstOrNull { field ->
                     val k = field.fieldKey.lowercase()
                     (k.contains("number") || k.contains("phone") || k.contains("mobile") || k.contains("tech no")) &&
                             field.fieldValue?.any { it.isDigit() } == true
@@ -340,7 +615,7 @@ class SiteDetailViewModel(
                 val phone = phoneField?.fieldValue?.filter { it.isDigit() || it == '+' }
 
                 // Group specs by groupName
-                val grouped = fields.groupBy { it.groupName ?: "General Specifications" }
+                val grouped = mergedFields.groupBy { it.groupName ?: "General Specifications" }
 
                 _uiState.update {
                     it.copy(
