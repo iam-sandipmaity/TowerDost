@@ -93,6 +93,24 @@ class SiteDetailViewModelTest {
     }
 
     @Test
+    fun testDraftSpecsItemMutationsByTempId() {
+        val item1 = SpecDraftItem(id = 1L, tempId = "item-uuid-1", fieldKey = "SMPS", fieldValue = "48V 100A")
+        val item2 = SpecDraftItem(id = 2L, tempId = "item-uuid-2", fieldKey = "DG", fieldValue = "15 KVA")
+        val sec = SpecDraftSection(sectionName = "POWER", items = listOf(item1, item2))
+
+        // Mutate by tempId
+        val updatedItems = sec.items.map {
+            if (it.tempId == "item-uuid-1") it.copy(fieldValue = "48V 150A Modular") else it
+        }
+        assertEquals("48V 150A Modular", updatedItems[0].fieldValue)
+
+        // Remove by tempId
+        val filteredItems = updatedItems.filter { it.tempId != "item-uuid-2" }
+        assertEquals(1, filteredItems.size)
+        assertEquals("item-uuid-1", filteredItems[0].tempId)
+    }
+
+    @Test
     fun testDraftSectionAddAndRemove() {
         val sections = mutableListOf(
             SpecDraftSection(

@@ -138,12 +138,29 @@ fun SiteDetailScreen(
                 subtitle = listOfNotNull(uiState.site?.name, uiState.site?.city).joinToString(" • ").ifBlank { null },
                 onBack = onNavigateBack,
                 actions = {
-                    // Tactile View Only vs Edit Mode Toggle
+                    val isCurrentlyEditing = when (selectedTab) {
+                        0 -> uiState.isEditingSpecs
+                        2 -> uiState.isEditingOverview
+                        else -> false
+                    }
+
                     Surface(
-                        onClick = { viewModel.toggleEditMode() },
+                        onClick = {
+                            when (selectedTab) {
+                                0 -> {
+                                    if (uiState.isEditingSpecs) viewModel.cancelEditingSpecs()
+                                    else viewModel.startEditingSpecs()
+                                }
+                                1 -> onLogIncident(uiState.site?.sapId ?: "")
+                                2 -> {
+                                    if (uiState.isEditingOverview) viewModel.cancelEditingOverview()
+                                    else viewModel.startEditingOverview()
+                                }
+                            }
+                        },
                         shape = RoundedCornerShape(8.dp),
-                        color = if (uiState.isEditMode) TelecomAmber.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (uiState.isEditMode) TelecomAmber else MaterialTheme.colorScheme.outlineVariant),
+                        color = if (isCurrentlyEditing) TelecomAmber.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                        border = BorderStroke(1.dp, if (isCurrentlyEditing) TelecomAmber else MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier.padding(end = 4.dp)
                     ) {
                         Row(
@@ -151,18 +168,23 @@ fun SiteDetailScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = if (uiState.isEditMode) Icons.Default.Edit else Icons.Default.Lock,
-                                contentDescription = if (uiState.isEditMode) "Switch to View Only" else "Switch to Edit Mode",
-                                tint = if (uiState.isEditMode) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant,
+                                imageVector = if (isCurrentlyEditing) Icons.Default.Lock else if (selectedTab == 1) Icons.Default.Add else Icons.Default.Edit,
+                                contentDescription = null,
+                                tint = if (isCurrentlyEditing) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (uiState.isEditMode) "Edit" else "View",
+                                text = when {
+                                    isCurrentlyEditing -> "Cancel"
+                                    selectedTab == 0 -> "Edit Specs"
+                                    selectedTab == 1 -> "+ Log"
+                                    else -> "Edit Site"
+                                },
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 11.sp,
-                                    color = if (uiState.isEditMode) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isCurrentlyEditing) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             )
                         }
@@ -320,7 +342,6 @@ fun SiteDetailScreen(
                         site = site,
                         groupedSpecs = uiState.groupedSpecs,
                         filterQuery = specFilterQuery,
-                        isEditMode = uiState.isEditMode,
                         isEditingSpecs = uiState.isEditingSpecs,
                         draftSections = uiState.draftSpecsSections,
                         onFilterChange = { specFilterQuery = it },
@@ -328,11 +349,11 @@ fun SiteDetailScreen(
                         onCancelEditSpecs = { viewModel.cancelEditingSpecs() },
                         onSaveSpecsClick = { viewModel.requestSaveSpecs() },
                         onAddSpecItem = { secIdx -> viewModel.addDraftSpecItem(secIdx) },
-                        onUpdateSpecItem = { secIdx, itemIdx, k, v ->
-                            viewModel.updateDraftSpecItem(secIdx, itemIdx, k, v)
+                        onUpdateSpecItem = { secIdx, tempId, k, v ->
+                            viewModel.updateDraftSpecItem(secIdx, tempId, k, v)
                         },
-                        onRemoveSpecItem = { secIdx, itemIdx ->
-                            viewModel.removeDraftSpecItem(secIdx, itemIdx)
+                        onRemoveSpecItem = { secIdx, tempId ->
+                            viewModel.removeDraftSpecItem(secIdx, tempId)
                         },
                         onShowAddSection = { viewModel.showAddSectionDialog() },
                         onRemoveSection = { secIdx -> viewModel.removeDraftSection(secIdx) },
@@ -463,57 +484,6 @@ fun SiteDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.dismissAddSectionDialog() }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Safeguard: Spec Editor Dialog (Add or Edit)
-    if (uiState.specToEdit != null || uiState.isAddingSpec) {
-        val editingSpec = uiState.specToEdit
-        val isNew = uiState.isAddingSpec
-        SpecEditDialog(
-            spec = editingSpec,
-            isNew = isNew,
-            sapId = uiState.site?.sapId ?: "",
-            onDismiss = { viewModel.dismissSpecEditor() },
-            onSave = { key, value, group ->
-                viewModel.saveSpec(key, value, group)
-            },
-            onDelete = if (!isNew && editingSpec != null) {
-                { viewModel.requestDeleteSpec(it) }
-            } else null
-        )
-    }
-
-    // Safeguard: Spec Deletion Confirmation Dialog
-    if (uiState.confirmDeleteSpec != null) {
-        val target = uiState.confirmDeleteSpec!!
-        AlertDialog(
-            onDismissRequest = { viewModel.cancelDeleteSpec() },
-            icon = {
-                Icon(Icons.Default.Warning, contentDescription = null, tint = TagIssueColor, modifier = Modifier.size(36.dp))
-            },
-            title = {
-                Text("Delete Specification?", fontWeight = FontWeight.Bold)
-            },
-            text = {
-                Text(
-                    text = "⚠️ Warning: Are you sure you want to delete '${target.fieldKey}' from ${target.sapId}?\n\nThis specification will be removed from technical specifications and omitted from subsequent CSV exports.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = { viewModel.confirmDeleteSpec() },
-                    colors = ButtonDefaults.buttonColors(containerColor = TagIssueColor)
-                ) {
-                    Text("Delete Permanently", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.cancelDeleteSpec() }) {
                     Text("Cancel")
                 }
             }
@@ -821,7 +791,6 @@ private fun SpecsTab(
     site: SiteEntity,
     groupedSpecs: Map<String, List<SiteFieldEntity>>,
     filterQuery: String,
-    isEditMode: Boolean,
     isEditingSpecs: Boolean,
     draftSections: List<SpecDraftSection>,
     onFilterChange: (String) -> Unit,
@@ -829,173 +798,148 @@ private fun SpecsTab(
     onCancelEditSpecs: () -> Unit,
     onSaveSpecsClick: () -> Unit,
     onAddSpecItem: (sectionIndex: Int) -> Unit,
-    onUpdateSpecItem: (sectionIndex: Int, itemIndex: Int, key: String, value: String) -> Unit,
-    onRemoveSpecItem: (sectionIndex: Int, itemIndex: Int) -> Unit,
+    onUpdateSpecItem: (sectionIndex: Int, tempId: String, key: String, value: String) -> Unit,
+    onRemoveSpecItem: (sectionIndex: Int, tempId: String) -> Unit,
     onShowAddSection: () -> Unit,
     onRemoveSection: (sectionIndex: Int) -> Unit,
     onCopySpec: (String, String) -> Unit
 ) {
     if (isEditingSpecs) {
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Editing Header Banner (matching Overview's TagMaintBg styling)
-            Surface(
-                color = TagMaintBg,
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            item(key = "specs_editing_header") {
+                Spacer(modifier = Modifier.height(4.dp))
+                // Editing Header Banner (matching Overview's TagMaintBg styling)
+                Surface(
+                    color = TagMaintBg,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.Edit, contentDescription = null, tint = TagMaintColor, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = "Editing Specifications: ${site.sapId}",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = TagMaintColor
-                        )
-                        Text(
-                            text = "Modifications will update master records and reflect in all CSV exports.",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = TagMaintColor, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "Editing Specifications: ${site.sapId}",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TagMaintColor
+                            )
+                            Text(
+                                text = "Modifications will update master records and reflect in all CSV exports.",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
 
-            // Section Cards
             if (draftSections.isEmpty()) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp)
-                ) {
-                    Text(
-                        text = "No specification sections exist yet. Tap Add New Section below to begin.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                item(key = "specs_empty_sections") {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp)
+                    ) {
+                        Text(
+                            text = "No specification sections exist yet. Tap Add New Section below to begin.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
                 }
             } else {
                 draftSections.forEachIndexed { secIdx, section ->
-                    Card(
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            // Section Card Header
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = section.sectionName.uppercase(),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = RFCyan,
-                                    letterSpacing = 0.5.sp
-                                )
-
+                    item(key = "section_card_${secIdx}_${section.sectionName}") {
+                        Card(
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                // Section Card Header
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    OutlinedButton(
-                                        onClick = { onAddSpecItem(secIdx) },
-                                        shape = RoundedCornerShape(8.dp),
-                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(32.dp)
-                                    ) {
-                                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(3.dp))
-                                        Text("Add Field", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
+                                    Text(
+                                        text = section.sectionName.uppercase(),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = RFCyan,
+                                        letterSpacing = 0.5.sp
+                                    )
 
-                                    IconButton(
-                                        onClick = { onRemoveSection(secIdx) },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = "Delete Section ${section.sectionName}",
-                                            tint = TagIssueColor,
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            HorizontalDivider(
-                                thickness = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-
-                            // Item Rows with 2 Data Boxes (Field Name + Field Value)
-                            if (section.items.isEmpty()) {
-                                Text(
-                                    text = "No fields in this section. Tap 'Add Field' above.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(vertical = 6.dp)
-                                )
-                            } else {
-                                section.items.forEachIndexed { itemIdx, item ->
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        OutlinedTextField(
-                                            value = item.fieldKey,
-                                            onValueChange = { newKey ->
-                                                onUpdateSpecItem(secIdx, itemIdx, newKey, item.fieldValue)
-                                            },
-                                            label = { Text("Field Name", fontSize = 11.sp) },
-                                            placeholder = { Text("e.g. CAPACITY") },
-                                            singleLine = true,
-                                            modifier = Modifier.weight(1.1f)
-                                        )
-
-                                        OutlinedTextField(
-                                            value = item.fieldValue,
-                                            onValueChange = { newVal ->
-                                                onUpdateSpecItem(secIdx, itemIdx, item.fieldKey, newVal)
-                                            },
-                                            label = { Text("Value", fontSize = 11.sp) },
-                                            placeholder = { Text("e.g. 48V 100A") },
-                                            singleLine = true,
-                                            modifier = Modifier.weight(1.1f)
-                                        )
+                                        OutlinedButton(
+                                            onClick = { onAddSpecItem(secIdx) },
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.height(32.dp)
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text("Add Field", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
 
                                         IconButton(
-                                            onClick = { onRemoveSpecItem(secIdx, itemIdx) },
-                                            modifier = Modifier.size(36.dp)
+                                            onClick = { onRemoveSection(secIdx) },
+                                            modifier = Modifier.size(32.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = "Delete Field",
+                                                Icons.Default.Delete,
+                                                contentDescription = "Delete Section ${section.sectionName}",
                                                 tint = TagIssueColor,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                         }
+                                    }
+                                }
+
+                                HorizontalDivider(
+                                    thickness = 1.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                    modifier = Modifier.padding(vertical = 8.dp)
+                                )
+
+                                if (section.items.isEmpty()) {
+                                    Text(
+                                        text = "No fields in this section. Tap 'Add Field' above.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(vertical = 6.dp)
+                                    )
+                                } else {
+                                    section.items.forEach { item ->
+                                        SpecEditRow(
+                                            item = item,
+                                            onKeyChange = { newKey ->
+                                                onUpdateSpecItem(secIdx, item.tempId, newKey, item.fieldValue)
+                                            },
+                                            onValueChange = { newVal ->
+                                                onUpdateSpecItem(secIdx, item.tempId, item.fieldKey, newVal)
+                                            },
+                                            onDelete = {
+                                                onRemoveSpecItem(secIdx, item.tempId)
+                                            }
+                                        )
                                     }
                                 }
                             }
@@ -1004,56 +948,54 @@ private fun SpecsTab(
                 }
             }
 
-            // Add New Section Button
-            OutlinedButton(
-                onClick = onShowAddSection,
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, TelecomAmber),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, tint = TelecomAmber, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Add New Section",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    color = TelecomAmber
-                )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Action Buttons: Cancel and Save Changes (Matching Overview Tab)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+            item(key = "specs_add_section_btn") {
                 OutlinedButton(
-                    onClick = onCancelEditSpecs,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp)
+                    onClick = onShowAddSection,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, TelecomAmber),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
                 ) {
-                    Text("Cancel")
-                }
-
-                Button(
-                    onClick = onSaveSpecsClick,
-                    modifier = Modifier.weight(1.5f),
-                    colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Save Changes", fontWeight = FontWeight.Bold, color = Color.Black)
+                    Icon(Icons.Default.Add, contentDescription = null, tint = TelecomAmber, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Add New Section",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = TelecomAmber
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            item(key = "specs_action_buttons") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onCancelEditSpecs,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = onSaveSpecsClick,
+                        modifier = Modifier.weight(1.5f),
+                        colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Save Changes", fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
+                }
+                Spacer(modifier = Modifier.height(32.dp))
+            }
         }
     } else {
-        // Locked / View Mode
+        // View Mode
         Column(modifier = Modifier.fillMaxSize()) {
-            // Overview-parity View Only Banner
             Surface(
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                 shape = RoundedCornerShape(12.dp),
@@ -1074,22 +1016,22 @@ private fun SpecsTab(
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(
-                            imageVector = if (isEditMode) Icons.Default.Edit else Icons.Default.Lock,
+                            imageVector = Icons.Default.Lock,
                             contentDescription = null,
-                            tint = if (isEditMode) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             val totalCount = groupedSpecs.values.sumOf { it.size }
                             Text(
-                                text = if (isEditMode) "Specs Editable" else "Specifications ($totalCount fields)",
+                                text = "Specifications ($totalCount fields)",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = if (isEditMode) "Tap Edit Specs to modify equipment data" else "Locked against accidental edits",
+                                text = "Tap Edit Specs to modify technical data",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1104,7 +1046,7 @@ private fun SpecsTab(
                     ) {
                         Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (isEditMode) "Edit Specs" else "Unlock to Edit", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Edit Specs", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1175,8 +1117,6 @@ private fun SpecsTab(
                         items(fields, key = { "${it.groupName}_${it.fieldKey}" }) { field ->
                             EnterpriseSpecRow(
                                 field = field,
-                                isEditMode = isEditMode,
-                                onEdit = onStartEditSpecs,
                                 onCopy = { onCopySpec(field.fieldKey, field.fieldValue ?: "") }
                             )
                         }
@@ -1189,17 +1129,71 @@ private fun SpecsTab(
 }
 
 @Composable
+private fun SpecEditRow(
+    item: SpecDraftItem,
+    onKeyChange: (String) -> Unit,
+    onValueChange: (String) -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var keyText by remember(item.tempId) { mutableStateOf(item.fieldKey) }
+    var valueText by remember(item.tempId) { mutableStateOf(item.fieldValue) }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = keyText,
+            onValueChange = {
+                keyText = it
+                onKeyChange(it)
+            },
+            label = { Text("Field Name", fontSize = 11.sp) },
+            placeholder = { Text("e.g. CAPACITY") },
+            singleLine = true,
+            modifier = Modifier.weight(1.1f)
+        )
+
+        OutlinedTextField(
+            value = valueText,
+            onValueChange = {
+                valueText = it
+                onValueChange(it)
+            },
+            label = { Text("Value", fontSize = 11.sp) },
+            placeholder = { Text("e.g. 48V 100A") },
+            singleLine = true,
+            modifier = Modifier.weight(1.1f)
+        )
+
+        IconButton(
+            onClick = onDelete,
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Delete,
+                contentDescription = "Delete Field",
+                tint = TagIssueColor,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun EnterpriseSpecRow(
     field: SiteFieldEntity,
-    isEditMode: Boolean,
-    onEdit: () -> Unit,
     onCopy: () -> Unit
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = if (isEditMode) onEdit else onCopy)
+            .clickable(onClick = onCopy)
     ) {
         Column {
             Row(
@@ -1226,30 +1220,16 @@ private fun EnterpriseSpecRow(
                     modifier = Modifier.weight(1f)
                 )
 
-                if (isEditMode) {
-                    IconButton(
-                        onClick = onEdit,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit ${field.fieldKey}",
-                            tint = TelecomAmber,
-                            modifier = Modifier.size(15.dp)
-                        )
-                    }
-                } else {
-                    IconButton(
-                        onClick = onCopy,
-                        modifier = Modifier.size(32.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy ${field.fieldKey}",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                            modifier = Modifier.size(13.dp)
-                        )
-                    }
+                IconButton(
+                    onClick = onCopy,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy ${field.fieldKey}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(13.dp)
+                    )
                 }
             }
             HorizontalDivider(
@@ -1258,98 +1238,6 @@ private fun EnterpriseSpecRow(
             )
         }
     }
-}
-
-@Composable
-private fun SpecEditDialog(
-    spec: SiteFieldEntity?,
-    isNew: Boolean,
-    sapId: String,
-    onDismiss: () -> Unit,
-    onSave: (key: String, value: String, group: String) -> Unit,
-    onDelete: ((SiteFieldEntity) -> Unit)?
-) {
-    var fieldKey by remember { mutableStateOf(spec?.fieldKey ?: "") }
-    var fieldValue by remember { mutableStateOf(spec?.fieldValue ?: "") }
-    var groupName by remember { mutableStateOf(spec?.groupName ?: "GENERAL SPECIFICATIONS") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = if (isNew) "Add Specification" else "Edit Specification",
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "⚠️ Updating this specification will modify the master database for $sapId and will be included in all future CSV exports.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(10.dp)
-                    )
-                }
-
-                OutlinedTextField(
-                    value = fieldKey,
-                    onValueChange = { fieldKey = it },
-                    label = { Text("Field Name (e.g. SMPS CAPACITY)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    enabled = isNew
-                )
-
-                OutlinedTextField(
-                    value = fieldValue,
-                    onValueChange = { fieldValue = it },
-                    label = { Text("Field Value (e.g. 48V 100A)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-                OutlinedTextField(
-                    value = groupName,
-                    onValueChange = { groupName = it },
-                    label = { Text("Group / Category (e.g. POWER, BATTERY, RF)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSave(fieldKey, fieldValue, groupName) },
-                colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
-                enabled = fieldKey.isNotBlank()
-            ) {
-                Text("Save Specification", fontWeight = FontWeight.Bold, color = Color.Black)
-            }
-        },
-        dismissButton = {
-            Row {
-                if (!isNew && spec != null && onDelete != null) {
-                    TextButton(onClick = { onDelete(spec) }) {
-                        Text("Delete", color = TagIssueColor, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                TextButton(onClick = onDismiss) {
-                    Text("Cancel")
-                }
-            }
-        }
-    )
 }
 
 @Composable

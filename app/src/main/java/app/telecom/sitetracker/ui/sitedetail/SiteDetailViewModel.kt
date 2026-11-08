@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 
 data class SpecDraftItem(
     val id: Long = 0L,
+    val tempId: String = java.util.UUID.randomUUID().toString(),
     val fieldKey: String = "",
     val fieldValue: String = ""
 )
@@ -263,6 +264,20 @@ class SiteDetailViewModel(
         }
     }
 
+    fun updateDraftSpecItem(sectionIndex: Int, tempId: String, key: String, value: String) {
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            if (sectionIndex in sections.indices) {
+                val sec = sections[sectionIndex]
+                val items = sec.items.map {
+                    if (it.tempId == tempId) it.copy(fieldKey = key, fieldValue = value) else it
+                }
+                sections[sectionIndex] = sec.copy(items = items)
+            }
+            state.copy(draftSpecsSections = sections)
+        }
+    }
+
     fun updateDraftSpecItem(sectionIndex: Int, itemIndex: Int, key: String, value: String) {
         _uiState.update { state ->
             val sections = state.draftSpecsSections.toMutableList()
@@ -285,6 +300,18 @@ class SiteDetailViewModel(
                 val sec = sections[sectionIndex]
                 val items = sec.items.toMutableList()
                 items.add(SpecDraftItem())
+                sections[sectionIndex] = sec.copy(items = items)
+            }
+            state.copy(draftSpecsSections = sections)
+        }
+    }
+
+    fun removeDraftSpecItem(sectionIndex: Int, tempId: String) {
+        _uiState.update { state ->
+            val sections = state.draftSpecsSections.toMutableList()
+            if (sectionIndex in sections.indices) {
+                val sec = sections[sectionIndex]
+                val items = sec.items.filter { it.tempId != tempId }
                 sections[sectionIndex] = sec.copy(items = items)
             }
             state.copy(draftSpecsSections = sections)
