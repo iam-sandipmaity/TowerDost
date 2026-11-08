@@ -96,7 +96,7 @@ interface IncidentDao {
     @Query("DELETE FROM incidents WHERE id = :id")
     suspend fun hardDeleteIncident(id: String)
 
-    @Query("DELETE FROM incidents WHERE sap_id LIKE 'DEL-9%' OR sap_id LIKE 'MUM-9%' OR sap_id LIKE 'KOL-9%' OR sap_id LIKE 'CHN-9%' OR sap_id LIKE 'BLR-9%' OR sap_id LIKE 'SAMPLE%'")
+    @Query("DELETE FROM incidents WHERE sap_id LIKE 'DEL-9%' OR sap_id LIKE 'MUM-9%' OR sap_id LIKE 'KOL-9%' OR sap_id LIKE 'CHN-9%' OR sap_id LIKE 'CHE-9%' OR sap_id LIKE 'BLR-9%' OR sap_id LIKE 'SAMPLE%'")
     suspend fun deleteSampleIncidents()
 
     @Query("DELETE FROM incident_history WHERE incident_id NOT IN (SELECT id FROM incidents)")

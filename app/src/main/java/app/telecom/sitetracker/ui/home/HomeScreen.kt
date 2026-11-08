@@ -239,7 +239,7 @@ fun HomeScreen(
                     ) {
                         Text(
                             text = if (uiState.kpis.totalSites == 0)
-                                "No master site data loaded. Tap 'Load Sample' to begin."
+                                "No master site data loaded. Tap 'Import Master' to begin."
                             else
                                 "Zero live outages recorded. All sites reporting operational.",
                             style = MaterialTheme.typography.bodyMedium,

@@ -39,8 +39,8 @@
     <string name="home_no_incident_90d">Quiet (90d)</string>
     <string name="home_avg_mttr">Average MTTR</string>
     <string name="home_incidents_this_month">Incidents (Month)</string>
-    <string name="home_load_sample_data">Load Sample Data</string>
-    <string name="home_sample_data_loaded">Sample data loaded successfully</string>
+    <string name="home_load_sample_data">Import Master Data</string>
+    <string name="home_sample_data_loaded">Master data imported successfully</string>
 
     <!-- Warnings / Banners -->
     <string name="warning_clock_skew">Device clock may be inaccurate. Timestamps and downtime calculations require correct clock.</string>
@@ -102,7 +102,7 @@
     <string name="near_me_title">Near Me</string>
     <string name="near_me_permission_required">Location permission required to find nearby sites.</string>
     <string name="search_placeholder">Search SAP ID, name, city, tech, specs...</string>
-    <string name="no_sites_found">No sites found. Import an Excel/CSV file or load sample data to begin.</string>
+    <string name="no_sites_found">No sites found. Import an Excel or CSV master tracker to begin.</string>
 
     <!-- Milestone 2: Incidents, Outages & Reasons -->
     <string name="title_log_incident">Log Incident / Outage</string>
