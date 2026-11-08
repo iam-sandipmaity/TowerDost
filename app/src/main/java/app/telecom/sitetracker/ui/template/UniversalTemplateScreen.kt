@@ -404,10 +404,7 @@ fun UniversalTemplateScreen(
 
                             itemsIndexed(
                                 items = fields,
-                                key = { index, field ->
-                                    if (field.id > 0L) "template_spec_${field.id}_$index"
-                                    else "template_spec_${groupIndex}_${field.fieldKey}_$index"
-                                }
+                                key = { index, field -> "template_spec_${groupIndex}_${field.fieldKey}_$index" }
                             ) { _, field ->
                                 EnterpriseTemplateSpecRow(
                                     field = field,
