@@ -24,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AltRoute
 import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
@@ -108,6 +109,7 @@ data class StagedLogFileData(
 fun ToolsScreen(
     onNavigateToImport: () -> Unit,
     onNavigateToTemplate: () -> Unit = {},
+    onNavigateToMerger: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -366,6 +368,14 @@ fun ToolsScreen(
                 icon = Icons.Default.Tune,
                 buttonText = "Manage Template",
                 onClick = onNavigateToTemplate
+            )
+
+            ToolActionCard(
+                title = "VLOOKUP Sheet Column Merger",
+                description = "Merge supplemental Excel (.xlsx) or CSV columns against master sites by SAP ID with preview.",
+                icon = Icons.Default.AltRoute,
+                buttonText = "Open Merger",
+                onClick = onNavigateToMerger
             )
 
             // ==========================================
