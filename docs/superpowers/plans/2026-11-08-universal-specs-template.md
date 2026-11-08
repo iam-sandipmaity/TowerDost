@@ -47,22 +47,22 @@
   - `SiteRepository.deleteUniversalSection(groupName: String)`
   - `SiteRepository.seedDefaultUniversalFields()`
 
-- [ ] **Step 1: Write unit tests in `UniversalFieldTest.kt`**
+- [x] **Step 1: Write unit tests in `UniversalFieldTest.kt`**
   Verify entity defaults, sort order comparator, and template merging logic against site records.
 
-- [ ] **Step 2: Implement `UniversalFieldEntity.kt` and `UniversalFieldDao.kt`**
+- [x] **Step 2: Implement `UniversalFieldEntity.kt` and `UniversalFieldDao.kt`**
   Define entity and Room DAO interface with `@Insert(onConflict = REPLACE)`, `@Query`, and `@Transaction replaceAll`.
 
-- [ ] **Step 3: Update `AppDatabase.kt` with `version = 3` and `MIGRATION_2_3`**
+- [x] **Step 3: Update `AppDatabase.kt` with `version = 3` and `MIGRATION_2_3`**
   Add entity to `@Database`, define migration SQL, and wire `universalFieldDao()`.
 
-- [ ] **Step 4: Implement repository methods in `SiteRepository.kt`**
+- [x] **Step 4: Implement repository methods in `SiteRepository.kt`**
   Add CRUD methods and default telecom seed categories (`POWER`, `BATTERY`, `DG`, `RAN`, `TRANSMISSION`, `SAFETY`, `ENVIRONMENT`).
 
-- [ ] **Step 5: Run tests and verify**
+- [x] **Step 5: Run tests and verify**
   Run `UniversalFieldTest` and verify compilation.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
   ```bash
   git add app/src/main/java/app/telecom/sitetracker/data/entity/UniversalFieldEntity.kt app/src/main/java/app/telecom/sitetracker/data/db/UniversalFieldDao.kt app/src/main/java/app/telecom/sitetracker/data/db/AppDatabase.kt app/src/main/java/app/telecom/sitetracker/data/repo/SiteRepository.kt app/src/test/java/app/telecom/sitetracker/UniversalFieldTest.kt
   git commit -m "feat(data): add UniversalFieldEntity, DAO, migration and repository support"
@@ -82,16 +82,16 @@
 - Modifies:
   - `SiteDetailViewModel.loadSiteDetails()` merging `universalFields` with `fields`
 
-- [ ] **Step 1: Write unit test in `SiteDetailViewModelTest.kt`**
+- [x] **Step 1: Write unit test in `SiteDetailViewModelTest.kt`**
   Test `testUniversalFieldsMergedWithSiteSpecificSpecs` verifying that empty fields from the universal template are added without overriding existing site values.
 
-- [ ] **Step 2: Update `SiteDetailViewModel.loadSiteDetails()`**
+- [x] **Step 2: Update `SiteDetailViewModel.loadSiteDetails()`**
   Fetch both `siteRepository.getFieldsForSite` and `siteRepository.getUniversalFields()`, merge by case-insensitive key, and group for UI.
 
-- [ ] **Step 3: Verify and run unit tests**
+- [x] **Step 3: Verify and run unit tests**
   Ensure all tests in `SiteDetailViewModelTest.kt` pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
   ```bash
   git add app/src/main/java/app/telecom/sitetracker/ui/sitedetail/SiteDetailViewModel.kt app/src/test/java/app/telecom/sitetracker/SiteDetailViewModelTest.kt
   git commit -m "feat(ui): dynamically merge universal template fields into site details"
@@ -116,20 +116,20 @@
   - Tile in `ToolsScreen`
   - Button in `SiteDetailScreen` Specs tab
 
-- [ ] **Step 1: Create `UniversalTemplateViewModel.kt`**
+- [x] **Step 1: Create `UniversalTemplateViewModel.kt`**
   Manage state `groupedUniversalFields`, `isAddingSection`, `isAddingField`, and methods `saveField`, `deleteField`, `deleteSection`, `resetToDefaults`.
 
-- [ ] **Step 2: Create `UniversalTemplateScreen.kt`**
+- [x] **Step 2: Create `UniversalTemplateScreen.kt`**
   Build Compose screen with `EnterpriseTopBar`, virtualized `LazyColumn` section cards, `+ Add Field` per section, `+ Add New Section`, and `Load Telecom Defaults` action button.
 
-- [ ] **Step 3: Register in `Screen.kt` and `AppNavGraph.kt`**
+- [x] **Step 3: Register in `Screen.kt` and `AppNavGraph.kt`**
   Add route `Screen.UniversalTemplate` and wire into navigation graph.
 
-- [ ] **Step 4: Add entry points in `ToolsScreen.kt` and `SiteDetailScreen.kt`**
+- [x] **Step 4: Add entry points in `ToolsScreen.kt` and `SiteDetailScreen.kt`**
   - Add "Universal Specs Template" card in Tools.
   - Add "Template Settings" button in Specs tab header.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add app/src/main/java/app/telecom/sitetracker/ui/template/ app/src/main/java/app/telecom/sitetracker/ui/navigation/ app/src/main/java/app/telecom/sitetracker/ui/tools/ToolsScreen.kt app/src/main/java/app/telecom/sitetracker/ui/sitedetail/SiteDetailScreen.kt
   git commit -m "feat(ui): implement UniversalTemplateScreen and wire navigation entry points"
@@ -142,11 +142,11 @@
 **Files:**
 - All modified files
 
-- [ ] **Step 1: Run comprehensive unit test suite**
+- [x] **Step 1: Run comprehensive unit test suite**
   Verify all unit tests pass.
 
-- [ ] **Step 2: Code hygiene and review check**
+- [x] **Step 2: Code hygiene and review check**
   Verify no syntax errors, clean imports, and proper error handling.
 
-- [ ] **Step 3: Commit and Push to `feature/specs-inline-editor`**
+- [x] **Step 3: Commit and Push to `feature/specs-inline-editor`**
   Push all commits to GitHub.
