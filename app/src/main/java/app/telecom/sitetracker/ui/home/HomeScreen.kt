@@ -60,7 +60,7 @@ import app.telecom.sitetracker.util.Dates
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
-    onSeedSampleData: () -> Unit,
+    onImportClick: () -> Unit = {},
     onLogIncidentClick: () -> Unit,
     onSiteClick: (String) -> Unit,
     onDismissMessage: () -> Unit,
@@ -161,23 +161,15 @@ fun HomeScreen(
 
                     if (uiState.kpis.totalSites == 0) {
                         OutlinedButton(
-                            onClick = onSeedSampleData,
+                            onClick = onImportClick,
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp),
-                            enabled = !uiState.isSeeding,
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            if (uiState.isSeeding) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.height(20.dp).width(20.dp),
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(Icons.Default.CloudDownload, contentDescription = null)
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Load Sample")
-                            }
+                            Icon(Icons.Default.CloudDownload, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Import Master")
                         }
                     }
                 }
@@ -247,7 +239,7 @@ fun HomeScreen(
                     ) {
                         Text(
                             text = if (uiState.kpis.totalSites == 0)
-                                "No master site data loaded. Tap 'Load Sample' to begin."
+                                "No master site data loaded. Tap 'Import Master' to begin."
                             else
                                 "Zero live outages recorded. All sites reporting operational.",
                             style = MaterialTheme.typography.bodyMedium,

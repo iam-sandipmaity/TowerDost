@@ -42,7 +42,6 @@ import app.telecom.sitetracker.ui.template.UniversalTemplateViewModel
 fun AppNavGraph(
     navController: NavHostController,
     homeUiState: HomeUiState,
-    onSeedSampleData: () -> Unit,
     onDismissHomeMessage: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -76,8 +75,7 @@ fun AppNavGraph(
                 },
                 onAddSiteClick = {
                     navController.navigate(Screen.CreateSite.route)
-                },
-                onSeedSampleData = onSeedSampleData
+                }
             )
         }
 
@@ -121,7 +119,9 @@ fun AppNavGraph(
         composable(Screen.Home.route) {
             HomeScreen(
                 uiState = homeUiState,
-                onSeedSampleData = onSeedSampleData,
+                onImportClick = {
+                    navController.navigate(Screen.ImportWizard.route)
+                },
                 onLogIncidentClick = {
                     navController.navigate(Screen.LogIncident.createRoute())
                 },

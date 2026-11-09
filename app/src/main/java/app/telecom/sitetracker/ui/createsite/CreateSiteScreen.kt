@@ -78,6 +78,7 @@ import app.telecom.sitetracker.ui.theme.RFCyan
 import app.telecom.sitetracker.ui.theme.StatusDownRed
 import app.telecom.sitetracker.ui.theme.StatusRestoredGreen
 import app.telecom.sitetracker.ui.theme.TelecomAmber
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -147,6 +148,10 @@ fun CreateSiteScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = modifier
     ) { paddingValues ->
+        val groupedSpecs = remember(uiState.specs) {
+            uiState.specs.groupBy { it.groupName.uppercase(Locale.US) }
+        }
+
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -448,7 +453,6 @@ fun CreateSiteScreen(
                 }
             }
 
-            val groupedSpecs = uiState.specs.groupBy { it.groupName.uppercase() }
             groupedSpecs.entries.forEachIndexed { groupIndex, (groupName, specItems) ->
                 item(key = "create_spec_group_${groupIndex}_$groupName") {
                     Card(

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -90,7 +91,6 @@ fun SiteListScreen(
     onSearchClick: () -> Unit,
     onImportClick: () -> Unit,
     onAddSiteClick: () -> Unit = {},
-    onSeedSampleData: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val pagedSites = viewModel.pagedSites.collectAsLazyPagingItems()
@@ -257,7 +257,7 @@ fun SiteListScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp)
                         ) {
-                            items(searchResults, key = { it.site.sapId }) { item ->
+                            itemsIndexed(searchResults, key = { index, item -> "${item.site.sapId}_$index" }) { _, item ->
                                 SiteCard(
                                     site = item.site,
                                     distanceInfo = item.distanceInfo,
@@ -285,8 +285,7 @@ fun SiteListScreen(
                         }
                         pagedSites.itemCount == 0 && pagedSites.loadState.refresh !is LoadState.Loading -> {
                             EmptySitesView(
-                                onImportClick = onImportClick,
-                                onSeedClick = onSeedSampleData
+                                onImportClick = onImportClick
                             )
                         }
                         else -> {
@@ -547,8 +546,7 @@ private fun EmptySearchResultsView(
 
 @Composable
 private fun EmptySitesView(
-    onImportClick: () -> Unit,
-    onSeedClick: () -> Unit
+    onImportClick: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -585,16 +583,6 @@ private fun EmptySitesView(
             shape = RoundedCornerShape(8.dp)
         ) {
             Text("Import Excel / CSV Master", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-        }
-        Spacer(modifier = Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = onSeedClick,
-            modifier = Modifier
-                .fillMaxWidth(0.85f)
-                .height(48.dp),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text("Load Sample Dataset")
         }
     }
 }

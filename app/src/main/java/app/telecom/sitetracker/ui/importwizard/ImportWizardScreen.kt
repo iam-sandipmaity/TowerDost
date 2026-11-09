@@ -332,7 +332,7 @@ private fun StepSelectSheet(
         Spacer(modifier = Modifier.height(16.dp))
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(uiState.sheets.size) { index ->
+            items(uiState.sheets.size, key = { uiState.sheets[it].name }) { index ->
                 val sheet = uiState.sheets[index]
                 val isSelected = sheet.name == uiState.selectedSheet?.name
                 Card(
@@ -512,7 +512,10 @@ private fun StepMapColumns(
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            itemsIndexed(uiState.columnMappings) { index, mapping ->
+            itemsIndexed(
+                items = uiState.columnMappings,
+                key = { index, mapping -> "col_map_${mapping.columnIndex}_${mapping.sourceHeader}_$index" }
+            ) { index, mapping ->
                 ColumnMappingItem(
                     mapping = mapping,
                     onToggleSelected = { isIncluded -> onToggleColumn(index, isIncluded) },

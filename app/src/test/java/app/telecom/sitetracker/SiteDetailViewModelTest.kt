@@ -236,62 +236,84 @@ class SiteDetailViewModelTest {
     }
 
     @Test
-    fun testUniversalFieldsMergedWithSiteSpecificSpecs() {
+    fun testExistingSiteSpecsAreUsedExclusivelyWithoutPlaceholderPollution() {
         val actualSapId = "WB-KOL-1001"
-        // Site has existing specific recorded fields
+        // Site has existing specific recorded fields from Excel
         val recordedFields = listOf(
             SiteFieldEntity(id = 101L, sapId = actualSapId, fieldKey = "SMPS MAKE & MODEL", fieldValue = "Delta 48V 100A", groupName = "POWER", sortOrder = 1),
             SiteFieldEntity(id = 102L, sapId = actualSapId, fieldKey = "CUSTOM SITE NOTE", fieldValue = "Guard present 24/7", groupName = "ACCESS", sortOrder = 2)
         )
 
-        // Universal template has global fields
+        // Universal template has global fields (e.g. DG RATING KVA, BATTERY BANK CAPACITY)
         val universalFields = listOf(
             UniversalFieldEntity(fieldKey = "SMPS MAKE & MODEL", groupName = "POWER", defaultValue = null, sortOrder = 1),
             UniversalFieldEntity(fieldKey = "DG RATING KVA", groupName = "DG", defaultValue = "15 KVA", sortOrder = 2),
             UniversalFieldEntity(fieldKey = "BATTERY BANK CAPACITY", groupName = "BATTERY", defaultValue = null, sortOrder = 3)
         )
 
-        // Merge logic
-        val mergedFields = recordedFields.toMutableList()
-        for (uni in universalFields) {
-            if (mergedFields.none { it.fieldKey.equals(uni.fieldKey, ignoreCase = true) }) {
-                mergedFields.add(
-                    SiteFieldEntity(
-                        id = 0L,
-                        sapId = actualSapId,
-                        fieldKey = uni.fieldKey,
-                        fieldValue = uni.defaultValue,
-                        groupName = uni.groupName,
-                        sortOrder = uni.sortOrder
-                    )
+        // Policy: When recorded fields exist, use them exclusively to prevent repetitive blank placeholders
+        val activeFields = if (recordedFields.isNotEmpty()) {
+            recordedFields
+        } else {
+            universalFields.map { uni ->
+                SiteFieldEntity(
+                    id = 0L,
+                    sapId = actualSapId,
+                    fieldKey = uni.fieldKey,
+                    fieldValue = uni.defaultValue,
+                    groupName = uni.groupName,
+                    sortOrder = uni.sortOrder
                 )
             }
         }
 
         // Assertions:
-        // 1. Total fields = 4 (1 common preserved, 1 site-specific, 2 universal placeholders added)
-        assertEquals(4, mergedFields.size)
+        // 1. Exactly the 2 recorded fields, NO blank placeholders injected
+        assertEquals(2, activeFields.size)
 
-        // 2. Existing site field value is NOT overridden
-        val smpsField = mergedFields.first { it.fieldKey.equals("SMPS MAKE & MODEL", ignoreCase = true) }
+        // 2. Existing site field values preserved exactly
+        val smpsField = activeFields.first { it.fieldKey.equals("SMPS MAKE & MODEL", ignoreCase = true) }
         assertEquals("Delta 48V 100A", smpsField.fieldValue)
         assertEquals(101L, smpsField.id)
 
-        // 3. New universal fields are added with id = 0L and default values
-        val dgField = mergedFields.first { it.fieldKey.equals("DG RATING KVA", ignoreCase = true) }
-        assertEquals(0L, dgField.id)
-        assertEquals("15 KVA", dgField.fieldValue)
-        assertEquals("DG", dgField.groupName)
+        // 3. No repetitive/blank DG or Battery placeholders injected
+        assertFalse(activeFields.any { it.fieldKey.contains("BATTERY") })
+        assertFalse(activeFields.any { it.fieldKey.contains("DG") })
+    }
 
-        val batteryField = mergedFields.first { it.fieldKey.equals("BATTERY BANK CAPACITY", ignoreCase = true) }
-        assertEquals(0L, batteryField.id)
-        assertNull(batteryField.fieldValue)
-        assertEquals("BATTERY", batteryField.groupName)
+    @Test
+    fun testEmptySiteInheritsUniversalTemplateBlueprint() {
+        val actualSapId = "WB-KOL-9999"
+        // New site with NO recorded fields
+        val recordedFields = emptyList<SiteFieldEntity>()
 
-        // 4. Custom site-specific field is preserved
-        val customField = mergedFields.first { it.fieldKey.equals("CUSTOM SITE NOTE", ignoreCase = true) }
-        assertEquals("Guard present 24/7", customField.fieldValue)
-        assertEquals("ACCESS", customField.groupName)
+        // Universal template has global fields
+        val universalFields = listOf(
+            UniversalFieldEntity(fieldKey = "SMPS MAKE & MODEL", groupName = "POWER", defaultValue = null, sortOrder = 1),
+            UniversalFieldEntity(fieldKey = "DG RATING KVA", groupName = "DG", defaultValue = "15 KVA", sortOrder = 2)
+        )
+
+        val activeFields = if (recordedFields.isNotEmpty()) {
+            recordedFields
+        } else {
+            universalFields.map { uni ->
+                SiteFieldEntity(
+                    id = 0L,
+                    sapId = actualSapId,
+                    fieldKey = uni.fieldKey,
+                    fieldValue = uni.defaultValue,
+                    groupName = uni.groupName,
+                    sortOrder = uni.sortOrder
+                )
+            }
+        }
+
+        // Empty site inherits blueprint
+        assertEquals(2, activeFields.size)
+        assertEquals("SMPS MAKE & MODEL", activeFields[0].fieldKey)
+        assertNull(activeFields[0].fieldValue)
+        assertEquals("DG RATING KVA", activeFields[1].fieldKey)
+        assertEquals("15 KVA", activeFields[1].fieldValue)
     }
 
     @Test

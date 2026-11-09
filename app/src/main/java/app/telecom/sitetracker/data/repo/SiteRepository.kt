@@ -50,24 +50,46 @@ class SiteRepository(private val db: AppDatabase) {
     }
 
     /**
-     * Searches sites using full-text search with fallback to direct substring matching.
+     * Searches sites using direct SQL matching across core attributes and equipment specs,
+     * combined with tokenized full-text search (FTS).
+     * Returns all matching sites deduplicated by sapId, ordered by relevance.
      */
     suspend fun searchSites(query: String): List<SiteEntity> {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return emptyList()
 
-        return try {
-            val sanitized = trimmed.replace("\"", "\"\"")
-            val results = siteDao.searchFts("*$sanitized*")
-            if (results.isNotEmpty()) {
-                results.distinctBy { it.sapId }
+        val normalizedQuery = SiteEntity.normalize(trimmed)
+
+        // 1. Direct search querying sites table and site_fields specs table
+        val directResults = try {
+            siteDao.searchDirect(trimmed, normalizedQuery)
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        // 2. Full-Text Search across aggregated specs, address, name
+        val ftsResults = try {
+            val ftsQuery = buildFtsQuery(trimmed)
+            if (ftsQuery.isNotBlank()) {
+                siteDao.searchFts(ftsQuery)
             } else {
-                siteDao.searchDirect(trimmed).distinctBy { it.sapId }
+                emptyList()
             }
         } catch (_: Exception) {
-            // If FTS fails (e.g. SQLite syntax query error with dashes or asterisks), fallback
-            siteDao.searchDirect(trimmed).distinctBy { it.sapId }
+            emptyList()
         }
+
+        // Combine direct results (prioritized by exact/prefix ranking) with FTS matches
+        val combined = LinkedHashMap<String, SiteEntity>()
+        for (site in directResults) {
+            combined[site.sapId] = site
+        }
+        for (site in ftsResults) {
+            if (!combined.containsKey(site.sapId)) {
+                combined[site.sapId] = site
+            }
+        }
+        return combined.values.toList()
     }
 
     /**
@@ -266,6 +288,14 @@ class SiteRepository(private val db: AppDatabase) {
 
     suspend fun deleteSampleSites() {
         siteDao.deleteSampleSites()
+        siteDao.deleteSampleFts()
+        fieldDao.deleteSampleFields()
+        val totalSites = siteDao.getActiveSiteCount()
+        if (totalSites == 0) {
+            universalFieldDao.clearAll()
+        } else {
+            syncUniversalTemplateFromSites()
+        }
     }
 
     suspend fun deleteAllSites() {
@@ -345,5 +375,38 @@ class SiteRepository(private val db: AppDatabase) {
 
     suspend fun replaceAllUniversalFields(fields: List<UniversalFieldEntity>) {
         universalFieldDao.replaceAll(fields)
+    }
+
+    suspend fun rebuildFtsIndex() {
+        try {
+            siteDao.clearFts()
+            val allSites = siteDao.getAllActiveSitesList()
+            if (allSites.isEmpty()) return
+            val allFields = fieldDao.getAllFields().groupBy { it.sapId }
+            val ftsList = allSites.map { site ->
+                val fields = allFields[site.sapId] ?: emptyList()
+                val fieldText = fields.joinToString(" ") { "${it.fieldKey} ${it.fieldValue ?: ""}" }
+                SiteFts(
+                    sapNorm = site.sapNorm,
+                    name = site.name,
+                    address = site.address ?: site.city ?: site.district,
+                    fieldText = fieldText
+                )
+            }
+            siteDao.insertFts(ftsList)
+        } catch (_: Exception) {
+            // Defensive against storage lock
+        }
+    }
+
+    companion object {
+        fun buildFtsQuery(raw: String): String {
+            // Strip out SQLite FTS operator symbols to avoid syntax errors: ", *, -, :, ^, (, )
+            val cleaned = raw.replace(Regex("[^a-zA-Z0-9\\s]"), " ").trim()
+            val tokens = cleaned.split(Regex("\\s+")).filter { it.isNotBlank() }
+            if (tokens.isEmpty()) return ""
+            // Append * suffix wildcard to each token for prefix matching
+            return tokens.joinToString(" ") { "$it*" }
+        }
     }
 }

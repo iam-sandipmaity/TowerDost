@@ -455,7 +455,7 @@ fun ToolsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Removes sample demo sites (DEL, MUM, BLR) and leaves real imported sites and logs intact.",
+                        text = "Removes any residual sample demo sites and logs, leaving your real imported sites and data intact.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

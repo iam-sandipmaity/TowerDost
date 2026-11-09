@@ -135,7 +135,15 @@ fun SearchScreen(
                     }
                 )
 
-                if (uiState.detectedCoordinates != null) {
+                if (uiState.results.isNotEmpty()) {
+                    Text(
+                        text = "${uiState.results.size} sites found",
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else if (uiState.detectedCoordinates != null) {
                     val (lat, lng) = uiState.detectedCoordinates!!
                     Text(
                         text = "GPS: %.4f, %.4f".format(lat, lng),
