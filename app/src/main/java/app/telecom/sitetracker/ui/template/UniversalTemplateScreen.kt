@@ -121,7 +121,7 @@ fun UniversalTemplateScreen(
                             )
                         }
                     }
-                    if (uiState.siteSpecsAvailableCount > 0) {
+                    if (uiState.selectedTabId == "SPECS" && uiState.siteSpecsAvailableCount > 0) {
                         IconButton(
                             onClick = { viewModel.requestSyncFromSites() },
                             modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
@@ -308,7 +308,8 @@ fun UniversalTemplateScreen(
                             OutlinedButton(
                                 onClick = { viewModel.startAddSection() },
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.sizeIn(minHeight = 48.dp)
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -455,12 +456,12 @@ fun UniversalTemplateScreen(
                                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        if (uiState.siteSpecsAvailableCount > 0) {
+                                        if (uiState.selectedTabId == "SPECS" && uiState.siteSpecsAvailableCount > 0) {
                                             Button(
                                                 onClick = { viewModel.requestSyncFromSites() },
                                                 colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
                                                 shape = RoundedCornerShape(8.dp),
-                                                modifier = Modifier.sizeIn(minHeight = 44.dp)
+                                                modifier = Modifier.sizeIn(minHeight = 48.dp)
                                             ) {
                                                 Icon(Icons.Default.Sync, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
                                                 Spacer(modifier = Modifier.width(6.dp))
@@ -476,7 +477,7 @@ fun UniversalTemplateScreen(
                                         OutlinedButton(
                                             onClick = { viewModel.startAddSection() },
                                             shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.sizeIn(minHeight = 44.dp)
+                                            modifier = Modifier.sizeIn(minHeight = 48.dp)
                                         ) {
                                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -1304,7 +1305,7 @@ private fun AddUniversalTabDialog(
                 onClick = { onConfirm(tabName) },
                 enabled = tabName.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
-                modifier = Modifier.sizeIn(minHeight = 44.dp)
+                modifier = Modifier.sizeIn(minHeight = 48.dp)
             ) {
                 Text("Create Tab", color = Color.Black, fontWeight = FontWeight.Bold)
             }
@@ -1312,7 +1313,7 @@ private fun AddUniversalTabDialog(
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
-                modifier = Modifier.sizeIn(minHeight = 44.dp)
+                modifier = Modifier.sizeIn(minHeight = 48.dp)
             ) {
                 Text("Cancel")
             }
