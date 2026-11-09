@@ -5,6 +5,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import app.telecom.sitetracker.data.db.AppDatabase
 import app.telecom.sitetracker.data.db.PopulatedCoreFields
+import app.telecom.sitetracker.data.entity.IncidentPhotoEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.entity.SiteFts
@@ -26,6 +27,7 @@ class SiteRepository(private val db: AppDatabase) {
     private val siteDao = db.siteDao()
     private val fieldDao = db.fieldDao()
     private val universalFieldDao = db.universalFieldDao()
+    private val incidentDao = db.incidentDao()
 
     fun observeActiveSites(): Flow<List<SiteEntity>> = siteDao.getAllActiveSites()
 
@@ -40,6 +42,17 @@ class SiteRepository(private val db: AppDatabase) {
 
     suspend fun getFieldsForSite(sapId: String): List<SiteFieldEntity> =
         fieldDao.getFieldsForSite(sapId)
+
+    fun observePhotosForSite(sapId: String): Flow<List<IncidentPhotoEntity>> =
+        incidentDao.getPhotosForSite(sapId)
+
+    suspend fun addSitePhoto(photo: IncidentPhotoEntity) {
+        incidentDao.insertPhoto(photo)
+    }
+
+    suspend fun deleteSitePhoto(photoId: String) {
+        incidentDao.deletePhoto(photoId)
+    }
 
     fun countActiveSites(): Flow<Int> = siteDao.countActiveSites()
 

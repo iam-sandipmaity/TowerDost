@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.telecom.sitetracker.data.entity.IncidentEntity
+import app.telecom.sitetracker.data.entity.IncidentPhotoEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.export.Exporter
@@ -34,6 +35,8 @@ data class SiteDetailUiState(
     val isLoading: Boolean = true,
     val site: SiteEntity? = null,
     val groupedSpecs: Map<String, List<SiteFieldEntity>> = emptyMap(),
+    val overviewCustomFields: List<SiteFieldEntity> = emptyList(),
+    val sitePhotos: List<IncidentPhotoEntity> = emptyList(),
     val contactPhone: String? = null,
     val incidents: List<IncidentEntity> = emptyList(),
     val openOutage: IncidentEntity? = null,
@@ -74,6 +77,36 @@ class SiteDetailViewModel(
         loadSiteDetails()
         observeIncidents()
         observeUniversalTemplate()
+        observeSitePhotos()
+    }
+
+    private fun observeSitePhotos() {
+        viewModelScope.launch {
+            siteRepository.observePhotosForSite(sapId).collect { photos ->
+                _uiState.update { it.copy(sitePhotos = photos) }
+            }
+        }
+    }
+
+    fun addSitePhoto(relPath: String, caption: String? = null, bytes: Long? = null) {
+        viewModelScope.launch {
+            val photo = IncidentPhotoEntity(
+                id = java.util.UUID.randomUUID().toString(),
+                incidentId = "SITE_$sapId",
+                sapId = sapId,
+                relPath = relPath,
+                caption = caption,
+                takenAt = System.currentTimeMillis(),
+                bytes = bytes
+            )
+            siteRepository.addSitePhoto(photo)
+        }
+    }
+
+    fun deleteSitePhoto(photoId: String) {
+        viewModelScope.launch {
+            siteRepository.deleteSitePhoto(photoId)
+        }
     }
 
     private fun observeUniversalTemplate() {
@@ -606,11 +639,20 @@ class SiteDetailViewModel(
                     }
                 }
 
-                // Detect contact phone number from specs
-                val phoneField = activeFields.firstOrNull { field ->
+                // Separate Overview / Utility custom attributes from technical equipment specs
+                val overviewCustom = activeFields.filter {
+                    it.groupName.equals("OVERVIEW", ignoreCase = true)
+                }
+                val techSpecs = activeFields.filterNot {
+                    it.groupName.equals("OVERVIEW", ignoreCase = true)
+                }
+
+                // Detect contact phone number from specs and overview attributes
+                val phoneField = (overviewCustom + techSpecs).firstOrNull { field ->
                     val k = field.fieldKey.lowercase()
-                    (k.contains("number") || k.contains("phone") || k.contains("mobile") || k.contains("tech no")) &&
-                            field.fieldValue?.any { it.isDigit() } == true
+                    (k.contains("number") || k.contains("phone") || k.contains("mobile") ||
+                     k.contains("contact") || k.contains("landlord") || k.contains("lead") ||
+                     k.contains("tech")) && field.fieldValue?.any { it.isDigit() } == true
                 }
                 val phone = phoneField?.fieldValue?.filter { it.isDigit() || it == '+' }
 
@@ -628,8 +670,8 @@ class SiteDetailViewModel(
                     u.fieldKey.trim().uppercase(java.util.Locale.US) to idx
                 }.toMap()
 
-                // Group specs by groupName preserving template hierarchy
-                val rawGrouped = activeFields.groupBy { it.groupName?.trim()?.ifBlank { "General Specifications" } ?: "General Specifications" }
+                // Group specs by groupName preserving template hierarchy (excluding OVERVIEW group)
+                val rawGrouped = techSpecs.groupBy { it.groupName?.trim()?.ifBlank { "General Specifications" } ?: "General Specifications" }
 
                 // Sort section categories according to universal template
                 val sortedGroupEntries = rawGrouped.entries.sortedWith(
@@ -653,6 +695,7 @@ class SiteDetailViewModel(
                         isLoading = false,
                         site = site,
                         groupedSpecs = grouped,
+                        overviewCustomFields = overviewCustom,
                         contactPhone = phone
                     )
                 }

@@ -904,9 +904,11 @@ private fun ColumnMappingCard(
                             .padding(end = 8.dp)
                     ) {
                         Text(
-                            text = if (mapping.isExistingInDatabase) "Updates existing records" else "New specification entry",
+                            text = if (mapping.isExistingInDatabase) "Updates existing records" else "New attribute to import",
                             style = MaterialTheme.typography.bodySmall,
                             fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
@@ -927,28 +929,32 @@ private fun ColumnMappingCard(
 
                     // Target Field Selector Button with Dropdown
                     Box {
+                        val isOverviewGroup = mapping.targetField == TargetField.CUSTOM_SPEC &&
+                                mapping.specGroup.equals("OVERVIEW", ignoreCase = true)
                         Surface(
                             onClick = { isExpanded = true },
                             shape = RoundedCornerShape(6.dp),
                             modifier = Modifier.sizeIn(minHeight = 40.dp),
                             border = BorderStroke(
                                 1.dp,
-                                when (mapping.targetField) {
-                                    TargetField.IGNORE -> MaterialTheme.colorScheme.outlineVariant
-                                    TargetField.CUSTOM_SPEC -> RFCyan.copy(alpha = 0.8f)
+                                when {
+                                    mapping.targetField == TargetField.IGNORE -> MaterialTheme.colorScheme.outlineVariant
+                                    isOverviewGroup -> StatusRestoredGreen.copy(alpha = 0.8f)
+                                    mapping.targetField == TargetField.CUSTOM_SPEC -> RFCyan.copy(alpha = 0.8f)
                                     else -> TelecomAmber.copy(alpha = 0.8f)
                                 }
                             ),
-                            color = when (mapping.targetField) {
-                                TargetField.IGNORE -> Color.Transparent
-                                TargetField.CUSTOM_SPEC -> RFCyan.copy(alpha = 0.12f)
+                            color = when {
+                                mapping.targetField == TargetField.IGNORE -> Color.Transparent
+                                isOverviewGroup -> StatusRestoredGreen.copy(alpha = 0.12f)
+                                mapping.targetField == TargetField.CUSTOM_SPEC -> RFCyan.copy(alpha = 0.12f)
                                 else -> TelecomAmber.copy(alpha = 0.12f)
                             }
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .widthIn(max = 200.dp)
+                                    .widthIn(max = 210.dp)
                                     .padding(horizontal = 8.dp, vertical = 6.dp)
                             ) {
                                 Text(
@@ -961,9 +967,10 @@ private fun ColumnMappingCard(
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.sp,
-                                        color = when (mapping.targetField) {
-                                            TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
-                                            TargetField.CUSTOM_SPEC -> RFCyan
+                                        color = when {
+                                            mapping.targetField == TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
+                                            isOverviewGroup -> StatusRestoredGreen
+                                            mapping.targetField == TargetField.CUSTOM_SPEC -> RFCyan
                                             else -> TelecomAmber
                                         }
                                     ),
@@ -975,9 +982,10 @@ private fun ColumnMappingCard(
                                 Icon(
                                     imageVector = Icons.Default.ArrowDropDown,
                                     contentDescription = "Select target field",
-                                    tint = when (mapping.targetField) {
-                                        TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        TargetField.CUSTOM_SPEC -> RFCyan
+                                    tint = when {
+                                        mapping.targetField == TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        isOverviewGroup -> StatusRestoredGreen
+                                        mapping.targetField == TargetField.CUSTOM_SPEC -> RFCyan
                                         else -> TelecomAmber
                                     },
                                     modifier = Modifier.size(16.dp)
@@ -998,8 +1006,30 @@ private fun ColumnMappingCard(
                             )
                             HorizontalDivider()
                             Text(
+                                text = "OVERVIEW & UTILITY ATTRIBUTES",
+                                style = MaterialTheme.typography.labelSmall.copy(color = StatusRestoredGreen, fontWeight = FontWeight.Bold),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
+                            listOf(
+                                "Overview (Direct)" to mapping.sourceHeader,
+                                "Consumer ID" to "Consumer ID",
+                                "Installation No" to "Installation No",
+                                "Meter No" to "Meter No",
+                                "CA / Account No" to "CA No",
+                                "Landlord / Contact" to mapping.sourceHeader
+                            ).forEach { (displayLabel, fieldKey) ->
+                                DropdownMenuItem(
+                                    text = { Text("Overview • $displayLabel") },
+                                    onClick = {
+                                        onTargetChanged(TargetField.CUSTOM_SPEC, "OVERVIEW", fieldKey)
+                                        isExpanded = false
+                                    }
+                                )
+                            }
+                            HorizontalDivider()
+                            Text(
                                 text = "CORE SITE ATTRIBUTES",
-                                style = MaterialTheme.typography.labelSmall.copy(color = TelecomAmber),
+                                style = MaterialTheme.typography.labelSmall.copy(color = TelecomAmber, fontWeight = FontWeight.Bold),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             )
                             listOf(
@@ -1026,12 +1056,13 @@ private fun ColumnMappingCard(
                             HorizontalDivider()
                             Text(
                                 text = "EQUIPMENT SPECIFICATIONS",
-                                style = MaterialTheme.typography.labelSmall.copy(color = RFCyan),
+                                style = MaterialTheme.typography.labelSmall.copy(color = RFCyan, fontWeight = FontWeight.Bold),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             )
                             listOf(
                                 "POWER",
                                 "BATTERY",
+                                "SOLAR",
                                 "DG",
                                 "RAN",
                                 "TRANSMISSION",

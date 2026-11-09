@@ -6,7 +6,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20%2B%20Material%203-0A0E17?style=flat&logo=jetpackcompose&logoColor=4285F4)](https://developer.android.com/jetpack/compose)
 [![Room Database](https://img.shields.io/badge/Database-Room%202.6%20%2B%20SQLite%20FTS4-0A0E17?style=flat&logo=sqlite&logoColor=003B57)](https://developer.android.com/training/data-storage/room)
 [![Offline Security](https://img.shields.io/badge/Network-Zero%20Internet%20Permission-10B981?style=flat&logo=shield&logoColor=white)](#offline-only-guarantee)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-118%20Passing-10B981?style=flat)](app/src/test)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-123%20Passing-10B981?style=flat)](app/src/test)
 
 ---
 
@@ -38,6 +38,12 @@ In intense outdoor conditions—monsoons, remote rural deadzones, intense tropic
 - **Direct Navigation & Dialing:** Launches device GPS navigation (`geo:lat,lng`) and calls local site technicians with 1-tap.
 
 ### 2. Technical Specifications & Master Overview Editor
+- **Separation of Overview & Equipment Specs:** Administrative and utility identifiers (Consumer ID, Installation No, EB Meter No, CA No, Discom, Landlord) are neatly housed under the **Overview** tab, keeping technical equipment tabs focused solely on engineering gear.
+- **Field Engineering Utilities & 1-Tap Actions:**
+  - **Quick WhatsApp/SMS Share Sheet:** Direct `Share via App` button pre-fills a formatted site card (SAP ID, Location, GPS, Tech, Status, Utility numbers) straight into Android's native share sheet.
+  - **1-Tap Direct Dialer:** Automatic phone number detection for Landlords, Caretakers, Security Guards, and Cluster Leads with a direct green Call button (`ACTION_DIAL`) right on the row.
+  - **Offline Photo Attachments:** Attach up to 3 local photos (meter reading, DG fuel gauge, SMPS alarm panel) stored in app-private storage with memory-safe downscaled thumbnails.
+  - **1-Tap Copy on All Overview Rows:** Every attribute can be tapped or clicked to copy directly to the system clipboard.
 - **47+ Technical Equipment Attributes:** Deep visibility into Power (SMPS capacity, modules, EB phase), Generator (DG KVA, fuel level, controller), Battery (type, AH capacity, string count), Transmission (MW hops, OFC ring), and Radio (antenna azimuth, tilt, tenancy).
 - **Accidental-Edit Safeguards:** 
   - Overview data is **locked by default** against accidental thumb-taps while moving.
@@ -57,7 +63,7 @@ In intense outdoor conditions—monsoons, remote rural deadzones, intense tropic
 ### 4. Dynamic Multi-Spec Filtering & VLOOKUP Merger
 - **Configurable Dynamic Filters:** Filter sites by up to 4 arbitrary core or equipment attributes (e.g., Circle, DG Rating, SMPS Make).
 - **Conjunction / Disjunction Matching Mode:** 1-tap toggle between `Match All (AND)` (must satisfy every active filter) and `Match Any (OR)` (matches if at least one filter applies).
-- **Offline VLOOKUP Sheet Merger:** Non-destructive batch merging of external spreadsheets against existing tower records using SAP ID or Tower Name matching keys. Intelligent 2-tier stacked mapping interface with sample previews.
+- **Offline VLOOKUP Sheet Merger with Flexible Routing:** Non-destructive batch merging of external spreadsheets against existing tower records. Choose destination routing for each column (`CORE ATTRIBUTES`, `OVERVIEW & UTILITY`, or `EQUIPMENT SPECIFICATIONS`). Intelligent 2-tier stacked mapping cards with sample previews, distinct color tags, and zero text crowding.
 
 ### 5. Real-Time Outage & Activity Logger
 - **Flexible Logging Categories:**

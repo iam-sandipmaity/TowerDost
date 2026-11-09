@@ -104,6 +104,11 @@ class VlookupEngine(
         private fun inferSpecGroup(header: String): String {
             val h = header.uppercase(Locale.ROOT)
             return when {
+                h.contains("CONSUMER") || h.contains("INSTALLATION") || h.contains("METER") ||
+                h.contains("CA NO") || h.contains("CA NUMBER") || h.contains("ACCOUNT") ||
+                h.contains("DISCOM") || h.contains("LANDLORD") || h.contains("CARETAKER") ||
+                h.contains("LEAD") || h.contains("SUBSTATION") -> "OVERVIEW"
+                h.contains("SOLAR") || h.contains("MPPT") -> "SOLAR"
                 h.contains("DG") || h.contains("DIESEL") || h.contains("GENSET") || h.contains("FUEL") -> "DG"
                 h.contains("BATT") || h.contains("SOH") || h.contains("AH") || h.contains("LITHIUM") || h.contains("VRLA") -> "BATTERY"
                 h.contains("SMPS") || h.contains("RECTIFIER") || h.contains("POWER") || h.contains("EB") || h.contains("TRANSFORMER") -> "POWER"

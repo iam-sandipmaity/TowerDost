@@ -152,6 +152,7 @@ object ColumnMapper {
         if (!parentHeader.isNullOrBlank()) {
             val parentUpper = parentHeader.trim().uppercase(Locale.US)
             when {
+                parentUpper.contains("OVERVIEW") || parentUpper.contains("UTILITY") || parentUpper.contains("ADMIN") -> return "OVERVIEW"
                 parentUpper.contains("SMPS") -> return "SMPS"
                 parentUpper.contains("BM") || parentUpper.contains("BATTERY") -> return "Battery Bank"
                 parentUpper.contains("RM") || parentUpper.contains("RECTIFIER") -> return "Rectifier Module"
@@ -165,6 +166,21 @@ object ColumnMapper {
 
         val upper = header.uppercase(Locale.US)
         return when {
+            // Administrative, utility & landlord identifiers route to Overview
+            upper.contains("CONSUMER") ||
+            upper.contains("INSTALLATION") ||
+            upper.contains("METER") ||
+            upper.contains("CA NO") ||
+            upper.contains("CA NUMBER") ||
+            upper.contains("ACCOUNT NO") ||
+            upper.contains("ACCOUNT NUMBER") ||
+            upper.contains("DISCOM") ||
+            upper.contains("LANDLORD") ||
+            upper.contains("CARETAKER") ||
+            upper.contains("SECURITY GUARD") ||
+            upper.contains("CLUSTER LEAD") ||
+            upper.contains("SUBSTATION") -> "OVERVIEW"
+
             upper.contains("SMPS") -> "SMPS"
             upper.contains("BATTERY") || upper.contains("BM ") || upper.startsWith("BM") || upper.contains("BB ") -> "Battery Bank"
             upper.contains("RECTIFIER") || upper.contains("RM ") || upper.startsWith("RM") -> "Rectifier Module"

@@ -67,6 +67,9 @@ interface IncidentDao {
     @Query("SELECT * FROM incident_photos WHERE incident_id = :incidentId ORDER BY taken_at ASC")
     fun getPhotosForIncident(incidentId: String): Flow<List<IncidentPhotoEntity>>
 
+    @Query("SELECT * FROM incident_photos WHERE sap_id = :sapId ORDER BY taken_at DESC")
+    fun getPhotosForSite(sapId: String): Flow<List<IncidentPhotoEntity>>
+
     @Query("SELECT * FROM incident_photos ORDER BY taken_at ASC")
     suspend fun getAllPhotos(): List<IncidentPhotoEntity>
 

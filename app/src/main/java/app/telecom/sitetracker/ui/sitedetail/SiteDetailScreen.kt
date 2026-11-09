@@ -4,9 +4,14 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,11 +30,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -38,6 +46,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Photo
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
@@ -64,6 +73,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -71,9 +81,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,9 +94,12 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.telecom.sitetracker.R
 import app.telecom.sitetracker.data.entity.IncidentEntity
+import app.telecom.sitetracker.data.entity.IncidentPhotoEntity
 import kotlinx.coroutines.launch
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
+import app.telecom.sitetracker.util.BitmapUtils
+import java.io.File
 import app.telecom.sitetracker.ui.components.EnterpriseListRow
 import app.telecom.sitetracker.ui.components.EnterpriseSegmentedControl
 import app.telecom.sitetracker.ui.components.EnterpriseTopBar
@@ -213,7 +229,7 @@ fun SiteDetailScreen(
                     IconButton(
                         onClick = {
                             val site = uiState.site ?: return@IconButton
-                            shareSiteDetails(context, site, uiState.groupedSpecs)
+                            shareSiteDetails(context, site, uiState.groupedSpecs, uiState.overviewCustomFields)
                         }
                     ) {
                         Icon(
@@ -376,7 +392,8 @@ fun SiteDetailScreen(
                         onCopySpec = { key, value ->
                             copyToClipboard(context, key, value)
                             scope.launch { snackbarHostState.showSnackbar("Copied $key to clipboard") }
-                        }
+                        },
+                        onCallPhone = { phone -> launchCall(context, phone) }
                     )
                     1 -> SiteLogsTab(
                         logs = uiState.incidents,
@@ -387,6 +404,8 @@ fun SiteDetailScreen(
                     )
                     2 -> OverviewTab(
                         site = site,
+                        customOverview = uiState.overviewCustomFields,
+                        sitePhotos = uiState.sitePhotos,
                         isEditMode = uiState.isEditMode,
                         isEditing = uiState.isEditingOverview,
                         draft = uiState.draftOverview ?: site,
@@ -394,6 +413,9 @@ fun SiteDetailScreen(
                         onCancelEdit = { viewModel.cancelEditingOverview() },
                         onDraftChange = { transform -> viewModel.updateOverviewDraft(transform) },
                         onSaveClick = { viewModel.requestSaveOverview() },
+                        onAddPhoto = { relPath -> viewModel.addSitePhoto(relPath) },
+                        onDeletePhoto = { photoId -> viewModel.deleteSitePhoto(photoId) },
+                        onCallPhone = { phone -> launchCall(context, phone) },
                         onCopy = { label, value ->
                             copyToClipboard(context, label, value)
                             scope.launch { snackbarHostState.showSnackbar("Copied $label to clipboard") }
@@ -852,7 +874,8 @@ private fun SpecsTab(
     onRemoveSpecItem: (sectionIndex: Int, tempId: String) -> Unit,
     onShowAddSection: () -> Unit,
     onRemoveSection: (sectionIndex: Int) -> Unit,
-    onCopySpec: (String, String) -> Unit
+    onCopySpec: (String, String) -> Unit,
+    onCallPhone: ((String) -> Unit)? = null
 ) {
     if (isEditingSpecs) {
         LazyColumn(
@@ -1188,7 +1211,8 @@ private fun SpecsTab(
                         ) { _, field ->
                             EnterpriseSpecRow(
                                 field = field,
-                                onCopy = { onCopySpec(field.fieldKey, field.fieldValue ?: "") }
+                                onCopy = { onCopySpec(field.fieldKey, field.fieldValue ?: "") },
+                                onCall = onCallPhone
                             )
                         }
                     }
@@ -1258,8 +1282,10 @@ private fun SpecEditRow(
 @Composable
 private fun EnterpriseSpecRow(
     field: SiteFieldEntity,
-    onCopy: () -> Unit
+    onCopy: () -> Unit,
+    onCall: ((String) -> Unit)? = null
 ) {
+    val detectedPhone = extractPhoneNumber(field.fieldKey, field.fieldValue)
     Surface(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
@@ -1291,16 +1317,34 @@ private fun EnterpriseSpecRow(
                     modifier = Modifier.weight(1f)
                 )
 
-                IconButton(
-                    onClick = onCopy,
-                    modifier = Modifier.size(32.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = "Copy ${field.fieldKey}",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                        modifier = Modifier.size(13.dp)
-                    )
+                    if (detectedPhone != null && onCall != null) {
+                        IconButton(
+                            onClick = { onCall(detectedPhone) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Call,
+                                contentDescription = "Call $detectedPhone",
+                                tint = StatusRestoredGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = onCopy,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy ${field.fieldKey}",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
                 }
             }
             HorizontalDivider(
@@ -1314,6 +1358,8 @@ private fun EnterpriseSpecRow(
 @Composable
 private fun OverviewTab(
     site: SiteEntity,
+    customOverview: List<SiteFieldEntity> = emptyList(),
+    sitePhotos: List<IncidentPhotoEntity> = emptyList(),
     isEditMode: Boolean,
     isEditing: Boolean,
     draft: SiteEntity,
@@ -1321,9 +1367,37 @@ private fun OverviewTab(
     onCancelEdit: () -> Unit,
     onDraftChange: ((SiteEntity) -> SiteEntity) -> Unit,
     onSaveClick: () -> Unit,
+    onAddPhoto: (String) -> Unit = {},
+    onDeletePhoto: (String) -> Unit = {},
+    onCallPhone: (String) -> Unit = {},
     onCopy: (String, String) -> Unit,
     onNavigateGps: (Double, Double, String) -> Unit
 ) {
+    val context = LocalContext.current
+    var previewPhoto by remember { mutableStateOf<IncidentPhotoEntity?>(null) }
+    var cameraCaptureUri by remember { mutableStateOf<Uri?>(null) }
+    var cameraCaptureFile by remember { mutableStateOf<File?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && cameraCaptureFile != null) {
+            val relPath = "photos/${cameraCaptureFile!!.name}"
+            onAddPhoto(relPath)
+        }
+    }
+
+    val pickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            val relPath = BitmapUtils.copyUriToPhotos(context, it)
+            if (relPath != null) {
+                onAddPhoto(relPath)
+            }
+        }
+    }
+
     if (isEditing) {
         Column(
             modifier = Modifier
@@ -1537,30 +1611,43 @@ private fun OverviewTab(
                     }
 
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
                             onClick = {
-                                val summary = buildSiteSummary(site)
+                                val summary = buildSiteSummary(site, customOverview)
                                 onCopy("Site Card", summary)
                             },
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Copy Card", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Copy Card", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                val summary = buildSiteSummary(site, customOverview)
+                                shareText(context, summary, "Site Card: ${site.sapId}")
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = TelecomAmber)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Share via App", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TelecomAmber)
                         }
 
                         OutlinedButton(
                             onClick = onStartEdit,
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text(if (isEditMode) "Edit Details" else "Unlock to Edit", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(if (isEditMode) "Edit" else "Unlock", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1568,15 +1655,15 @@ private fun OverviewTab(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            OverviewRow("Site Name", site.name ?: "—", onCopy = onCopy)
-            OverviewRow("Circle", site.circle ?: "—", onCopy = onCopy)
-            OverviewRow("Region", site.region ?: "—", onCopy = onCopy)
-            OverviewRow("District", site.district ?: "—", onCopy = onCopy)
-            OverviewRow("City / JC", site.city ?: "—", onCopy = onCopy)
-            OverviewRow("State", site.state ?: "—", onCopy = onCopy)
-            OverviewRow("Technology", site.technology ?: "—", onCopy = onCopy)
-            OverviewRow("Site Type", site.siteType ?: "—", onCopy = onCopy)
-            OverviewRow("Address", site.address ?: "—", onCopy = onCopy)
+            OverviewRow("Site Name", site.name ?: "—", onCopy = onCopy, onCall = onCallPhone)
+            OverviewRow("Circle", site.circle ?: "—", onCopy = onCopy, onCall = onCallPhone)
+            OverviewRow("Region", site.region ?: "—", onCopy = onCopy, onCall = onCallPhone)
+            OverviewRow("District", site.district ?: "—", onCopy = onCopy, onCall = onCallPhone)
+            OverviewRow("City / JC", site.city ?: "—", onCopy = onCopy, onCall = onCallPhone)
+            OverviewRow("State", site.state ?: "—", onCopy = onCopy, onCall = onCallPhone)
+            OverviewRow("Technology", site.technology ?: "—", onCopy = onCopy, onCall = onCallPhone)
+            OverviewRow("Site Type", site.siteType ?: "—", onCopy = onCopy, onCall = onCallPhone)
+            OverviewRow("Address", site.address ?: "—", onCopy = onCopy, onCall = onCallPhone)
             if (site.lat != null && site.lng != null) {
                 val coords = "${site.lat.format(5)}, ${site.lng.format(5)}"
                 val rawCoords = "${site.lat}, ${site.lng}"
@@ -1586,18 +1673,250 @@ private fun OverviewTab(
                     onCopy = { l, _ -> onCopy(l, rawCoords) },
                     onAction = { onNavigateGps(site.lat, site.lng, site.sapId) },
                     actionIcon = Icons.Default.NearMe,
-                    actionDescription = "Navigate to site"
+                    actionDescription = "Navigate to site",
+                    onCall = onCallPhone
                 )
             }
-            OverviewRow("Tags / Scope", site.tags ?: "—", onCopy = onCopy)
-            OverviewRow("Source File", site.sourceFile ?: "—", onCopy = onCopy)
+            OverviewRow("Tags / Scope", site.tags ?: "—", onCopy = onCopy, onCall = onCallPhone)
+            OverviewRow("Source File", site.sourceFile ?: "—", onCopy = onCopy, onCall = onCallPhone)
             if (site.updatedAt != null) {
-                OverviewRow("Last Updated", Dates.formatDateTime(site.updatedAt), onCopy = onCopy)
+                OverviewRow("Last Updated", Dates.formatDateTime(site.updatedAt), onCopy = onCopy, onCall = onCallPhone)
             }
             if (!site.notes.isNullOrBlank()) {
-                OverviewRow("Remarks", site.notes, onCopy = onCopy)
+                OverviewRow("Remarks", site.notes, onCopy = onCopy, onCall = onCallPhone)
             }
+
+            // Dedicated Overview Custom Attributes (e.g. Consumer ID, Meter No, Installation No, Landlord)
+            if (customOverview.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "ADMINISTRATIVE & UTILITY ATTRIBUTES (${customOverview.size})",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = StatusRestoredGreen,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        )
+                    }
+                }
+
+                customOverview.forEach { field ->
+                    OverviewRow(
+                        label = field.fieldKey,
+                        value = field.fieldValue ?: "—",
+                        onCopy = onCopy,
+                        onCall = onCallPhone
+                    )
+                }
+            }
+
+            // Dedicated Offline Photo Attachments (Max 3 Photos: Meter, DG Fuel, SMPS Panels)
+            Spacer(modifier = Modifier.height(8.dp))
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "SITE & FIELD PHOTOS (${sitePhotos.size}/3)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = RFCyan,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    )
+                    Text(
+                        text = "Meter • DG • SMPS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (sitePhotos.size < 3) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val pair = BitmapUtils.createImageCaptureUri(context)
+                            cameraCaptureUri = pair.first
+                            cameraCaptureFile = pair.second
+                            cameraLauncher.launch(pair.first)
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Take Photo", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            pickerLauncher.launch("image/*")
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.Photo, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Pick Photo", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+
+            if (sitePhotos.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    sitePhotos.forEach { photo ->
+                        SitePhotoThumbnail(
+                            photo = photo,
+                            context = context,
+                            onPreview = { previewPhoto = photo },
+                            onDelete = { onDeletePhoto(photo.id) }
+                        )
+                    }
+                }
+            } else {
+                Text(
+                    text = "No site photos attached. Capture up to 3 local photos (meter reading, DG fuel gauge, SMPS alarm panel) stored securely offline.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
+
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+
+    // Full photo preview dialog
+    if (previewPhoto != null) {
+        val photo = previewPhoto!!
+        val file = File(context.filesDir, photo.relPath)
+        val fullBmpState = produceState<Bitmap?>(initialValue = null, key1 = photo.relPath) {
+            value = BitmapUtils.loadThumbnailBitmap(file, 1024)
+        }
+        AlertDialog(
+            onDismissRequest = { previewPhoto = null },
+            confirmButton = {
+                TextButton(onClick = { previewPhoto = null }) {
+                    Text("Close")
+                }
+            },
+            title = {
+                Text(
+                    text = "Site Photo • ${site.sapId}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val bmp = fullBmpState.value
+                    if (bmp != null) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = "Photo Preview",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(260.dp)
+                                .clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Fit
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = TelecomAmber)
+                        }
+                    }
+                    if (photo.takenAt != null) {
+                        Text(
+                            text = "Captured: ${Dates.formatDateTime(photo.takenAt)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SitePhotoThumbnail(
+    photo: IncidentPhotoEntity,
+    context: Context,
+    onPreview: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val bitmapState = produceState<Bitmap?>(initialValue = null, key1 = photo.relPath) {
+        val file = File(context.filesDir, photo.relPath)
+        value = BitmapUtils.loadThumbnailBitmap(file, 200)
+    }
+
+    Box(
+        modifier = Modifier
+            .size(88.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onPreview)
+    ) {
+        val bmp = bitmapState.value
+        if (bmp != null) {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = photo.caption ?: "Site Photo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = TelecomAmber)
+            }
+        }
+
+        IconButton(
+            onClick = onDelete,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(2.dp)
+                .size(24.dp)
+                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
+        ) {
+            Icon(Icons.Default.Close, contentDescription = "Remove photo", tint = Color.White, modifier = Modifier.size(14.dp))
         }
     }
 }
@@ -1609,9 +1928,11 @@ private fun OverviewRow(
     onCopy: ((label: String, value: String) -> Unit)? = null,
     onAction: (() -> Unit)? = null,
     actionIcon: ImageVector? = null,
-    actionDescription: String? = null
+    actionDescription: String? = null,
+    onCall: ((String) -> Unit)? = null
 ) {
     val canCopy = onCopy != null && value != "—" && value.isNotBlank()
+    val detectedPhone = extractPhoneNumber(label, value)
     Surface(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
@@ -1650,6 +1971,20 @@ private fun OverviewRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
+                    if (detectedPhone != null && onCall != null) {
+                        IconButton(
+                            onClick = { onCall(detectedPhone) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Call,
+                                contentDescription = "Call $detectedPhone",
+                                tint = StatusRestoredGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
                     if (onAction != null && actionIcon != null) {
                         IconButton(
                             onClick = onAction,
@@ -1684,7 +2019,20 @@ private fun OverviewRow(
     }
 }
 
-private fun buildSiteSummary(site: SiteEntity): String {
+private fun extractPhoneNumber(label: String, value: String?): String? {
+    if (value.isNullOrBlank()) return null
+    val clean = value.filter { it.isDigit() || it == '+' }
+    val digitCount = clean.count { it.isDigit() }
+    val l = label.lowercase(java.util.Locale.US)
+    val isPhoneKey = l.contains("phone") || l.contains("mobile") || l.contains("contact") ||
+            l.contains("landlord") || l.contains("caretaker") || l.contains("guard") ||
+            l.contains("lead") || l.contains("tech") || l.contains("no")
+    return if (isPhoneKey && digitCount in 7..15) clean
+    else if (digitCount in 10..15 && !clean.startsWith("19") && !clean.startsWith("20")) clean
+    else null
+}
+
+private fun buildSiteSummary(site: SiteEntity, customOverview: List<SiteFieldEntity> = emptyList()): String {
     val sb = StringBuilder()
     sb.appendLine("📍 [TowerDost Site Card]")
     sb.appendLine("SAP ID: ${site.sapId}")
@@ -1696,8 +2044,27 @@ private fun buildSiteSummary(site: SiteEntity): String {
     if (!site.status.isNullOrBlank()) sb.appendLine("Status: ${site.status}")
     if (site.lat != null && site.lng != null) sb.appendLine("GPS: ${site.lat.format(5)}, ${site.lng.format(5)}")
     if (!site.address.isNullOrBlank()) sb.appendLine("Address: ${site.address}")
+    for (c in customOverview) {
+        if (!c.fieldValue.isNullOrBlank()) {
+            sb.appendLine("${c.fieldKey}: ${c.fieldValue}")
+        }
+    }
     if (!site.notes.isNullOrBlank()) sb.appendLine("Remarks: ${site.notes}")
     return sb.toString().trimEnd()
+}
+
+private fun shareText(context: Context, text: String, title: String) {
+    val sendIntent = Intent().apply {
+        action = Intent.ACTION_SEND
+        putExtra(Intent.EXTRA_TEXT, text)
+        type = "text/plain"
+    }
+    val shareIntent = Intent.createChooser(sendIntent, title)
+    try {
+        context.startActivity(shareIntent)
+    } catch (_: Exception) {
+        Toast.makeText(context, "Could not open share sheet", Toast.LENGTH_SHORT).show()
+    }
 }
 
 private fun launchNavigation(context: Context, lat: Double, lng: Double, label: String) {
@@ -1727,7 +2094,8 @@ private fun launchCall(context: Context, phone: String) {
 private fun shareSiteDetails(
     context: Context,
     site: SiteEntity,
-    groupedSpecs: Map<String, List<SiteFieldEntity>>
+    groupedSpecs: Map<String, List<SiteFieldEntity>>,
+    customOverview: List<SiteFieldEntity> = emptyList()
 ) {
     val sb = StringBuilder()
     sb.append("Site: ${site.sapId} (${site.name ?: ""})\n")
@@ -1736,6 +2104,14 @@ private fun shareSiteDetails(
     }
     if (!site.circle.isNullOrBlank()) sb.append("Circle: ${site.circle}\n")
     if (!site.district.isNullOrBlank()) sb.append("District: ${site.district}\n")
+    if (customOverview.isNotEmpty()) {
+        sb.append("\nOverview & Utility Attributes:\n")
+        customOverview.forEach { f ->
+            if (!f.fieldValue.isNullOrBlank()) {
+                sb.append("${f.fieldKey}: ${f.fieldValue}\n")
+            }
+        }
+    }
     sb.append("\nEquipment Specs:\n")
     groupedSpecs.forEach { (group, fields) ->
         sb.append("[$group]\n")
