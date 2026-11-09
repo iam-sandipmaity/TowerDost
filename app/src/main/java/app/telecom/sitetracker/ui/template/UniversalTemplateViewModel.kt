@@ -2,6 +2,7 @@ package app.telecom.sitetracker.ui.template
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.telecom.sitetracker.data.entity.SiteTabEntity
 import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.data.repo.SiteRepository
 import java.util.Locale
@@ -30,7 +31,9 @@ data class UniversalTemplateUiState(
     val confirmClearAll: Boolean = false,
     val confirmSyncFromSites: Boolean = false,
     val isReorderMode: Boolean = false,
-    val fieldToMove: UniversalFieldEntity? = null
+    val fieldToMove: UniversalFieldEntity? = null,
+    val tabs: List<SiteTabEntity> = emptyList(),
+    val selectedTabId: String = "SPECS"
 )
 
 class UniversalTemplateViewModel(
@@ -40,8 +43,40 @@ class UniversalTemplateViewModel(
     private val _uiState = MutableStateFlow(UniversalTemplateUiState())
     val uiState: StateFlow<UniversalTemplateUiState> = _uiState.asStateFlow()
 
+    private var allUniversalFieldsCache: List<UniversalFieldEntity> = emptyList()
+
     init {
+        observeTabs()
         observeTemplate()
+    }
+
+    private fun observeTabs() {
+        viewModelScope.launch {
+            try {
+                siteRepository.ensureDefaultTabsSeeded()
+            } catch (_: Exception) {
+                // Ignore initialization seed error
+            }
+
+            siteRepository.observeAllTabs()
+                .catch {
+                    // Ignore observe tabs error
+                }
+                .collect { rawTabs ->
+                    val blueprintTabs = rawTabs.filter { tab ->
+                        tab.tabId.equals(SiteTabEntity.TAB_SPECS, ignoreCase = true) ||
+                            (!tab.isSystem &&
+                                !tab.tabId.equals(SiteTabEntity.TAB_LOGS, ignoreCase = true) &&
+                                !tab.tabId.equals(SiteTabEntity.TAB_OVERVIEW, ignoreCase = true))
+                    }
+                    val effectiveTabs = if (blueprintTabs.any { it.tabId.equals(SiteTabEntity.TAB_SPECS, ignoreCase = true) }) {
+                        blueprintTabs
+                    } else {
+                        listOf(SiteTabEntity.SYSTEM_SPECS) + blueprintTabs
+                    }
+                    _uiState.update { it.copy(tabs = effectiveTabs) }
+                }
+        }
     }
 
     private fun observeTemplate() {
@@ -73,15 +108,55 @@ class UniversalTemplateViewModel(
                     }
                 }
                 .collect { fields ->
-                    val grouped = fields.groupBy { it.groupName.uppercase(Locale.US) }
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            groupedFields = grouped,
-                            totalFieldCount = fields.size
-                        )
-                    }
+                    allUniversalFieldsCache = fields
+                    applyTabFilter()
                 }
+        }
+    }
+
+    fun selectTab(tabId: String) {
+        val normalized = tabId.trim().uppercase(Locale.US)
+        _uiState.update { it.copy(selectedTabId = normalized) }
+        applyTabFilter()
+    }
+
+    private fun applyTabFilter() {
+        val currentTab = _uiState.value.selectedTabId
+        val tabFields = allUniversalFieldsCache.filter {
+            it.tabId.equals(currentTab, ignoreCase = true)
+        }
+        val grouped = tabFields.groupBy { it.groupName.uppercase(Locale.US) }
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                groupedFields = grouped,
+                totalFieldCount = tabFields.size
+            )
+        }
+    }
+
+    fun createNewTab(displayName: String) {
+        val trimmedName = displayName.trim()
+        if (trimmedName.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Tab name cannot be blank.") }
+            return
+        }
+        val tabId = trimmedName.replace(Regex("[^a-zA-Z0-9_]"), "_").uppercase(Locale.US)
+        viewModelScope.launch {
+            try {
+                siteRepository.insertTab(tabId, trimmedName)
+                selectTab(tabId)
+                _uiState.update {
+                    it.copy(
+                        selectedTabId = tabId,
+                        userMessage = "Tab '$trimmedName' created."
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to create tab: ${e.localizedMessage}")
+                }
+            }
         }
     }
 
@@ -117,13 +192,15 @@ class UniversalTemplateViewModel(
 
         viewModelScope.launch {
             try {
+                val currentTabId = _uiState.value.selectedTabId
                 val currentFields = _uiState.value.groupedFields.values.flatten()
                 val nextSort = (currentFields.maxOfOrNull { it.sortOrder } ?: 0) + 1
                 val entity = UniversalFieldEntity(
                     fieldKey = trimmedKey,
                     groupName = section,
                     defaultValue = defaultValue?.trim()?.ifBlank { null },
-                    sortOrder = nextSort
+                    sortOrder = nextSort,
+                    tabId = currentTabId
                 )
                 siteRepository.saveUniversalField(entity)
                 _uiState.update {
@@ -163,13 +240,15 @@ class UniversalTemplateViewModel(
 
         viewModelScope.launch {
             try {
+                val currentTabId = _uiState.value.selectedTabId
                 val currentFields = _uiState.value.groupedFields.values.flatten()
                 val nextSort = (currentFields.maxOfOrNull { it.sortOrder } ?: 0) + 1
                 val entity = UniversalFieldEntity(
                     fieldKey = trimmedKey,
                     groupName = trimmedSection,
                     defaultValue = firstDefaultValue?.trim()?.ifBlank { null },
-                    sortOrder = nextSort
+                    sortOrder = nextSort,
+                    tabId = currentTabId
                 )
                 siteRepository.saveUniversalField(entity)
                 _uiState.update {
@@ -198,7 +277,9 @@ class UniversalTemplateViewModel(
         val target = _uiState.value.confirmDeleteField ?: return
         viewModelScope.launch {
             try {
-                siteRepository.deleteUniversalField(target.fieldKey)
+                val currentTabId = _uiState.value.selectedTabId
+                val effectiveTabId = if (target.tabId.isNotBlank()) target.tabId else currentTabId
+                siteRepository.deleteUniversalField(effectiveTabId, target.fieldKey)
                 _uiState.update {
                     it.copy(
                         confirmDeleteField = null,
@@ -228,7 +309,8 @@ class UniversalTemplateViewModel(
         val target = _uiState.value.confirmDeleteSection ?: return
         viewModelScope.launch {
             try {
-                siteRepository.deleteUniversalSection(target)
+                val currentTabId = _uiState.value.selectedTabId
+                siteRepository.deleteUniversalSection(currentTabId, target)
                 _uiState.update {
                     it.copy(
                         confirmDeleteSection = null,
@@ -318,13 +400,18 @@ class UniversalTemplateViewModel(
             try {
                 val currentField = _uiState.value.fieldToEdit
                 val sort = currentField?.sortOrder ?: 0
+                val tabId = currentField?.tabId?.ifBlank { _uiState.value.selectedTabId } ?: _uiState.value.selectedTabId
                 val updatedEntity = UniversalFieldEntity(
                     fieldKey = trimmedKey,
                     groupName = trimmedGroup,
                     defaultValue = newDefaultValue?.trim()?.ifBlank { null },
-                    sortOrder = sort
+                    sortOrder = sort,
+                    tabId = tabId
                 )
-                siteRepository.updateUniversalField(oldKey, updatedEntity)
+                if (!oldKey.equals(trimmedKey, ignoreCase = true)) {
+                    siteRepository.deleteUniversalField(tabId, oldKey)
+                }
+                siteRepository.saveUniversalField(updatedEntity)
                 _uiState.update {
                     it.copy(
                         isEditingField = false,
@@ -503,8 +590,9 @@ class UniversalTemplateViewModel(
     private fun persistGroups(groups: Map<String, List<UniversalFieldEntity>>) {
         val filtered = groups.filterValues { it.isNotEmpty() }
         val flattened = filtered.values.flatten()
+        val currentTabId = _uiState.value.selectedTabId
         val normalized = flattened.mapIndexed { idx, item ->
-            item.copy(sortOrder = idx + 1)
+            item.copy(sortOrder = idx + 1, tabId = currentTabId)
         }
         viewModelScope.launch {
             try {

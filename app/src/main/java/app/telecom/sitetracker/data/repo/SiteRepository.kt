@@ -491,6 +491,10 @@ class SiteRepository(private val db: AppDatabase) {
         universalFieldDao.deleteSection(groupName)
     }
 
+    suspend fun deleteUniversalSection(tabId: String, groupName: String) {
+        universalFieldDao.deleteSection(tabId, groupName)
+    }
+
     suspend fun clearAllUniversalFields() {
         universalFieldDao.clearAll()
     }

@@ -30,6 +30,8 @@ class UniversalTemplateTest {
         assertFalse(state.confirmSyncFromSites)
         assertFalse(state.isReorderMode)
         assertNull(state.fieldToMove)
+        assertTrue(state.tabs.isEmpty())
+        assertEquals("SPECS", state.selectedTabId)
     }
 
     @Test
