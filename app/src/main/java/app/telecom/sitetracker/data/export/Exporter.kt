@@ -84,7 +84,22 @@ object Exporter {
         val dateStamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
         val file = File(outputDir, "TowerDost_MasterSites_$dateStamp.csv")
 
-        val distinctSpecKeys = allFields.map { it.fieldKey }.distinct().sorted()
+        data class ColumnSpec(val tabId: String, val fieldKey: String, val headerName: String)
+
+        val distinctColumns = allFields.map { field ->
+            val isCustomTab = field.tabId.isNotBlank() && !field.tabId.equals("SPECS", ignoreCase = true)
+            val header = if (isCustomTab) {
+                "[${field.tabId.replace("_", " ").uppercase(Locale.US)}] ${field.fieldKey}"
+            } else {
+                field.fieldKey
+            }
+            ColumnSpec(field.tabId, field.fieldKey, header)
+        }.distinctBy { it.headerName }.sortedWith(
+            compareBy(
+                { if (it.tabId.equals("SPECS", ignoreCase = true)) 0 else 1 },
+                { it.headerName }
+            )
+        )
 
         FileWriter(file).use { writer ->
             val headers = mutableListOf(
@@ -104,14 +119,23 @@ object Exporter {
                 "Remarks",
                 "Last Updated"
             )
-            headers.addAll(distinctSpecKeys)
+            headers.addAll(distinctColumns.map { it.headerName })
             writer.append(headers.joinToString(",")).append("\n")
 
-            // Index fields by sapId -> fieldKey -> fieldValue for O(1) row assembly
+            // Index fields by sapId -> headerName -> fieldValue for O(1) row assembly
             val fieldsBySite = allFields.groupBy { it.sapId }
 
             for (site in sites) {
-                val siteSpecsMap = fieldsBySite[site.sapId]?.associate { it.fieldKey to it.fieldValue } ?: emptyMap()
+                val siteFields = fieldsBySite[site.sapId] ?: emptyList()
+                val siteSpecsMap = siteFields.associate { field ->
+                    val isCustomTab = field.tabId.isNotBlank() && !field.tabId.equals("SPECS", ignoreCase = true)
+                    val header = if (isCustomTab) {
+                        "[${field.tabId.replace("_", " ").uppercase(Locale.US)}] ${field.fieldKey}"
+                    } else {
+                        field.fieldKey
+                    }
+                    header to field.fieldValue
+                }
 
                 val rowValues = mutableListOf(
                     escapeCsv(site.sapId),
@@ -131,8 +155,8 @@ object Exporter {
                     escapeCsv(if (site.updatedAt != null) Dates.formatDateTime(site.updatedAt) else "")
                 )
 
-                for (specKey in distinctSpecKeys) {
-                    rowValues.add(escapeCsv(siteSpecsMap[specKey]))
+                for (col in distinctColumns) {
+                    rowValues.add(escapeCsv(siteSpecsMap[col.headerName]))
                 }
 
                 writer.append(rowValues.joinToString(",")).append("\n")
@@ -182,11 +206,12 @@ object Exporter {
             writer.append("Remarks,${escapeCsv(site.notes)}\n")
             writer.append("Last Updated,${escapeCsv(if (site.updatedAt != null) Dates.formatDateTime(site.updatedAt) else "")}\n\n")
 
-            // Section 2: Technical Specifications
-            writer.append("=== TECHNICAL SPECIFICATIONS ===\n")
-            writer.append("Group,Specification Name,Value\n")
-            for (spec in specs.sortedBy { it.sortOrder ?: 0 }) {
-                writer.append("${escapeCsv(spec.groupName ?: "GENERAL")},${escapeCsv(spec.fieldKey)},${escapeCsv(spec.fieldValue)}\n")
+            // Section 2: Technical Specifications & Site Tabs
+            writer.append("=== TECHNICAL SPECIFICATIONS & SITE TABS ===\n")
+            writer.append("Tab,Group,Specification Name,Value\n")
+            for (spec in specs.sortedWith(compareBy({ if (it.tabId.equals("SPECS", ignoreCase = true)) 0 else 1 }, { it.tabId }, { it.sortOrder ?: 0 }))) {
+                val tabLabel = (if (spec.tabId.isNotBlank()) spec.tabId else "SPECS").replace("_", " ").uppercase(Locale.US)
+                writer.append("${escapeCsv(tabLabel)},${escapeCsv(spec.groupName ?: "GENERAL")},${escapeCsv(spec.fieldKey)},${escapeCsv(spec.fieldValue)}\n")
             }
             writer.append("\n")
 
