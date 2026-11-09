@@ -10,10 +10,13 @@ import app.telecom.sitetracker.data.entity.ReasonEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.entity.SiteFts
+import app.telecom.sitetracker.data.entity.SiteTabEntity
+import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.util.AppClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -37,7 +40,9 @@ data class BackupData(
     val sites: List<SiteEntity> = emptyList(),
     val fields: List<SiteFieldEntity> = emptyList(),
     val incidents: List<IncidentEntity> = emptyList(),
-    val reasons: List<ReasonEntity> = emptyList()
+    val reasons: List<ReasonEntity> = emptyList(),
+    val tabs: List<SiteTabEntity> = emptyList(),
+    val universalFields: List<UniversalFieldEntity> = emptyList()
 )
 
 data class BackupRestoreResult(
@@ -45,7 +50,9 @@ data class BackupRestoreResult(
     val fieldsRestored: Int,
     val incidentsRestored: Int,
     val reasonsRestored: Int,
-    val elapsedMs: Long
+    val elapsedMs: Long,
+    val tabsRestored: Int = 0,
+    val universalFieldsRestored: Int = 0
 )
 
 class BackupManager(
@@ -56,6 +63,8 @@ class BackupManager(
     private val fieldDao = db.fieldDao()
     private val incidentDao = db.incidentDao()
     private val reasonDao = db.reasonDao()
+    private val siteTabDao = db.siteTabDao()
+    private val universalFieldDao = db.universalFieldDao()
 
     companion object {
         const val CURRENT_VERSION = 1
@@ -101,6 +110,7 @@ class BackupManager(
                             put("fieldValue", f.fieldValue ?: "")
                             f.groupName?.let { put("groupName", it) }
                             f.sortOrder?.let { put("sortOrder", it) }
+                            put("tabId", f.tabId)
                         })
                     }
                 })
@@ -142,6 +152,29 @@ class BackupManager(
                             put("isHidden", r.isHidden)
                             put("isSeeded", r.isSeeded)
                             r.updatedAt?.let { put("updatedAt", it) }
+                        })
+                    }
+                })
+
+                put("tabs", buildJsonArray {
+                    for (t in data.tabs) {
+                        add(buildJsonObject {
+                            put("tabId", t.tabId)
+                            put("displayName", t.displayName)
+                            put("sortOrder", t.sortOrder)
+                            put("isSystem", t.isSystem)
+                        })
+                    }
+                })
+
+                put("universalFields", buildJsonArray {
+                    for (uf in data.universalFields) {
+                        add(buildJsonObject {
+                            put("tabId", uf.tabId)
+                            put("fieldKey", uf.fieldKey)
+                            put("groupName", uf.groupName)
+                            uf.defaultValue?.let { put("defaultValue", it) }
+                            put("sortOrder", uf.sortOrder)
                         })
                     }
                 })
@@ -198,13 +231,15 @@ class BackupManager(
                 val obj = el.jsonObject
                 val sapId = obj["sapId"]?.jsonPrimitive?.content ?: return@forEach
                 val fieldKey = obj["fieldKey"]?.jsonPrimitive?.content ?: return@forEach
+                val tabId = obj["tabId"]?.jsonPrimitive?.contentOrNull ?: "SPECS"
                 fields.add(
                     SiteFieldEntity(
                         sapId = sapId,
                         fieldKey = fieldKey,
                         fieldValue = obj["fieldValue"]?.jsonPrimitive?.contentOrNull,
                         groupName = obj["groupName"]?.jsonPrimitive?.contentOrNull,
-                        sortOrder = obj["sortOrder"]?.jsonPrimitive?.intOrNull
+                        sortOrder = obj["sortOrder"]?.jsonPrimitive?.intOrNull,
+                        tabId = tabId
                     )
                 )
             }
@@ -260,6 +295,44 @@ class BackupManager(
                 )
             }
 
+            val tabs = mutableListOf<SiteTabEntity>()
+            root["tabs"]?.jsonArray?.forEach { el ->
+                val obj = el.jsonObject
+                val tabId = obj["tabId"]?.jsonPrimitive?.content ?: return@forEach
+                val displayName = obj["displayName"]?.jsonPrimitive?.content ?: tabId
+                val sortOrder = obj["sortOrder"]?.jsonPrimitive?.intOrNull ?: 0
+                val isSystem = obj["isSystem"]?.jsonPrimitive?.let { prim ->
+                    prim.booleanOrNull ?: (prim.intOrNull == 1) ?: (prim.contentOrNull.equals("true", ignoreCase = true))
+                } ?: false
+                tabs.add(
+                    SiteTabEntity(
+                        tabId = tabId,
+                        displayName = displayName,
+                        sortOrder = sortOrder,
+                        isSystem = isSystem
+                    )
+                )
+            }
+
+            val universalFields = mutableListOf<UniversalFieldEntity>()
+            root["universalFields"]?.jsonArray?.forEach { el ->
+                val obj = el.jsonObject
+                val fieldKey = obj["fieldKey"]?.jsonPrimitive?.content ?: return@forEach
+                val groupName = obj["groupName"]?.jsonPrimitive?.content ?: "General"
+                val defaultValue = obj["defaultValue"]?.jsonPrimitive?.contentOrNull
+                val sortOrder = obj["sortOrder"]?.jsonPrimitive?.intOrNull ?: 0
+                val tabId = obj["tabId"]?.jsonPrimitive?.contentOrNull ?: "SPECS"
+                universalFields.add(
+                    UniversalFieldEntity(
+                        tabId = tabId,
+                        fieldKey = fieldKey,
+                        groupName = groupName,
+                        defaultValue = defaultValue,
+                        sortOrder = sortOrder
+                    )
+                )
+            }
+
             return BackupData(
                 version = version,
                 appName = app,
@@ -267,9 +340,13 @@ class BackupManager(
                 sites = sites,
                 fields = fields,
                 incidents = incidents,
-                reasons = reasons
+                reasons = reasons,
+                tabs = tabs,
+                universalFields = universalFields
             )
         }
+
+        fun deserializeBackupJson(jsonString: String): BackupData = parseBackupJson(jsonString)
     }
 
     suspend fun createFullBackup(): BackupData = withContext(Dispatchers.IO) {
@@ -278,6 +355,8 @@ class BackupManager(
         val fields = fieldDao.getAllFields()
         val incidents = incidentDao.getAllIncidentsForBackup()
         val reasons = reasonDao.getAllReasonsList()
+        val tabs = siteTabDao.getAllTabs()
+        val universalFields = universalFieldDao.getAllUniversalFields()
 
         BackupData(
             version = CURRENT_VERSION,
@@ -286,7 +365,9 @@ class BackupManager(
             sites = sites,
             fields = fields,
             incidents = incidents,
-            reasons = reasons
+            reasons = reasons,
+            tabs = tabs,
+            universalFields = universalFields
         )
     }
 
@@ -303,6 +384,36 @@ class BackupManager(
         file
     }
 
+    suspend fun generateAndVerifySafetyBackup(
+        context: Context,
+        tag: String = "pre_deletion"
+    ): Result<File> = withContext(Dispatchers.IO) {
+        try {
+            val backupData = createFullBackup()
+            val json = serializeBackupJson(backupData)
+
+            val dir = File(context.filesDir, "backups")
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+            val dateStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(clock.currentTimeMillis()))
+            val file = File(dir, "TowerDost_${tag}_$dateStamp.json")
+
+            FileWriter(file).use { writer ->
+                writer.write(json)
+                writer.flush()
+            }
+
+            if (file.exists() && file.length() > 0L) {
+                Result.success(file)
+            } else {
+                Result.failure(IllegalStateException("Backup file verification failed"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun restoreFromBackupJson(jsonString: String, cleanOverwrite: Boolean): BackupRestoreResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         val data = parseBackupJson(jsonString)
@@ -313,6 +424,7 @@ class BackupManager(
                 fieldDao.deleteAllFields()
                 incidentDao.deleteAllIncidents()
                 siteDao.clearFts()
+                universalFieldDao.clearAll()
             }
 
             if (data.sites.isNotEmpty()) {
@@ -326,6 +438,12 @@ class BackupManager(
             }
             if (data.reasons.isNotEmpty()) {
                 reasonDao.insertReasons(data.reasons)
+            }
+            if (data.tabs.isNotEmpty()) {
+                siteTabDao.insertTabs(data.tabs)
+            }
+            if (data.universalFields.isNotEmpty()) {
+                universalFieldDao.insertOrUpdateFields(data.universalFields)
             }
 
             // Rebuild FTS
@@ -348,6 +466,8 @@ class BackupManager(
             fieldsRestored = data.fields.size,
             incidentsRestored = data.incidents.size,
             reasonsRestored = data.reasons.size,
+            tabsRestored = data.tabs.size,
+            universalFieldsRestored = data.universalFields.size,
             elapsedMs = elapsed
         )
     }

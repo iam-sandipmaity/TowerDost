@@ -2,6 +2,8 @@ package app.telecom.sitetracker.ui.merger
 
 import android.net.Uri
 import android.provider.OpenableColumns
+import app.telecom.sitetracker.data.import.ColumnMapper
+import java.util.Locale
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -82,6 +84,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.telecom.sitetracker.data.entity.SiteTabEntity
 import app.telecom.sitetracker.data.import.TargetField
 import app.telecom.sitetracker.data.merger.MergeStrategy
 import app.telecom.sitetracker.data.merger.OverwritePolicy
@@ -193,8 +196,11 @@ fun VlookupMergerScreen(
                     VlookupStep.MAP_COLUMNS -> {
                         StepMapColumns(
                             uiState = uiState,
-                            onUpdateTarget = { col, target, group, key ->
-                                viewModel.updateColumnTarget(col, target, group, key)
+                            onUpdateTarget = { col, target, group, key, tabId, tabDisplayName ->
+                                viewModel.updateColumnTarget(col, target, group, key, tabId, tabDisplayName)
+                            },
+                            onCreateNewTab = { col, tabName, sectionName ->
+                                viewModel.createNewTabAndMap(col, tabName, sectionName)
                             },
                             onToggleColumn = { col, isIncluded ->
                                 viewModel.toggleColumnSelection(col, isIncluded)
@@ -572,7 +578,8 @@ private fun StepSelectKeyColumn(
 @Composable
 private fun StepMapColumns(
     uiState: VlookupMergerUiState,
-    onUpdateTarget: (Int, TargetField, String?, String?) -> Unit,
+    onUpdateTarget: (Int, TargetField, String?, String?, String, String) -> Unit,
+    onCreateNewTab: (Int, String, String?) -> Unit,
     onToggleColumn: (Int, Boolean) -> Unit,
     onSelectAll: () -> Unit,
     onDeselectAll: () -> Unit,
@@ -770,9 +777,13 @@ private fun StepMapColumns(
                 ColumnMappingCard(
                     mapping = mapping,
                     sampleValues = uiState.sampleRows.mapNotNull { it.getOrNull(mapping.columnIndex) }.filter { it.isNotBlank() },
+                    availableTabs = uiState.availableTabs,
                     onToggleSelected = { isIncluded -> onToggleColumn(mapping.columnIndex, isIncluded) },
-                    onTargetChanged = { target, group, key ->
-                        onUpdateTarget(mapping.columnIndex, target, group, key)
+                    onTargetChanged = { target, group, key, tabId, tabDisplayName ->
+                        onUpdateTarget(mapping.columnIndex, target, group, key, tabId, tabDisplayName)
+                    },
+                    onCreateNewTab = { tabName, sectionName ->
+                        onCreateNewTab(mapping.columnIndex, tabName, sectionName)
                     }
                 )
             }
@@ -800,11 +811,42 @@ private fun StepMapColumns(
 private fun ColumnMappingCard(
     mapping: VlookupColumnMapping,
     sampleValues: List<String>,
+    availableTabs: List<SiteTabEntity>,
     onToggleSelected: (Boolean) -> Unit,
-    onTargetChanged: (TargetField, String?, String?) -> Unit
+    onTargetChanged: (TargetField, String?, String?, String, String) -> Unit,
+    onCreateNewTab: (String, String?) -> Unit
 ) {
     val isIncluded = mapping.targetField != TargetField.IGNORE
-    var isExpanded by remember { mutableStateOf(false) }
+    var isTabExpanded by remember { mutableStateOf(false) }
+    var isFieldExpanded by remember { mutableStateOf(false) }
+    var showCreateTabDialog by remember { mutableStateOf(false) }
+    var showCustomSectionDialog by remember { mutableStateOf(false) }
+
+    val currentTabType = when {
+        mapping.targetField == TargetField.IGNORE -> "IGNORE"
+        mapping.targetField in TargetField.standardFields() &&
+            mapping.targetField != TargetField.CUSTOM_SPEC &&
+            mapping.targetField != TargetField.IGNORE -> "OVERVIEW"
+        mapping.tabId.equals("LOGS", ignoreCase = true) -> "LOGS"
+        mapping.tabId.equals("OVERVIEW", ignoreCase = true) -> "OVERVIEW"
+        mapping.tabId.equals("SPECS", ignoreCase = true) -> "SPECS"
+        else -> "CUSTOM"
+    }
+
+    val currentTabDisplay = when (currentTabType) {
+        "IGNORE" -> "Skipped"
+        "OVERVIEW" -> "Overview"
+        "LOGS" -> "Logs"
+        "SPECS" -> "Specs"
+        else -> mapping.tabDisplayName.ifBlank { mapping.tabId }
+    }
+
+    val customTabs = availableTabs.filter {
+        !it.isSystem &&
+            !it.tabId.equals("SPECS", ignoreCase = true) &&
+            !it.tabId.equals("LOGS", ignoreCase = true) &&
+            !it.tabId.equals("OVERVIEW", ignoreCase = true)
+    }
 
     Card(
         colors = CardDefaults.cardColors(
@@ -886,7 +928,7 @@ private fun ColumnMappingCard(
                 }
             }
 
-            // Tier 2: Details & Mapping Target Selector (only shown when included)
+            // Tier 2: 2-Step Mapping: Box 1 (Choose Tab) -> Box 2 (Choose Column / Attribute)
             if (isIncluded) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 8.dp),
@@ -898,158 +940,471 @@ private fun ColumnMappingCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 8.dp)
-                    ) {
+                    Text(
+                        text = if (mapping.isExistingInDatabase) "Updates existing records" else "New specification entry",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (sampleValues.isNotEmpty()) {
                         Text(
-                            text = if (mapping.isExistingInDatabase) "Updates existing records" else "New specification entry",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        if (sampleValues.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Sample: ${sampleValues.take(2).joinToString(", ")}",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-
-                    // Target Field Selector Button with Dropdown
-                    Box {
-                        Surface(
-                            onClick = { isExpanded = true },
-                            shape = RoundedCornerShape(6.dp),
-                            modifier = Modifier.sizeIn(minHeight = 40.dp),
-                            border = BorderStroke(
-                                1.dp,
-                                when (mapping.targetField) {
-                                    TargetField.IGNORE -> MaterialTheme.colorScheme.outlineVariant
-                                    TargetField.CUSTOM_SPEC -> RFCyan.copy(alpha = 0.8f)
-                                    else -> TelecomAmber.copy(alpha = 0.8f)
-                                }
+                            text = "Sample: ${sampleValues.take(2).joinToString(", ")}",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             ),
-                            color = when (mapping.targetField) {
-                                TargetField.IGNORE -> Color.Transparent
-                                TargetField.CUSTOM_SPEC -> RFCyan.copy(alpha = 0.12f)
-                                else -> TelecomAmber.copy(alpha = 0.12f)
-                            }
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Two-Step Selection Controls
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // --- Box 1: Select Target Tab ---
+                    Box(modifier = Modifier.weight(1f)) {
+                        Surface(
+                            onClick = { isTabExpanded = true },
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .sizeIn(minHeight = 48.dp),
+                            border = BorderStroke(1.dp, RFCyan.copy(alpha = 0.8f)),
+                            color = RFCyan.copy(alpha = 0.1f)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
+                            Column(
                                 modifier = Modifier
-                                    .widthIn(max = 200.dp)
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalArrangement = Arrangement.Center
                             ) {
                                 Text(
-                                    text = when (mapping.targetField) {
-                                        TargetField.IGNORE -> "Skipped"
-                                        TargetField.CUSTOM_SPEC -> "${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
-                                        else -> mapping.targetField.displayName
-                                    },
+                                    text = "1. TARGET TAB",
                                     style = MaterialTheme.typography.labelSmall.copy(
-                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 8.sp,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp,
-                                        color = when (mapping.targetField) {
-                                            TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
-                                            TargetField.CUSTOM_SPEC -> RFCyan
-                                            else -> TelecomAmber
-                                        }
-                                    ),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false)
+                                        color = RFCyan.copy(alpha = 0.8f)
+                                    )
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = "Select target field",
-                                    tint = when (mapping.targetField) {
-                                        TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        TargetField.CUSTOM_SPEC -> RFCyan
-                                        else -> TelecomAmber
-                                    },
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = currentTabDisplay,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            color = RFCyan
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = "Select target tab",
+                                        tint = RFCyan,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
                         }
 
                         DropdownMenu(
-                            expanded = isExpanded,
-                            onDismissRequest = { isExpanded = false }
+                            expanded = isTabExpanded,
+                            onDismissRequest = { isTabExpanded = false }
                         ) {
+                            Text(
+                                text = "CHOOSE TAB",
+                                style = MaterialTheme.typography.labelSmall.copy(color = RFCyan, fontWeight = FontWeight.Bold),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
                             DropdownMenuItem(
-                                text = { Text("Ignore Column") },
+                                text = { Text("Specs") },
                                 onClick = {
-                                    onTargetChanged(TargetField.IGNORE, null, null)
-                                    isExpanded = false
+                                    onTargetChanged(TargetField.CUSTOM_SPEC, mapping.specGroup ?: "GENERAL", mapping.sourceHeader, "SPECS", "Specs")
+                                    isTabExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Overview") },
+                                onClick = {
+                                    val defaultOverviewField = if (mapping.targetField in TargetField.standardFields() &&
+                                        mapping.targetField != TargetField.CUSTOM_SPEC &&
+                                        mapping.targetField != TargetField.IGNORE
+                                    ) mapping.targetField else (ColumnMapper.matchField(mapping.sourceHeader) ?: TargetField.NAME)
+                                    onTargetChanged(defaultOverviewField, null, mapping.sourceHeader, "OVERVIEW", "Overview")
+                                    isTabExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Logs") },
+                                onClick = {
+                                    onTargetChanged(TargetField.NOTES, null, mapping.sourceHeader, "LOGS", "Logs")
+                                    isTabExpanded = false
+                                }
+                            )
+
+                            if (customTabs.isNotEmpty()) {
+                                HorizontalDivider()
+                                Text(
+                                    text = "CUSTOM TABS (${customTabs.size})",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                )
+                                customTabs.forEach { tab ->
+                                    DropdownMenuItem(
+                                        text = { Text(tab.displayName) },
+                                        onClick = {
+                                            onTargetChanged(TargetField.CUSTOM_SPEC, "GENERAL", mapping.sourceHeader, tab.tabId, tab.displayName)
+                                            isTabExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "+ CREATE NEW TAB...",
+                                        color = TelecomAmber,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                onClick = {
+                                    isTabExpanded = false
+                                    showCreateTabDialog = true
                                 }
                             )
                             HorizontalDivider()
-                            Text(
-                                text = "CORE SITE ATTRIBUTES",
-                                style = MaterialTheme.typography.labelSmall.copy(color = TelecomAmber),
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            DropdownMenuItem(
+                                text = { Text("Ignore Column") },
+                                onClick = {
+                                    onTargetChanged(TargetField.IGNORE, null, null, "SPECS", "Specs")
+                                    isTabExpanded = false
+                                }
                             )
-                            listOf(
-                                TargetField.NAME,
-                                TargetField.LAT,
-                                TargetField.LNG,
-                                TargetField.CIRCLE,
-                                TargetField.CITY,
-                                TargetField.DISTRICT,
-                                TargetField.TECHNOLOGY,
-                                TargetField.SITE_TYPE,
-                                TargetField.STATUS,
-                                TargetField.ADDRESS,
-                                TargetField.NOTES
-                            ).forEach { field ->
-                                DropdownMenuItem(
-                                    text = { Text(field.displayName) },
-                                    onClick = {
-                                        onTargetChanged(field, null, null)
-                                        isExpanded = false
-                                    }
-                                )
+                        }
+                    }
+
+                    // --- Box 2: Select Column / Field ---
+                    Box(modifier = Modifier.weight(1.15f)) {
+                        val isOverviewTab = currentTabType == "OVERVIEW"
+                        val currentFieldDisplay = when (currentTabType) {
+                            "IGNORE" -> "Skipped"
+                            "OVERVIEW" -> mapping.targetField.displayName
+                            "LOGS" -> when (mapping.targetField) {
+                                TargetField.TAGS -> "Tags / Scope"
+                                TargetField.CUSTOM_SPEC -> "[LOGS] ${mapping.specKey}"
+                                else -> "Notes / Remarks"
                             }
-                            HorizontalDivider()
-                            Text(
-                                text = "EQUIPMENT SPECIFICATIONS",
-                                style = MaterialTheme.typography.labelSmall.copy(color = RFCyan),
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                            )
-                            listOf(
-                                "POWER",
-                                "BATTERY",
-                                "DG",
-                                "RAN",
-                                "TRANSMISSION",
-                                "SAFETY",
-                                "ENVIRONMENT",
-                                "SECURITY",
-                                "CIVIL"
-                            ).forEach { group ->
-                                DropdownMenuItem(
-                                    text = { Text("$group Specification") },
-                                    onClick = {
-                                        onTargetChanged(TargetField.CUSTOM_SPEC, group, mapping.sourceHeader)
-                                        isExpanded = false
-                                    }
+                            else -> {
+                                val sec = mapping.specGroup?.ifBlank { "GENERAL" } ?: "GENERAL"
+                                "[$sec] ${mapping.specKey}"
+                            }
+                        }
+
+                        Surface(
+                            onClick = { isFieldExpanded = true },
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .sizeIn(minHeight = 48.dp),
+                            border = BorderStroke(
+                                1.dp,
+                                if (isOverviewTab) TelecomAmber.copy(alpha = 0.8f) else RFCyan.copy(alpha = 0.8f)
+                            ),
+                            color = if (isOverviewTab) TelecomAmber.copy(alpha = 0.12f) else RFCyan.copy(alpha = 0.12f)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = if (isOverviewTab) "2. CORE ATTRIBUTE" else "2. TARGET COLUMN",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isOverviewTab) TelecomAmber.copy(alpha = 0.9f) else RFCyan.copy(alpha = 0.9f)
+                                    )
                                 )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = currentFieldDisplay,
+                                        style = MaterialTheme.typography.labelSmall.copy(
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            color = if (isOverviewTab) TelecomAmber else RFCyan
+                                        ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = "Select target column",
+                                        tint = if (isOverviewTab) TelecomAmber else RFCyan,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = isFieldExpanded,
+                            onDismissRequest = { isFieldExpanded = false }
+                        ) {
+                            when (currentTabType) {
+                                "OVERVIEW" -> {
+                                    Text(
+                                        text = "OVERVIEW ATTRIBUTES",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = TelecomAmber, fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+                                    listOf(
+                                        TargetField.NAME,
+                                        TargetField.LAT,
+                                        TargetField.LNG,
+                                        TargetField.CIRCLE,
+                                        TargetField.CITY,
+                                        TargetField.DISTRICT,
+                                        TargetField.STATE,
+                                        TargetField.TECHNOLOGY,
+                                        TargetField.SITE_TYPE,
+                                        TargetField.STATUS,
+                                        TargetField.ADDRESS,
+                                        TargetField.NOTES,
+                                        TargetField.TAGS
+                                    ).forEach { field ->
+                                        DropdownMenuItem(
+                                            text = { Text(field.displayName) },
+                                            onClick = {
+                                                onTargetChanged(field, null, mapping.sourceHeader, "OVERVIEW", "Overview")
+                                                isFieldExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
+
+                                "LOGS" -> {
+                                    Text(
+                                        text = "LOG ATTRIBUTES",
+                                        style = MaterialTheme.typography.labelSmall.copy(color = TelecomAmber, fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Site Notes / Remarks") },
+                                        onClick = {
+                                            onTargetChanged(TargetField.NOTES, null, mapping.sourceHeader, "LOGS", "Logs")
+                                            isFieldExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Tags / Scope") },
+                                        onClick = {
+                                            onTargetChanged(TargetField.TAGS, null, mapping.sourceHeader, "LOGS", "Logs")
+                                            isFieldExpanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Log Spec: [LOGS] ${mapping.specKey}") },
+                                        onClick = {
+                                            onTargetChanged(TargetField.CUSTOM_SPEC, "LOGS", mapping.sourceHeader, "LOGS", "Logs")
+                                            isFieldExpanded = false
+                                        }
+                                    )
+                                }
+
+                                else -> {
+                                    val tabTitle = if (currentTabType == "SPECS") "SPECS SECTIONS" else "${mapping.tabDisplayName.uppercase(Locale.US)} SECTIONS"
+                                    Text(
+                                        text = tabTitle,
+                                        style = MaterialTheme.typography.labelSmall.copy(color = RFCyan, fontWeight = FontWeight.Bold),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+
+                                    val defaultSections = if (currentTabType == "SPECS") {
+                                        listOf(
+                                            "GENERAL", "POWER", "BATTERY", "DG", "RAN",
+                                            "TRANSMISSION", "SAFETY", "ENVIRONMENT", "SECURITY", "CIVIL"
+                                        )
+                                    } else {
+                                        listOf("GENERAL")
+                                    }
+
+                                    val allSections = (defaultSections + listOfNotNull(mapping.specGroup)).distinct()
+
+                                    allSections.forEach { section ->
+                                        DropdownMenuItem(
+                                            text = { Text("[$section] ${mapping.specKey}") },
+                                            onClick = {
+                                                onTargetChanged(TargetField.CUSTOM_SPEC, section, mapping.sourceHeader, mapping.tabId, mapping.tabDisplayName)
+                                                isFieldExpanded = false
+                                            }
+                                        )
+                                    }
+
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                "+ CUSTOM SECTION...",
+                                                color = TelecomAmber,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        },
+                                        onClick = {
+                                            isFieldExpanded = false
+                                            showCustomSectionDialog = true
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
+                }
+
+                if (showCustomSectionDialog) {
+                    var customSectionInput by remember { mutableStateOf("") }
+                    AlertDialog(
+                        onDismissRequest = { showCustomSectionDialog = false },
+                        title = {
+                            Text("Add Custom Section", fontWeight = FontWeight.Bold)
+                        },
+                        text = {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    text = "Enter section name for tab '${mapping.tabDisplayName}' (e.g. INVERTER, METER, SECURITY):",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                OutlinedTextField(
+                                    value = customSectionInput,
+                                    onValueChange = { customSectionInput = it },
+                                    label = { Text("Section Name") },
+                                    placeholder = { Text("e.g. INVERTER") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    val trimmed = customSectionInput.trim().uppercase(Locale.US)
+                                    if (trimmed.isNotBlank()) {
+                                        onTargetChanged(TargetField.CUSTOM_SPEC, trimmed, mapping.sourceHeader, mapping.tabId, mapping.tabDisplayName)
+                                    }
+                                    showCustomSectionDialog = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = RFCyan),
+                                enabled = customSectionInput.isNotBlank()
+                            ) {
+                                Text("Set Section", fontWeight = FontWeight.Bold, color = Color.Black)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showCustomSectionDialog = false }) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
+                }
+
+                if (showCreateTabDialog) {
+                    var newTabName by remember { mutableStateOf("") }
+                    var newSectionName by remember { mutableStateOf("") }
+
+                    AlertDialog(
+                        onDismissRequest = { showCreateTabDialog = false },
+                        title = {
+                            Text(
+                                text = "Create New Site Tab",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        },
+                        text = {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Add a new dynamic tab to TowerDost. Incoming values for '${mapping.sourceHeader}' will be assigned to this tab.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                OutlinedTextField(
+                                    value = newTabName,
+                                    onValueChange = { newTabName = it },
+                                    label = { Text("Tab Name (e.g. EB BILLING)") },
+                                    placeholder = { Text("EB BILLING") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                OutlinedTextField(
+                                    value = newSectionName,
+                                    onValueChange = { newSectionName = it },
+                                    label = { Text("Section / Group (Optional)") },
+                                    placeholder = { Text("GENERAL") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    if (newTabName.isNotBlank()) {
+                                        onCreateNewTab(newTabName.trim(), newSectionName.trim().ifBlank { null })
+                                        showCreateTabDialog = false
+                                    }
+                                },
+                                enabled = newTabName.isNotBlank(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = TelecomAmber,
+                                    contentColor = Color(0xFF0F172A)
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.height(48.dp)
+                            ) {
+                                Text("Create & Map", fontWeight = FontWeight.Bold)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(
+                                onClick = { showCreateTabDialog = false },
+                                modifier = Modifier.height(48.dp)
+                            ) {
+                                Text("Cancel")
+                            }
+                        }
+                    )
                 }
             }
         }

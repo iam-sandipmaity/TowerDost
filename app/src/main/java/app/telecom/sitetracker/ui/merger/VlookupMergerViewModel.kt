@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.telecom.sitetracker.data.db.AppDatabase
+import app.telecom.sitetracker.data.entity.SiteTabEntity
 import app.telecom.sitetracker.data.import.CsvReader
 import app.telecom.sitetracker.data.import.DetectedFormat
 import app.telecom.sitetracker.data.import.FileSniffer
@@ -50,6 +51,7 @@ data class VlookupMergerUiState(
     val mergeStrategy: MergeStrategy = MergeStrategy.UPDATE_EXISTING_ONLY,
     val overwritePolicy: OverwritePolicy = OverwritePolicy.OVERWRITE_ALL,
     val previewData: VlookupPreview? = null,
+    val availableTabs: List<SiteTabEntity> = emptyList(),
     val processedRows: Int = 0,
     val totalRowsToProcess: Int = 0,
     val result: VlookupResult? = null,
@@ -71,6 +73,22 @@ class VlookupMergerViewModel(
     private val mergerEngine = VlookupEngine(db, clock)
     private var populatedCoreFields: Set<TargetField> = emptySet()
     private var existingSpecKeys: Set<String> = emptySet()
+
+    init {
+        loadAvailableTabs()
+    }
+
+    private fun loadAvailableTabs() {
+        viewModelScope.launch {
+            try {
+                val tabs = db.siteTabDao().getAllTabs()
+                val effectiveTabs = if (tabs.isNotEmpty()) tabs else SiteTabEntity.DEFAULT_TABS
+                _uiState.update { it.copy(availableTabs = effectiveTabs) }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(availableTabs = SiteTabEntity.DEFAULT_TABS) }
+            }
+        }
+    }
 
     companion object {
         fun checkIsExistingInDb(
@@ -117,6 +135,12 @@ class VlookupMergerViewModel(
 
         val distinctSpecs = db.fieldDao().getDistinctSpecsFromSites()
         existingSpecKeys = distinctSpecs.map { it.fieldKey.trim().uppercase(java.util.Locale.US) }.toSet()
+
+        try {
+            val tabs = db.siteTabDao().getAllTabs()
+            val effectiveTabs = if (tabs.isNotEmpty()) tabs else SiteTabEntity.DEFAULT_TABS
+            _uiState.update { it.copy(availableTabs = effectiveTabs) }
+        } catch (_: Exception) {}
     }
 
     fun onFileSelected(uri: Uri, displayName: String?, fileSize: Long) {
@@ -331,7 +355,14 @@ class VlookupMergerViewModel(
         _uiState.update { it.copy(step = VlookupStep.MAP_COLUMNS, errorMessage = null) }
     }
 
-    fun updateColumnTarget(columnIndex: Int, target: TargetField, specGroup: String? = null, specKey: String? = null) {
+    fun updateColumnTarget(
+        columnIndex: Int,
+        target: TargetField,
+        specGroup: String? = null,
+        specKey: String? = null,
+        tabId: String = "SPECS",
+        tabDisplayName: String = "Specs"
+    ) {
         _uiState.update { state ->
             val updated = state.columnMappings.map { mapping ->
                 if (mapping.columnIndex == columnIndex) {
@@ -340,14 +371,65 @@ class VlookupMergerViewModel(
                     val isExisting = checkIsExistingInDb(target, effectiveKey)
                     mapping.copy(
                         targetField = target,
-                        specGroup = specGroup ?: mapping.specGroup,
+                        specGroup = if (target == TargetField.CUSTOM_SPEC) (specGroup ?: mapping.specGroup ?: "GENERAL") else null,
                         specKey = effectiveKey,
                         previousTarget = prev,
-                        isExistingInDatabase = isExisting
+                        isExistingInDatabase = isExisting,
+                        tabId = tabId,
+                        tabDisplayName = tabDisplayName
                     )
                 } else mapping
             }
             state.copy(columnMappings = updated)
+        }
+    }
+
+    fun createNewTabAndMap(columnIndex: Int, tabName: String, sectionName: String?) {
+        val cleanTabName = tabName.trim()
+        if (cleanTabName.isBlank()) return
+
+        val derivedTabId = cleanTabName.replace(Regex("[^A-Za-z0-9]"), "_")
+            .replace(Regex("_+"), "_")
+            .trim('_')
+            .uppercase(java.util.Locale.US)
+            .ifBlank { "CUSTOM_TAB" }
+
+        val group = sectionName?.trim()?.ifBlank { "GENERAL" } ?: "GENERAL"
+
+        val currentTabs = _uiState.value.availableTabs
+        val existingTab = currentTabs.find { it.tabId.equals(derivedTabId, ignoreCase = true) }
+        val effectiveTabId = existingTab?.tabId ?: derivedTabId
+        val effectiveDisplayName = existingTab?.displayName ?: cleanTabName
+
+        val updatedTabs = if (existingTab == null) {
+            val nextSort = (currentTabs.maxOfOrNull { it.sortOrder } ?: -1) + 1
+            currentTabs + SiteTabEntity(
+                tabId = effectiveTabId,
+                displayName = effectiveDisplayName,
+                sortOrder = nextSort,
+                isSystem = false
+            )
+        } else currentTabs
+
+        _uiState.update { state ->
+            val updatedMappings = state.columnMappings.map { mapping ->
+                if (mapping.columnIndex == columnIndex) {
+                    val key = mapping.specKey.ifBlank { mapping.sourceHeader }
+                    mapping.copy(
+                        targetField = TargetField.CUSTOM_SPEC,
+                        specGroup = group,
+                        specKey = key,
+                        previousTarget = TargetField.CUSTOM_SPEC,
+                        tabId = effectiveTabId,
+                        tabDisplayName = effectiveDisplayName,
+                        isExistingInDatabase = checkIsExistingInDb(TargetField.CUSTOM_SPEC, key)
+                    )
+                } else mapping
+            }
+            state.copy(
+                availableTabs = updatedTabs,
+                columnMappings = updatedMappings
+            )
         }
     }
 

@@ -424,6 +424,19 @@ fun SiteListScreen(
                                 viewModel.clearAllFilters()
                             }
                         )
+                    } else if (searchResults.isEmpty() && isSearching) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                strokeWidth = 2.dp,
+                                color = TelecomAmber,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),

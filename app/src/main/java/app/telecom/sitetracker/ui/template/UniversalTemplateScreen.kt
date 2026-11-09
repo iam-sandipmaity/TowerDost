@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,6 +73,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.telecom.sitetracker.data.entity.SiteTabEntity
 import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.ui.components.EnterpriseTopBar
 import app.telecom.sitetracker.ui.components.SearchCapsule
@@ -90,6 +92,7 @@ fun UniversalTemplateScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showAddTabDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.userMessage, uiState.errorMessage) {
         val msg = uiState.userMessage ?: uiState.errorMessage
@@ -118,7 +121,7 @@ fun UniversalTemplateScreen(
                             )
                         }
                     }
-                    if (uiState.siteSpecsAvailableCount > 0) {
+                    if (uiState.selectedTabId == "SPECS" && uiState.siteSpecsAvailableCount > 0) {
                         IconButton(
                             onClick = { viewModel.requestSyncFromSites() },
                             modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
@@ -163,14 +166,106 @@ fun UniversalTemplateScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
-                // Header Info Strip (Identical styling to SpecsTab in SiteDetailScreen)
+                // High-Contrast Horizontal Tab Selector
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val availableTabs = if (uiState.tabs.isNotEmpty()) uiState.tabs else listOf(SiteTabEntity.SYSTEM_SPECS)
+                        items(availableTabs, key = { it.tabId }) { tab ->
+                            val isSelected = tab.tabId.equals(uiState.selectedTabId, ignoreCase = true)
+                            Surface(
+                                onClick = { viewModel.selectTab(tab.tabId) },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) TelecomAmber.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) TelecomAmber else MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier
+                                    .sizeIn(minHeight = 48.dp)
+                                    .padding(vertical = 2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(TelecomAmber)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = tab.displayName.ifBlank { tab.tabId },
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            fontSize = 13.sp,
+                                            color = if (isSelected) TelecomAmber else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        // Add Tab Button
+                        item(key = "add_universal_tab_action") {
+                            Surface(
+                                onClick = { showAddTabDialog = true },
+                                shape = RoundedCornerShape(10.dp),
+                                color = RFCyan.copy(alpha = 0.12f),
+                                border = BorderStroke(1.dp, RFCyan.copy(alpha = 0.6f)),
+                                modifier = Modifier
+                                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                                    .padding(vertical = 2.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add New Universal Tab",
+                                        tint = RFCyan,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Tab",
+                                        style = MaterialTheme.typography.labelMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = RFCyan
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Header Info Strip
+                val currentTab = uiState.tabs.find { it.tabId.equals(uiState.selectedTabId, ignoreCase = true) }
+                val currentTabName = currentTab?.displayName?.ifBlank { currentTab.tabId } ?: if (uiState.selectedTabId == "SPECS") "Specifications" else uiState.selectedTabId
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -192,7 +287,7 @@ fun UniversalTemplateScreen(
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
-                                    text = "Specifications (${uiState.totalFieldCount} fields in ${uiState.groupedFields.size} categories)",
+                                    text = "$currentTabName (${uiState.totalFieldCount} fields in ${uiState.groupedFields.size} categories)",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -213,7 +308,8 @@ fun UniversalTemplateScreen(
                             OutlinedButton(
                                 onClick = { viewModel.startAddSection() },
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.sizeIn(minHeight = 48.dp)
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(14.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -339,12 +435,14 @@ fun UniversalTemplateScreen(
                                         )
                                     }
                                     Text(
-                                        text = "Universal Blueprint Empty",
+                                        text = if (uiState.selectedTabId == "SPECS") "Universal Blueprint Empty" else "$currentTabName Blueprint Empty",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Text(
-                                        text = if (uiState.siteSpecsAvailableCount > 0) {
+                                        text = if (uiState.selectedTabId != "SPECS") {
+                                            "No equipment categories defined for $currentTabName yet. Tap 'Add Category' above to add sections and specifications to this tab."
+                                        } else if (uiState.siteSpecsAvailableCount > 0) {
                                             "Found ${uiState.siteSpecsAvailableCount} equipment specifications in your imported site records. You can sync them now into the global template or define custom categories."
                                         } else {
                                             "No equipment specifications defined yet. When you import telecom site records, the blueprint will automatically reflect their columns, or you can add custom categories below."
@@ -358,12 +456,12 @@ fun UniversalTemplateScreen(
                                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        if (uiState.siteSpecsAvailableCount > 0) {
+                                        if (uiState.selectedTabId == "SPECS" && uiState.siteSpecsAvailableCount > 0) {
                                             Button(
                                                 onClick = { viewModel.requestSyncFromSites() },
                                                 colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
                                                 shape = RoundedCornerShape(8.dp),
-                                                modifier = Modifier.sizeIn(minHeight = 44.dp)
+                                                modifier = Modifier.sizeIn(minHeight = 48.dp)
                                             ) {
                                                 Icon(Icons.Default.Sync, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
                                                 Spacer(modifier = Modifier.width(6.dp))
@@ -379,7 +477,7 @@ fun UniversalTemplateScreen(
                                         OutlinedButton(
                                             onClick = { viewModel.startAddSection() },
                                             shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.sizeIn(minHeight = 44.dp)
+                                            modifier = Modifier.sizeIn(minHeight = 48.dp)
                                         ) {
                                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -512,6 +610,16 @@ fun UniversalTemplateScreen(
     }
 
     // --- Dialogs ---
+
+    if (showAddTabDialog) {
+        AddUniversalTabDialog(
+            onDismiss = { showAddTabDialog = false },
+            onConfirm = { name ->
+                viewModel.createNewTab(name)
+                showAddTabDialog = false
+            }
+        )
+    }
 
     if (uiState.isAddingField && uiState.targetSectionForAdd != null) {
         AddFieldDialog(
@@ -1153,6 +1261,60 @@ private fun AddSectionDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+@Composable
+private fun AddUniversalTabDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (tabName: String) -> Unit
+) {
+    var tabName by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Create New Universal Tab",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Adds a dynamic tab to the universal blueprint. All sites will inherit this tab and any specification categories added to it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = tabName,
+                    onValueChange = { tabName = it },
+                    label = { Text("Tab Display Name *") },
+                    placeholder = { Text("e.g. Tenant Info, Solar Specs") },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(tabName) },
+                enabled = tabName.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = TelecomAmber),
+                modifier = Modifier.sizeIn(minHeight = 48.dp)
+            ) {
+                Text("Create Tab", color = Color.Black, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.sizeIn(minHeight = 48.dp)
+            ) {
                 Text("Cancel")
             }
         }

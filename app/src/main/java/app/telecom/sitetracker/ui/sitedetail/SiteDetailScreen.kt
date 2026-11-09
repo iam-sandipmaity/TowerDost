@@ -27,9 +27,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -113,7 +118,6 @@ fun SiteDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    var selectedTab by remember { mutableIntStateOf(0) }
     var specFilterQuery by remember { mutableStateOf("") }
     var logToDelete by remember { mutableStateOf<IncidentEntity?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -149,23 +153,24 @@ fun SiteDetailScreen(
                 subtitle = listOfNotNull(uiState.site?.name, uiState.site?.city).joinToString(" • ").ifBlank { null },
                 onBack = onNavigateBack,
                 actions = {
-                    val isCurrentlyEditing = when (selectedTab) {
-                        0 -> uiState.isEditingSpecs
-                        2 -> uiState.isEditingOverview
-                        else -> false
+                    val currentTabId = uiState.selectedTabId
+                    val isCurrentlyEditing = when (currentTabId) {
+                        "OVERVIEW" -> uiState.isEditingOverview
+                        "LOGS" -> false
+                        else -> uiState.isEditingSpecs
                     }
 
                     Surface(
                         onClick = {
-                            when (selectedTab) {
-                                0 -> {
-                                    if (uiState.isEditingSpecs) viewModel.cancelEditingSpecs()
-                                    else viewModel.startEditingSpecs()
-                                }
-                                1 -> onLogIncident(uiState.site?.sapId ?: "")
-                                2 -> {
+                            when (currentTabId) {
+                                "OVERVIEW" -> {
                                     if (uiState.isEditingOverview) viewModel.cancelEditingOverview()
                                     else viewModel.startEditingOverview()
+                                }
+                                "LOGS" -> onLogIncident(uiState.site?.sapId ?: "")
+                                else -> {
+                                    if (uiState.isEditingSpecs) viewModel.cancelEditingSpecs()
+                                    else viewModel.startEditingSpecs()
                                 }
                             }
                         },
@@ -179,7 +184,7 @@ fun SiteDetailScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = if (isCurrentlyEditing) Icons.Default.Lock else if (selectedTab == 1) Icons.Default.Add else Icons.Default.Edit,
+                                imageVector = if (isCurrentlyEditing) Icons.Default.Lock else if (currentTabId == "LOGS") Icons.Default.Add else Icons.Default.Edit,
                                 contentDescription = null,
                                 tint = if (isCurrentlyEditing) TelecomAmber else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(13.dp)
@@ -188,9 +193,10 @@ fun SiteDetailScreen(
                             Text(
                                 text = when {
                                     isCurrentlyEditing -> "Cancel"
-                                    selectedTab == 0 -> "Edit Specs"
-                                    selectedTab == 1 -> "+ Log"
-                                    else -> "Edit Site"
+                                    currentTabId == "LOGS" -> "+ Log"
+                                    currentTabId == "OVERVIEW" -> "Edit Site"
+                                    currentTabId == "SPECS" -> "Edit Specs"
+                                    else -> "Edit Tab"
                                 },
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontWeight = FontWeight.Bold,
@@ -342,50 +348,95 @@ fun SiteDetailScreen(
                     }
                 )
 
-                // Segmented Tabs: 0 = Specs, 1 = Site Logs, 2 = Overview
-                val specCount = uiState.groupedSpecs.values.sumOf { it.size }
-                EnterpriseSegmentedControl(
-                    options = listOf("Specs ($specCount)", "Logs (${uiState.incidents.size})", "Overview"),
-                    selectedIndex = selectedTab,
-                    onSelect = { selectedTab = it },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                )
+                // Dynamic Tab Strip with horizontal scrolling and [+] button
+                val currentTabId = uiState.selectedTabId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    uiState.tabs.forEach { tab ->
+                        val isSelected = tab.tabId.equals(currentTabId, ignoreCase = true)
+                        val count = when (tab.tabId) {
+                            "SPECS" -> if (isSelected) uiState.groupedSpecs.values.sumOf { it.size } else null
+                            "LOGS" -> uiState.incidents.size
+                            "OVERVIEW" -> null
+                            else -> if (isSelected) uiState.groupedSpecs.values.sumOf { it.size } else null
+                        }
+                        val title = if (count != null) "${tab.displayName} ($count)" else tab.displayName
+
+                        Surface(
+                            onClick = { viewModel.selectTab(tab.tabId) },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(
+                                if (isSelected) 1.5.dp else 1.dp,
+                                if (isSelected) RFCyan else MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            modifier = Modifier
+                                .heightIn(min = 44.dp)
+                                .defaultMinSize(minWidth = 64.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) RFCyan else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    // [+] Add Tab Button
+                    Surface(
+                        onClick = { viewModel.showCreateTabDialog() },
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        modifier = Modifier
+                            .heightIn(min = 44.dp)
+                            .defaultMinSize(minWidth = 48.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Add,
+                                contentDescription = "Add New Tab",
+                                tint = RFCyan,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Tab",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = RFCyan
+                                )
+                            )
+                        }
+                    }
+                }
 
                 // Tab Content
-                when (selectedTab) {
-                    0 -> SpecsTab(
-                        site = site,
-                        groupedSpecs = uiState.groupedSpecs,
-                        filterQuery = specFilterQuery,
-                        isEditingSpecs = uiState.isEditingSpecs,
-                        draftSections = uiState.draftSpecsSections,
-                        onFilterChange = { specFilterQuery = it },
-                        onNavigateToTemplate = onNavigateToTemplate,
-                        onStartEditSpecs = { viewModel.startEditingSpecs() },
-                        onCancelEditSpecs = { viewModel.cancelEditingSpecs() },
-                        onSaveSpecsClick = { viewModel.requestSaveSpecs() },
-                        onAddSpecItem = { secIdx -> viewModel.addDraftSpecItem(secIdx) },
-                        onUpdateSpecItem = { secIdx, tempId, k, v ->
-                            viewModel.updateDraftSpecItem(secIdx, tempId, k, v)
-                        },
-                        onRemoveSpecItem = { secIdx, tempId ->
-                            viewModel.removeDraftSpecItem(secIdx, tempId)
-                        },
-                        onShowAddSection = { viewModel.showAddSectionDialog() },
-                        onRemoveSection = { secIdx -> viewModel.removeDraftSection(secIdx) },
-                        onCopySpec = { key, value ->
-                            copyToClipboard(context, key, value)
-                            scope.launch { snackbarHostState.showSnackbar("Copied $key to clipboard") }
-                        }
-                    )
-                    1 -> SiteLogsTab(
+                when (currentTabId) {
+                    "LOGS" -> SiteLogsTab(
                         logs = uiState.incidents,
                         isEditMode = uiState.isEditMode,
                         onAddLogClick = { onLogIncident(site.sapId) },
                         onEditLogClick = { incId -> onEditLog(site.sapId, incId) },
                         onDeleteLogClick = { logToDelete = it }
                     )
-                    2 -> OverviewTab(
+                    "OVERVIEW" -> OverviewTab(
                         site = site,
                         isEditMode = uiState.isEditMode,
                         isEditing = uiState.isEditingOverview,
@@ -402,6 +453,62 @@ fun SiteDetailScreen(
                             launchNavigation(context, lat, lng, label)
                         }
                     )
+                    else -> {
+                        val isCustomTab = currentTabId != "SPECS"
+                        Column {
+                            SpecsTab(
+                                site = site,
+                                groupedSpecs = uiState.groupedSpecs,
+                                filterQuery = specFilterQuery,
+                                isEditingSpecs = uiState.isEditingSpecs,
+                                draftSections = uiState.draftSpecsSections,
+                                onFilterChange = { specFilterQuery = it },
+                                onNavigateToTemplate = onNavigateToTemplate,
+                                onStartEditSpecs = { viewModel.startEditingSpecs() },
+                                onCancelEditSpecs = { viewModel.cancelEditingSpecs() },
+                                onSaveSpecsClick = { viewModel.requestSaveSpecs() },
+                                onAddSpecItem = { secIdx -> viewModel.addDraftSpecItem(secIdx) },
+                                onUpdateSpecItem = { secIdx, tempId, k, v ->
+                                    viewModel.updateDraftSpecItem(secIdx, tempId, k, v)
+                                },
+                                onRemoveSpecItem = { secIdx, tempId ->
+                                    viewModel.removeDraftSpecItem(secIdx, tempId)
+                                },
+                                onShowAddSection = { viewModel.showAddSectionDialog() },
+                                onRemoveSection = { secIdx -> viewModel.removeDraftSection(secIdx) },
+                                onCopySpec = { key, value ->
+                                    copyToClipboard(context, key, value)
+                                    scope.launch { snackbarHostState.showSnackbar("Copied $key to clipboard") }
+                                }
+                            )
+
+                            if (isCustomTab && !uiState.isEditingSpecs) {
+                                val currentTabEntity = uiState.tabs.find { it.tabId.equals(currentTabId, ignoreCase = true) }
+                                OutlinedButton(
+                                    onClick = { viewModel.requestDeleteTab(currentTabId) },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TagIssueColor),
+                                    border = BorderStroke(1.dp, TagIssueColor.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp)
+                                        .heightIn(min = 48.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        tint = TagIssueColor,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Delete '${currentTabEntity?.displayName ?: currentTabId}' Tab",
+                                        fontWeight = FontWeight.Bold,
+                                        color = TagIssueColor
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -543,6 +650,124 @@ fun SiteDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { logToDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Dialog: Create New Universal Tab
+    if (uiState.isCreatingTabDialog) {
+        var tabNameInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissCreateTabDialog() },
+            title = {
+                Text("Create New Universal Tab", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Enter a name for the new site tab (e.g. Tenant Info, Solar Specs, EB Billing, Battery Bank). This tab will be available across all sites.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = tabNameInput,
+                        onValueChange = { tabNameInput = it },
+                        label = { Text("Tab Name") },
+                        placeholder = { Text("e.g. Tenant Info") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.createUniversalTab(tabNameInput) },
+                    colors = ButtonDefaults.buttonColors(containerColor = RFCyan),
+                    enabled = tabNameInput.isNotBlank()
+                ) {
+                    Text("Create Tab", fontWeight = FontWeight.Bold, color = Color.Black)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissCreateTabDialog() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Dialog: Delete Tab with Option 2A Pre-Deletion Backup Verification Gate
+    if (uiState.tabToDelete != null) {
+        val tab = uiState.tabToDelete!!
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissDeleteTabDialog() },
+            icon = {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = TagIssueColor, modifier = Modifier.size(36.dp))
+            },
+            title = {
+                Text("Delete Tab: ${tab.displayName}?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "⚠️ This tab contains specifications across ${uiState.tabDeleteSiteCount} site(s). To prevent accidental or irreversible data loss, TowerDost requires generating a verified JSON backup file to your device storage before deletion.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    OutlinedButton(
+                        onClick = { viewModel.generateSafetyBackup(context) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (uiState.backupVerified) RFCyan else TelecomAmber
+                        )
+                    ) {
+                        Icon(
+                            imageVector = if (uiState.backupVerified) Icons.Default.CheckCircle else Icons.Default.CloudDownload,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (uiState.backupVerified) "Backup Verified (Ready)" else "Generate Safety Backup (.json)",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    if (uiState.backupVerified && uiState.backupFilePath != null) {
+                        Text(
+                            text = "✅ Safety backup verified: ${uiState.backupFilePath}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = RFCyan
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.confirmDeleteTab(context) },
+                    enabled = uiState.backupVerified,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TagIssueColor,
+                        disabledContainerColor = TagIssueColor.copy(alpha = 0.3f)
+                    ),
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text(
+                        "Confirm Delete",
+                        fontWeight = FontWeight.Bold,
+                        color = if (uiState.backupVerified) Color.White else Color.White.copy(alpha = 0.5f)
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { viewModel.dismissDeleteTabDialog() },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
                     Text("Cancel")
                 }
             }

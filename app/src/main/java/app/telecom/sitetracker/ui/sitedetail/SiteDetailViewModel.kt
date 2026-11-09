@@ -3,15 +3,18 @@ package app.telecom.sitetracker.ui.sitedetail
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import app.telecom.sitetracker.data.backup.BackupManager
 import app.telecom.sitetracker.data.entity.IncidentEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
+import app.telecom.sitetracker.data.entity.SiteTabEntity
 import app.telecom.sitetracker.data.export.Exporter
 import app.telecom.sitetracker.data.repo.IncidentRepository
 import app.telecom.sitetracker.data.repo.OutageRepository
 import app.telecom.sitetracker.data.repo.SiteRepository
 import app.telecom.sitetracker.util.Dates
 import app.telecom.sitetracker.util.Geo
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +36,8 @@ data class SpecDraftSection(
 data class SiteDetailUiState(
     val isLoading: Boolean = true,
     val site: SiteEntity? = null,
+    val tabs: List<SiteTabEntity> = emptyList(),
+    val selectedTabId: String = "SPECS",
     val groupedSpecs: Map<String, List<SiteFieldEntity>> = emptyMap(),
     val contactPhone: String? = null,
     val incidents: List<IncidentEntity> = emptyList(),
@@ -57,14 +62,21 @@ data class SiteDetailUiState(
     val isAddingSectionDialog: Boolean = false,
     val specToEdit: SiteFieldEntity? = null,
     val isAddingSpec: Boolean = false,
-    val confirmDeleteSpec: SiteFieldEntity? = null
+    val confirmDeleteSpec: SiteFieldEntity? = null,
+    // Dynamic tab creation & safe pre-deletion backup gate
+    val isCreatingTabDialog: Boolean = false,
+    val tabToDelete: SiteTabEntity? = null,
+    val tabDeleteSiteCount: Int = 0,
+    val backupVerified: Boolean = false,
+    val backupFilePath: String? = null
 )
 
 class SiteDetailViewModel(
     private val sapId: String,
     private val siteRepository: SiteRepository,
     private val incidentRepository: IncidentRepository,
-    private val outageRepository: OutageRepository
+    private val outageRepository: OutageRepository,
+    private val backupManager: BackupManager? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SiteDetailUiState())
@@ -74,6 +86,15 @@ class SiteDetailViewModel(
         loadSiteDetails()
         observeIncidents()
         observeUniversalTemplate()
+        observeTabs()
+    }
+
+    private fun observeTabs() {
+        viewModelScope.launch {
+            siteRepository.observeAllTabs().collect { tabList ->
+                _uiState.update { it.copy(tabs = if (tabList.isNotEmpty()) tabList else SiteTabEntity.DEFAULT_TABS) }
+            }
+        }
     }
 
     private fun observeUniversalTemplate() {
@@ -430,6 +451,7 @@ class SiteDetailViewModel(
         val sections = _uiState.value.draftSpecsSections
         val newEntities = mutableListOf<SiteFieldEntity>()
         var sortIndex = 1
+        val currentTabId = if (_uiState.value.selectedTabId in listOf("LOGS", "OVERVIEW")) "SPECS" else _uiState.value.selectedTabId
 
         for (sec in sections) {
             val secName = sec.sectionName.trim().ifBlank { "GENERAL SPECIFICATIONS" }.uppercase()
@@ -443,6 +465,7 @@ class SiteDetailViewModel(
                             fieldKey = key,
                             fieldValue = value.ifBlank { null },
                             groupName = secName,
+                            tabId = currentTabId,
                             sortOrder = sortIndex++
                         )
                     )
@@ -452,13 +475,13 @@ class SiteDetailViewModel(
 
         viewModelScope.launch {
             try {
-                siteRepository.replaceSiteSpecs(site.sapId, newEntities)
+                siteRepository.replaceSiteSpecsForTab(site.sapId, currentTabId, newEntities)
                 _uiState.update {
                     it.copy(
                         isEditingSpecs = false,
                         draftSpecsSections = emptyList(),
                         confirmSaveSpecs = false,
-                        userMessage = "Technical specifications updated successfully."
+                        userMessage = "Specifications updated successfully."
                     )
                 }
                 loadSiteDetails()
@@ -585,15 +608,20 @@ class SiteDetailViewModel(
                 val site = siteRepository.getSiteBySapId(sapId)
                     ?: siteRepository.getSiteBySapNorm(SiteEntity.normalize(sapId))
                 val actualSapId = site?.sapId ?: sapId
-                val fields = siteRepository.getFieldsForSite(actualSapId)
-                val universalFields = siteRepository.getUniversalFields()
+                val loadedTabs = siteRepository.getAllTabs()
+                val activeTabs = if (loadedTabs.isNotEmpty()) loadedTabs else SiteTabEntity.DEFAULT_TABS
 
-                // If site already has recorded technical specifications, display them exclusively.
+                val currentTabId = if (_uiState.value.selectedTabId in listOf("LOGS", "OVERVIEW")) "SPECS" else _uiState.value.selectedTabId
+                val fields = siteRepository.getFieldsForSiteAndTab(actualSapId, currentTabId) ?: emptyList()
+                val allSiteFields = siteRepository.getFieldsForSite(actualSapId) ?: emptyList()
+                val universalFields = (siteRepository.getUniversalFields() ?: emptyList()).filter { it.tabId.equals(currentTabId, ignoreCase = true) }
+
+                // If site already has recorded technical specifications for this tab, display them exclusively.
                 // Never inject repetitive blank placeholder fields into existing sites.
-                // If site has NO recorded specifications yet, inherit the global blueprint.
+                // If site has NO recorded specifications for this tab yet, inherit the global blueprint for this tab.
                 val activeFields = if (fields.isNotEmpty()) {
                     fields
-                } else {
+                } else if (universalFields.isNotEmpty()) {
                     universalFields.map { uni ->
                         SiteFieldEntity(
                             id = 0L,
@@ -601,13 +629,16 @@ class SiteDetailViewModel(
                             fieldKey = uni.fieldKey,
                             fieldValue = uni.defaultValue,
                             groupName = uni.groupName,
+                            tabId = currentTabId,
                             sortOrder = uni.sortOrder
                         )
                     }
+                } else {
+                    emptyList()
                 }
 
                 // Detect contact phone number from specs
-                val phoneField = activeFields.firstOrNull { field ->
+                val phoneField = allSiteFields.firstOrNull { field ->
                     val k = field.fieldKey.lowercase()
                     (k.contains("number") || k.contains("phone") || k.contains("mobile") || k.contains("tech no")) &&
                             field.fieldValue?.any { it.isDigit() } == true
@@ -652,6 +683,7 @@ class SiteDetailViewModel(
                     it.copy(
                         isLoading = false,
                         site = site,
+                        tabs = activeTabs,
                         groupedSpecs = grouped,
                         contactPhone = phone
                     )
@@ -662,6 +694,159 @@ class SiteDetailViewModel(
                         isLoading = false,
                         errorMessage = "Failed to load site details: ${e.localizedMessage}"
                     )
+                }
+            }
+        }
+    }
+
+    // --- Dynamic Universal Tab Actions ---
+
+    fun selectTab(tabId: String) {
+        val normalized = tabId.trim().uppercase(Locale.US)
+        _uiState.update {
+            it.copy(
+                selectedTabId = normalized,
+                isEditingSpecs = false,
+                isEditingOverview = false,
+                draftSpecsSections = emptyList(),
+                draftOverview = null
+            )
+        }
+        loadSiteDetails()
+    }
+
+    fun showCreateTabDialog() {
+        _uiState.update { it.copy(isCreatingTabDialog = true) }
+    }
+
+    fun dismissCreateTabDialog() {
+        _uiState.update { it.copy(isCreatingTabDialog = false) }
+    }
+
+    fun createUniversalTab(displayName: String) {
+        val trimmed = displayName.trim()
+        if (trimmed.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Tab name cannot be blank.") }
+            return
+        }
+        val tabId = trimmed.replace("\\s+".toRegex(), "_").uppercase(Locale.US)
+        viewModelScope.launch {
+            try {
+                siteRepository.insertTab(tabId, trimmed)
+                _uiState.update {
+                    it.copy(
+                        selectedTabId = tabId,
+                        isCreatingTabDialog = false,
+                        userMessage = "Tab '$trimmed' created successfully."
+                    )
+                }
+                loadSiteDetails()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = e.localizedMessage ?: "Failed to create tab")
+                }
+            }
+        }
+    }
+
+    fun requestDeleteTab(tabId: String) {
+        val normalized = tabId.trim().uppercase(Locale.US)
+        if (SiteTabEntity.DEFAULT_TABS.any { it.tabId == normalized }) {
+            _uiState.update { it.copy(errorMessage = "Cannot delete built-in system tab: $normalized") }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val tab = siteRepository.getTabById(normalized)
+                if (tab == null) {
+                    _uiState.update { it.copy(errorMessage = "Tab '$normalized' not found") }
+                    return@launch
+                }
+                val siteCount = siteRepository.countDistinctSitesForTab(normalized)
+                _uiState.update {
+                    it.copy(
+                        tabToDelete = tab,
+                        tabDeleteSiteCount = siteCount,
+                        backupVerified = false,
+                        backupFilePath = null
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(errorMessage = "Failed to prepare tab deletion: ${e.localizedMessage}") }
+            }
+        }
+    }
+
+    fun dismissDeleteTabDialog() {
+        _uiState.update {
+            it.copy(
+                tabToDelete = null,
+                tabDeleteSiteCount = 0,
+                backupVerified = false,
+                backupFilePath = null
+            )
+        }
+    }
+
+    fun generateSafetyBackup(context: Context): kotlinx.coroutines.Job = viewModelScope.launch {
+        val tab = _uiState.value.tabToDelete ?: return@launch
+        try {
+            val bm = backupManager
+            if (bm == null) {
+                _uiState.update { it.copy(errorMessage = "BackupManager is unavailable") }
+                return@launch
+            }
+            val result = bm.generateAndVerifySafetyBackup(context, "tab_${tab.tabId.lowercase()}_delete")
+            if (result.isSuccess) {
+                val file = result.getOrThrow()
+                _uiState.update {
+                    it.copy(
+                        backupVerified = true,
+                        backupFilePath = file.absolutePath,
+                        userMessage = "Safety backup verified (${file.length()} bytes)."
+                    )
+                }
+            } else {
+                _uiState.update {
+                    it.copy(
+                        backupVerified = false,
+                        errorMessage = "Backup failed: ${result.exceptionOrNull()?.message}"
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    backupVerified = false,
+                    errorMessage = "Backup failed: ${e.localizedMessage}"
+                )
+            }
+        }
+    }
+
+    fun confirmDeleteTab(context: Context): kotlinx.coroutines.Job? {
+        val tab = _uiState.value.tabToDelete ?: return null
+        if (!_uiState.value.backupVerified) {
+            _uiState.update { it.copy(errorMessage = "Cannot delete tab without verified safety backup.") }
+            return null
+        }
+        return viewModelScope.launch {
+            try {
+                siteRepository.deleteTab(tab.tabId)
+                _uiState.update {
+                    it.copy(
+                        tabToDelete = null,
+                        tabDeleteSiteCount = 0,
+                        backupVerified = false,
+                        backupFilePath = null,
+                        selectedTabId = "SPECS",
+                        userMessage = "Tab '${tab.displayName}' and its data deleted permanently."
+                    )
+                }
+                loadSiteDetails()
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to delete tab: ${e.localizedMessage}")
                 }
             }
         }

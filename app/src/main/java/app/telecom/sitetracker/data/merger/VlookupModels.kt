@@ -31,7 +31,9 @@ data class VlookupColumnMapping(
     var specGroup: String? = null,
     var specKey: String = sourceHeader,
     var previousTarget: TargetField = if (targetField != TargetField.IGNORE) targetField else TargetField.CUSTOM_SPEC,
-    var isExistingInDatabase: Boolean = false
+    var isExistingInDatabase: Boolean = false,
+    var tabId: String = "SPECS",
+    var tabDisplayName: String = "Specs"
 )
 
 data class FieldDiff(

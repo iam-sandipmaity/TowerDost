@@ -63,30 +63,33 @@ interface SiteDao {
     suspend fun searchFts(query: String): List<SiteEntity>
 
     @Query("""
-        SELECT DISTINCT s.* FROM sites s 
-        LEFT JOIN site_fields sf ON s.sap_id = sf.sap_id
-        WHERE s.deleted_at IS NULL AND (
-            s.sap_id LIKE '%' || :query || '%' OR 
-            s.sap_norm LIKE '%' || :query || '%' OR 
-            (:normQuery != '' AND s.sap_norm LIKE '%' || :normQuery || '%') OR 
-            s.name LIKE '%' || :query || '%' OR 
-            s.city LIKE '%' || :query || '%' OR 
-            s.district LIKE '%' || :query || '%' OR 
-            s.circle LIKE '%' || :query || '%' OR
-            s.address LIKE '%' || :query || '%' OR
-            s.technology LIKE '%' || :query || '%' OR
-            s.site_type LIKE '%' || :query || '%' OR
-            sf.field_key LIKE '%' || :query || '%' OR
-            sf.field_value LIKE '%' || :query || '%'
+        SELECT * FROM sites 
+        WHERE deleted_at IS NULL AND (
+            sap_id LIKE '%' || :query || '%' OR 
+            sap_norm LIKE '%' || :query || '%' OR 
+            (:normQuery != '' AND sap_norm LIKE '%' || :normQuery || '%') OR 
+            LOWER(name) LIKE '%' || LOWER(:query) || '%' OR 
+            LOWER(city) LIKE '%' || LOWER(:query) || '%' OR 
+            LOWER(district) LIKE '%' || LOWER(:query) || '%' OR 
+            LOWER(circle) LIKE '%' || LOWER(:query) || '%' OR
+            LOWER(address) LIKE '%' || LOWER(:query) || '%' OR
+            LOWER(technology) LIKE '%' || LOWER(:query) || '%' OR
+            LOWER(site_type) LIKE '%' || LOWER(:query) || '%' OR
+            LOWER(status) LIKE '%' || LOWER(:query) || '%' OR
+            sap_id IN (
+                SELECT sap_id FROM site_fields 
+                WHERE LOWER(field_key) LIKE '%' || LOWER(:query) || '%' 
+                   OR LOWER(field_value) LIKE '%' || LOWER(:query) || '%'
+            )
         )
         ORDER BY 
             CASE 
-                WHEN s.sap_id = :query OR (:normQuery != '' AND s.sap_norm = :normQuery) THEN 1
-                WHEN s.sap_id LIKE :query || '%' OR (:normQuery != '' AND s.sap_norm LIKE :normQuery || '%') THEN 2
-                WHEN s.name LIKE :query || '%' THEN 3
+                WHEN sap_id = :query OR (:normQuery != '' AND sap_norm = :normQuery) THEN 1
+                WHEN sap_id LIKE :query || '%' OR (:normQuery != '' AND sap_norm LIKE :normQuery || '%') THEN 2
+                WHEN LOWER(name) LIKE LOWER(:query) || '%' THEN 3
                 ELSE 4
             END,
-            s.sap_id ASC
+            sap_id ASC
         LIMIT 100
     """)
     suspend fun searchDirect(query: String, normQuery: String = ""): List<SiteEntity>
