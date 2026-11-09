@@ -41,5 +41,8 @@ data class SiteFieldEntity(
     val groupName: String? = null,
 
     @ColumnInfo(name = "sort_order")
-    val sortOrder: Int? = null
+    val sortOrder: Int? = null,
+
+    @ColumnInfo(name = "tab_id", defaultValue = "'SPECS'")
+    val tabId: String = "SPECS"
 )

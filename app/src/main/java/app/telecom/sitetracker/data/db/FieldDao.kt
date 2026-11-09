@@ -42,6 +42,18 @@ interface FieldDao {
     @Query("SELECT * FROM site_fields WHERE sap_id = :sapId ORDER BY sort_order ASC, id ASC")
     suspend fun getFieldsForSite(sapId: String): List<SiteFieldEntity>
 
+    @Query("SELECT * FROM site_fields WHERE sap_id = :sapId AND tab_id = :tabId ORDER BY sort_order ASC, id ASC")
+    fun observeFieldsForSiteAndTab(sapId: String, tabId: String): Flow<List<SiteFieldEntity>>
+
+    @Query("SELECT * FROM site_fields WHERE sap_id = :sapId AND tab_id = :tabId ORDER BY sort_order ASC, id ASC")
+    suspend fun getFieldsForSiteAndTab(sapId: String, tabId: String): List<SiteFieldEntity>
+
+    @Query("DELETE FROM site_fields WHERE tab_id = :tabId")
+    suspend fun deleteFieldsForTab(tabId: String)
+
+    @Query("SELECT COUNT(DISTINCT sap_id) FROM site_fields WHERE tab_id = :tabId")
+    suspend fun countSitesWithTab(tabId: String): Int
+
     @Query("SELECT * FROM site_fields ORDER BY sap_id, sort_order ASC")
     suspend fun getAllFields(): List<SiteFieldEntity>
 

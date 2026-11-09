@@ -14,6 +14,7 @@ import app.telecom.sitetracker.data.entity.ReasonEntity
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.entity.SiteFts
+import app.telecom.sitetracker.data.entity.SiteTabEntity
 import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 
 @Database(
@@ -25,12 +26,13 @@ import app.telecom.sitetracker.data.entity.UniversalFieldEntity
         IncidentEntity::class,
         IncidentHistoryEntity::class,
         IncidentPhotoEntity::class,
-        SiteFts::class
+        SiteFts::class,
+        SiteTabEntity::class
     ],
     views = [
         OrphanIncidentView::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,6 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun incidentDao(): IncidentDao
     abstract fun outageDao(): OutageDao
     abstract fun statsDao(): StatsDao
+    abstract fun siteTabDao(): SiteTabDao
 
     companion object {
         const val DATABASE_NAME = "telecom_sitetracker.db"
@@ -57,6 +60,61 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                     """.trimIndent()
                 )
+            }
+        }
+
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Create site_tabs registry
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `site_tabs` (
+                        `tab_id` TEXT NOT NULL PRIMARY KEY,
+                        `display_name` TEXT NOT NULL,
+                        `sort_order` INTEGER NOT NULL DEFAULT 0,
+                        `is_system` INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    INSERT OR IGNORE INTO `site_tabs` (`tab_id`, `display_name`, `sort_order`, `is_system`)
+                    VALUES 
+                        ('SPECS', 'Specs', 0, 1),
+                        ('LOGS', 'Logs', 1, 1),
+                        ('OVERVIEW', 'Overview', 2, 1)
+                    """.trimIndent()
+                )
+
+                // 2. Add tab_id column to site_fields
+                db.execSQL(
+                    "ALTER TABLE `site_fields` ADD COLUMN `tab_id` TEXT NOT NULL DEFAULT 'SPECS'"
+                )
+
+                // 3. Upgrade universal_fields to composite primary key (tab_id, field_key) preserving all data
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `universal_fields_new` (
+                        `tab_id` TEXT NOT NULL DEFAULT 'SPECS',
+                        `field_key` TEXT NOT NULL,
+                        `group_name` TEXT NOT NULL,
+                        `default_value` TEXT,
+                        `sort_order` INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(`tab_id`, `field_key`)
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    INSERT INTO `universal_fields_new` (`tab_id`, `field_key`, `group_name`, `default_value`, `sort_order`)
+                    SELECT 'SPECS', `field_key`, `group_name`, `default_value`, `sort_order` FROM `universal_fields`
+                    """.trimIndent()
+                )
+
+                db.execSQL("DROP TABLE `universal_fields`")
+                db.execSQL("ALTER TABLE `universal_fields_new` RENAME TO `universal_fields`")
             }
         }
 
@@ -84,12 +142,21 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java,
                 DATABASE_NAME
             )
-            .addMigrations(MIGRATION_2_3)
+            .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .fallbackToDestructiveMigrationOnDowngrade()
             .addCallback(object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
+                    db.execSQL(
+                        """
+                        INSERT OR IGNORE INTO `site_tabs` (`tab_id`, `display_name`, `sort_order`, `is_system`)
+                        VALUES 
+                            ('SPECS', 'Specs', 0, 1),
+                            ('LOGS', 'Logs', 1, 1),
+                            ('OVERVIEW', 'Overview', 2, 1)
+                        """.trimIndent()
+                    )
                 }
             })
             .build()
@@ -103,6 +170,20 @@ abstract class AppDatabase : RoomDatabase() {
                 AppDatabase::class.java
             )
             .allowMainThreadQueries()
+            .addCallback(object : Callback() {
+                override fun onCreate(db: SupportSQLiteDatabase) {
+                    super.onCreate(db)
+                    db.execSQL(
+                        """
+                        INSERT OR IGNORE INTO `site_tabs` (`tab_id`, `display_name`, `sort_order`, `is_system`)
+                        VALUES 
+                            ('SPECS', 'Specs', 0, 1),
+                            ('LOGS', 'Logs', 1, 1),
+                            ('OVERVIEW', 'Overview', 2, 1)
+                        """.trimIndent()
+                    )
+                }
+            })
             .build()
         }
     }

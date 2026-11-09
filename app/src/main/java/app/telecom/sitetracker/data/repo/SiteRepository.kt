@@ -8,6 +8,7 @@ import app.telecom.sitetracker.data.db.PopulatedCoreFields
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.entity.SiteFts
+import app.telecom.sitetracker.data.entity.SiteTabEntity
 import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.data.import.TargetField
 import app.telecom.sitetracker.ui.sitelist.FilterDimension
@@ -26,6 +27,7 @@ class SiteRepository(private val db: AppDatabase) {
     private val siteDao = db.siteDao()
     private val fieldDao = db.fieldDao()
     private val universalFieldDao = db.universalFieldDao()
+    private val siteTabDao = db.siteTabDao()
 
     fun observeActiveSites(): Flow<List<SiteEntity>> = siteDao.getAllActiveSites()
 
@@ -494,6 +496,65 @@ class SiteRepository(private val db: AppDatabase) {
 
     suspend fun replaceAllUniversalFields(fields: List<UniversalFieldEntity>) {
         universalFieldDao.replaceAll(fields)
+    }
+
+    // --- Dynamic Universal Tab Methods ---
+
+    fun observeAllTabs(): Flow<List<SiteTabEntity>> = siteTabDao.observeAllTabs()
+
+    suspend fun getAllTabs(): List<SiteTabEntity> = siteTabDao.getAllTabs()
+
+    suspend fun getTabById(tabId: String): SiteTabEntity? = siteTabDao.getTabById(tabId)
+
+    fun observeFieldsForSiteAndTab(sapId: String, tabId: String): Flow<List<SiteFieldEntity>> =
+        fieldDao.observeFieldsForSiteAndTab(sapId, tabId)
+
+    suspend fun getFieldsForSiteAndTab(sapId: String, tabId: String): List<SiteFieldEntity> =
+        fieldDao.getFieldsForSiteAndTab(sapId, tabId)
+
+    suspend fun insertTab(tab: SiteTabEntity) {
+        siteTabDao.insertTab(tab)
+    }
+
+    suspend fun insertTab(tabId: String, displayName: String) {
+        val normalizedId = tabId.trim().uppercase(Locale.US)
+        val existingTabs = siteTabDao.getAllTabs()
+        val nextSort = (existingTabs.maxOfOrNull { it.sortOrder } ?: -1) + 1
+        val tab = SiteTabEntity(
+            tabId = normalizedId,
+            displayName = displayName.trim(),
+            sortOrder = nextSort,
+            isSystem = false
+        )
+        siteTabDao.insertTab(tab)
+    }
+
+    suspend fun deleteTab(tabId: String) {
+        val tab = siteTabDao.getTabById(tabId)
+        if (tab != null && tab.isSystem) {
+            throw IllegalStateException("Cannot delete system tab: $tabId")
+        }
+        siteTabDao.deleteTab(tabId)
+        fieldDao.deleteFieldsForTab(tabId)
+        universalFieldDao.deleteFieldsForTab(tabId)
+    }
+
+    suspend fun countSitesWithTab(tabId: String): Int = fieldDao.countSitesWithTab(tabId)
+
+    fun observeUniversalFieldsForTab(tabId: String): Flow<List<UniversalFieldEntity>> =
+        universalFieldDao.observeUniversalFieldsForTab(tabId)
+
+    suspend fun getUniversalFieldsForTab(tabId: String): List<UniversalFieldEntity> =
+        universalFieldDao.getUniversalFieldsForTab(tabId)
+
+    suspend fun deleteUniversalField(tabId: String, fieldKey: String) {
+        universalFieldDao.deleteField(tabId, fieldKey)
+    }
+
+    suspend fun ensureDefaultTabsSeeded() {
+        if (siteTabDao.getAllTabs().isEmpty()) {
+            siteTabDao.insertTabs(SiteTabEntity.DEFAULT_TABS)
+        }
     }
 
     suspend fun rebuildFtsIndex() {
