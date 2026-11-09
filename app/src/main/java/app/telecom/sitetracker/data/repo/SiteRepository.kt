@@ -3,6 +3,7 @@ package app.telecom.sitetracker.data.repo
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import androidx.room.withTransaction
 import app.telecom.sitetracker.data.db.AppDatabase
 import app.telecom.sitetracker.data.db.PopulatedCoreFields
 import app.telecom.sitetracker.data.entity.SiteEntity
@@ -513,12 +514,26 @@ class SiteRepository(private val db: AppDatabase) {
         fieldDao.getFieldsForSiteAndTab(sapId, tabId)
 
     suspend fun insertTab(tab: SiteTabEntity) {
-        siteTabDao.insertTab(tab)
+        val normalizedId = tab.tabId.trim().uppercase(Locale.US)
+        if (!tab.isSystem && SiteTabEntity.DEFAULT_TABS.any { it.tabId == normalizedId }) {
+            throw IllegalArgumentException("Cannot overwrite system tab: $normalizedId")
+        }
+        val existingTabs = siteTabDao.getAllTabs()
+        if (existingTabs.any { it.tabId.uppercase(Locale.US) == normalizedId }) {
+            throw IllegalArgumentException("Tab already exists: $normalizedId")
+        }
+        siteTabDao.insertTab(tab.copy(tabId = normalizedId))
     }
 
     suspend fun insertTab(tabId: String, displayName: String) {
         val normalizedId = tabId.trim().uppercase(Locale.US)
+        if (SiteTabEntity.DEFAULT_TABS.any { it.tabId == normalizedId }) {
+            throw IllegalArgumentException("Cannot overwrite system tab: $normalizedId")
+        }
         val existingTabs = siteTabDao.getAllTabs()
+        if (existingTabs.any { it.tabId.uppercase(Locale.US) == normalizedId }) {
+            throw IllegalArgumentException("Tab already exists: $normalizedId")
+        }
         val nextSort = (existingTabs.maxOfOrNull { it.sortOrder } ?: -1) + 1
         val tab = SiteTabEntity(
             tabId = normalizedId,
@@ -530,13 +545,19 @@ class SiteRepository(private val db: AppDatabase) {
     }
 
     suspend fun deleteTab(tabId: String) {
-        val tab = siteTabDao.getTabById(tabId)
-        if (tab != null && tab.isSystem) {
-            throw IllegalStateException("Cannot delete system tab: $tabId")
+        val normalizedId = tabId.trim().uppercase(Locale.US)
+        if (SiteTabEntity.DEFAULT_TABS.any { it.tabId == normalizedId }) {
+            throw IllegalStateException("Cannot delete system tab: $normalizedId")
         }
-        siteTabDao.deleteTab(tabId)
-        fieldDao.deleteFieldsForTab(tabId)
-        universalFieldDao.deleteFieldsForTab(tabId)
+        val tab = siteTabDao.getTabById(normalizedId)
+        if (tab != null && tab.isSystem) {
+            throw IllegalStateException("Cannot delete system tab: $normalizedId")
+        }
+        db.withTransaction {
+            siteTabDao.deleteTab(normalizedId)
+            fieldDao.deleteFieldsForTab(normalizedId)
+            universalFieldDao.deleteFieldsForTab(normalizedId)
+        }
     }
 
     suspend fun countSitesWithTab(tabId: String): Int = fieldDao.countSitesWithTab(tabId)

@@ -25,6 +25,127 @@ import org.junit.Test
 
 class SiteTabDatabaseTest {
 
+    private data class TestContext(
+        val repo: SiteRepository,
+        val storedTabs: MutableList<SiteTabEntity>,
+        val storedFields: MutableList<SiteFieldEntity>,
+        val isTransactionBegun: () -> Boolean,
+        val isTransactionSuccessful: () -> Boolean,
+        val isTransactionEnded: () -> Boolean,
+        val resetTransactionFlags: () -> Unit
+    )
+
+    private fun createTestRepository(
+        initialTabs: List<SiteTabEntity> = SiteTabEntity.DEFAULT_TABS,
+        initialFields: List<SiteFieldEntity> = emptyList(),
+        onUniversalDelete: (String) -> Unit = {}
+    ): TestContext {
+        val storedTabs = mutableListOf<SiteTabEntity>().apply { addAll(initialTabs) }
+        val storedFields = mutableListOf<SiteFieldEntity>().apply { addAll(initialFields) }
+
+        var transactionBegun = false
+        var transactionSuccessful = false
+        var transactionEnded = false
+
+        val fakeTabDao = object : SiteTabDao {
+            override fun observeAllTabs() = flowOf(storedTabs.sortedBy { it.sortOrder })
+            override suspend fun getAllTabs() = storedTabs.sortedBy { it.sortOrder }
+            override suspend fun getTabById(tabId: String) =
+                storedTabs.find { it.tabId.equals(tabId, ignoreCase = true) }
+            override suspend fun insertTab(tab: SiteTabEntity) {
+                storedTabs.removeAll { it.tabId == tab.tabId }
+                storedTabs.add(tab)
+            }
+            override suspend fun insertTabs(tabs: List<SiteTabEntity>) {
+                tabs.forEach { insertTab(it) }
+            }
+            override suspend fun deleteTab(tabId: String) {
+                storedTabs.removeAll { it.tabId == tabId }
+            }
+            override suspend fun getTabCount() = storedTabs.size
+        }
+
+        val fakeFieldDao = Proxy.newProxyInstance(
+            FieldDao::class.java.classLoader,
+            arrayOf(FieldDao::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "getFieldsForSiteAndTab" -> {
+                    val sapId = args[0] as String
+                    val tabId = args[1] as String
+                    storedFields.filter { it.sapId == sapId && it.tabId == tabId }
+                }
+                "deleteFieldsForTab" -> {
+                    val tabId = args[0] as String
+                    storedFields.removeAll { it.tabId == tabId }
+                    Unit
+                }
+                else -> null
+            }
+        } as FieldDao
+
+        val fakeUniversalDao = Proxy.newProxyInstance(
+            UniversalFieldDao::class.java.classLoader,
+            arrayOf(UniversalFieldDao::class.java)
+        ) { _, method, args ->
+            when (method.name) {
+                "deleteFieldsForTab" -> {
+                    val tabId = args[0] as String
+                    onUniversalDelete(tabId)
+                    Unit
+                }
+                else -> null
+            }
+        } as UniversalFieldDao
+
+        val fakeSiteDao = Proxy.newProxyInstance(
+            SiteDao::class.java.classLoader,
+            arrayOf(SiteDao::class.java)
+        ) { _, _, _ -> null } as SiteDao
+
+        val fakeDb = object : AppDatabase() {
+            override val transactionExecutor: java.util.concurrent.Executor =
+                java.util.concurrent.Executor { it.run() }
+            override fun beginTransaction() {
+                transactionBegun = true
+            }
+            override fun setTransactionSuccessful() {
+                transactionSuccessful = true
+            }
+            override fun endTransaction() {
+                transactionEnded = true
+            }
+            override fun siteTabDao(): SiteTabDao = fakeTabDao
+            override fun fieldDao(): FieldDao = fakeFieldDao
+            override fun universalFieldDao(): UniversalFieldDao = fakeUniversalDao
+            override fun siteDao(): SiteDao = fakeSiteDao
+            override fun reasonDao() = throw UnsupportedOperationException()
+            override fun incidentDao() = throw UnsupportedOperationException()
+            override fun outageDao() = throw UnsupportedOperationException()
+            override fun statsDao() = throw UnsupportedOperationException()
+            override fun clearAllTables() {}
+            override fun createInvalidationTracker(): androidx.room.InvalidationTracker =
+                androidx.room.InvalidationTracker(this, "site_tabs")
+            override fun createOpenHelper(config: androidx.room.DatabaseConfiguration) =
+                throw UnsupportedOperationException()
+        }
+
+        val repo = SiteRepository(fakeDb)
+        return TestContext(
+            repo = repo,
+            storedTabs = storedTabs,
+            storedFields = storedFields,
+            isTransactionBegun = { transactionBegun },
+            isTransactionSuccessful = { transactionSuccessful },
+            isTransactionEnded = { transactionEnded },
+            resetTransactionFlags = {
+                transactionBegun = false
+                transactionSuccessful = false
+                transactionEnded = false
+            }
+        )
+    }
+
     @Test
     fun testMigration3To4VersionsAndSqlExecution() {
         assertEquals(3, AppDatabase.MIGRATION_3_4.startVersion)
@@ -215,84 +336,14 @@ class SiteTabDatabaseTest {
 
     @Test
     fun testSiteRepositoryTabMethodsAndSystemProtection() = runTest {
-        val storedTabs = mutableListOf<SiteTabEntity>()
-        storedTabs.addAll(SiteTabEntity.DEFAULT_TABS)
-
-        val storedFields = mutableListOf(
-            SiteFieldEntity(1L, "DEL-101", "SMPS", "Delta", "POWER", 1, "SPECS"),
-            SiteFieldEntity(2L, "DEL-101", "TENANT_A", "Airtel", "TENANTS", 1, "TENANT_INFO"),
-            SiteFieldEntity(3L, "DEL-102", "TENANT_B", "Jio", "TENANTS", 1, "TENANT_INFO")
+        val ctx = createTestRepository(
+            initialFields = listOf(
+                SiteFieldEntity(1L, "DEL-101", "SMPS", "Delta", "POWER", 1, "SPECS"),
+                SiteFieldEntity(2L, "DEL-101", "TENANT_A", "Airtel", "TENANTS", 1, "TENANT_INFO"),
+                SiteFieldEntity(3L, "DEL-102", "TENANT_B", "Jio", "TENANTS", 1, "TENANT_INFO")
+            )
         )
-
-        val fakeTabDao = object : SiteTabDao {
-            override fun observeAllTabs() = flowOf(storedTabs.sortedBy { it.sortOrder })
-            override suspend fun getAllTabs() = storedTabs.sortedBy { it.sortOrder }
-            override suspend fun getTabById(tabId: String) = storedTabs.find { it.tabId == tabId }
-            override suspend fun insertTab(tab: SiteTabEntity) {
-                storedTabs.removeAll { it.tabId == tab.tabId }
-                storedTabs.add(tab)
-            }
-            override suspend fun insertTabs(tabs: List<SiteTabEntity>) {
-                tabs.forEach { insertTab(it) }
-            }
-            override suspend fun deleteTab(tabId: String) {
-                storedTabs.removeAll { it.tabId == tabId }
-            }
-            override suspend fun getTabCount() = storedTabs.size
-        }
-
-        val fakeFieldDao = Proxy.newProxyInstance(
-            FieldDao::class.java.classLoader,
-            arrayOf(FieldDao::class.java)
-        ) { _, method, args ->
-            when (method.name) {
-                "getFieldsForSiteAndTab" -> {
-                    val sapId = args[0] as String
-                    val tabId = args[1] as String
-                    storedFields.filter { it.sapId == sapId && it.tabId == tabId }
-                }
-                "deleteFieldsForTab" -> {
-                    val tabId = args[0] as String
-                    storedFields.removeAll { it.tabId == tabId }
-                    Unit
-                }
-                else -> null
-            }
-        } as FieldDao
-
-        val fakeUniversalDao = Proxy.newProxyInstance(
-            UniversalFieldDao::class.java.classLoader,
-            arrayOf(UniversalFieldDao::class.java)
-        ) { _, method, args ->
-            when (method.name) {
-                "deleteFieldsForTab" -> Unit
-                else -> null
-            }
-        } as UniversalFieldDao
-
-        val fakeSiteDao = Proxy.newProxyInstance(
-            SiteDao::class.java.classLoader,
-            arrayOf(SiteDao::class.java)
-        ) { _, _, _ -> null } as SiteDao
-
-        // Create a test DB providing our fake DAOs
-        val fakeDb = object : AppDatabase() {
-            override fun siteTabDao(): SiteTabDao = fakeTabDao
-            override fun fieldDao(): FieldDao = fakeFieldDao
-            override fun universalFieldDao(): UniversalFieldDao = fakeUniversalDao
-            override fun siteDao(): SiteDao = fakeSiteDao
-            override fun reasonDao() = throw UnsupportedOperationException()
-            override fun incidentDao() = throw UnsupportedOperationException()
-            override fun outageDao() = throw UnsupportedOperationException()
-            override fun statsDao() = throw UnsupportedOperationException()
-            override fun clearAllTables() {}
-            override fun createInvalidationTracker(): androidx.room.InvalidationTracker =
-                androidx.room.InvalidationTracker(this, "site_tabs")
-            override fun createOpenHelper(config: androidx.room.DatabaseConfiguration) =
-                throw UnsupportedOperationException()
-        }
-
-        val repo = SiteRepository(fakeDb)
+        val repo = ctx.repo
 
         // 1. observeAllTabs and getAllTabs
         val tabs = repo.getAllTabs()
@@ -327,10 +378,123 @@ class SiteTabDatabaseTest {
             assertTrue(e.message?.contains("system tab") == true)
         }
 
-        // 5. deleteTab custom tab deletes tab and related fields
+        // 5. deleteTab custom tab executes atomically and cleans up fields
+        ctx.resetTransactionFlags()
         repo.deleteTab("TENANT_INFO")
         assertEquals(3, repo.getAllTabs().size)
         val remainingFields = repo.getFieldsForSiteAndTab("DEL-101", "TENANT_INFO")
         assertTrue(remainingFields.isEmpty())
+        assertTrue("Transaction must have begun", ctx.isTransactionBegun())
+        assertTrue("Transaction must have completed successfully", ctx.isTransactionSuccessful())
+        assertTrue("Transaction must have ended", ctx.isTransactionEnded())
+    }
+
+    @Test
+    fun testInsertTabSystemTabProtectionAndDuplicateRejection() = runTest {
+        val ctx = createTestRepository()
+        val repo = ctx.repo
+
+        // System tab overwrites via insertTab(tabId, displayName) must fail
+        val systemTabVariants = listOf("SPECS", "specs", "Specs", "LOGS", "logs", "OVERVIEW", " overview ")
+        for (sysId in systemTabVariants) {
+            try {
+                repo.insertTab(sysId, "Custom Name")
+                fail("Expected IllegalArgumentException when inserting system tab ID: '$sysId'")
+            } catch (e: IllegalArgumentException) {
+                assertTrue(e.message?.contains("Cannot overwrite system tab") == true)
+            }
+        }
+
+        // System tab overwrite via insertTab(SiteTabEntity) must fail
+        try {
+            repo.insertTab(SiteTabEntity("specs", "Hacked Specs", 99, isSystem = false))
+            fail("Expected IllegalArgumentException when inserting system tab entity with isSystem=false")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message?.contains("Cannot overwrite system tab") == true)
+        }
+
+        // First insertion of custom tab succeeds
+        repo.insertTab("EB_BILLING", "EB Billing")
+        assertEquals(4, repo.getAllTabs().size)
+
+        // Duplicate custom tab insertion (exact match) must fail
+        try {
+            repo.insertTab("EB_BILLING", "EB Billing Duplicate")
+            fail("Expected IllegalArgumentException on duplicate tab insertion")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message?.contains("Tab already exists") == true)
+        }
+
+        // Duplicate custom tab insertion (case-insensitive & trimmed) must fail
+        try {
+            repo.insertTab(" eb_billing ", "EB Billing Lowercase")
+            fail("Expected IllegalArgumentException on case-insensitive duplicate tab insertion")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message?.contains("Tab already exists") == true)
+        }
+    }
+
+    @Test
+    fun testDeleteTabCaseInsensitiveSystemProtection() = runTest {
+        val ctx = createTestRepository()
+        val repo = ctx.repo
+
+        val systemTabDeleteVariants = listOf(
+            "specs",
+            " SPECS ",
+            "Specs",
+            "logs",
+            " LOGS",
+            "overview",
+            " OVERVIEW "
+        )
+
+        for (target in systemTabDeleteVariants) {
+            try {
+                repo.deleteTab(target)
+                fail("Expected IllegalStateException when attempting to delete system tab: '$target'")
+            } catch (e: IllegalStateException) {
+                assertTrue(
+                    "Error message should mention cannot delete system tab: ${e.message}",
+                    e.message?.contains("Cannot delete system tab") == true
+                )
+            }
+        }
+
+        // System tabs must remain intact
+        assertEquals(3, repo.getAllTabs().size)
+    }
+
+    @Test
+    fun testDeleteTabAtomicityOnFailure() = runTest {
+        var simulateFailure = true
+        val ctx = createTestRepository(
+            initialFields = listOf(
+                SiteFieldEntity(1L, "DEL-101", "SOLAR_KWH", "500", "ENERGY", 1, "SOLAR")
+            ),
+            onUniversalDelete = {
+                if (simulateFailure) {
+                    throw IllegalStateException("Simulated storage write error")
+                }
+            }
+        )
+        val repo = ctx.repo
+
+        repo.insertTab("SOLAR", "Solar Energy")
+        assertEquals(4, repo.getAllTabs().size)
+
+        ctx.resetTransactionFlags()
+
+        try {
+            repo.deleteTab("SOLAR")
+            fail("Expected exception during deletion")
+        } catch (e: IllegalStateException) {
+            assertEquals("Simulated storage write error", e.message)
+        }
+
+        // Verify transaction semantics on failure: begun and ended, but NOT marked successful
+        assertTrue("Transaction must have begun", ctx.isTransactionBegun())
+        assertFalse("Transaction must NOT have been marked successful", ctx.isTransactionSuccessful())
+        assertTrue("Transaction must have ended in finally block", ctx.isTransactionEnded())
     }
 }
