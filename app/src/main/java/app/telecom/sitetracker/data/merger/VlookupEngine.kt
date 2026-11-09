@@ -256,16 +256,20 @@ class VlookupEngine(
             val siteByNorm = existingSites.associateBy { it.sapNorm }.toMutableMap()
 
             val specMappings = activeMappings.filter { it.targetField == TargetField.CUSTOM_SPEC }
+            val existingTabs = if (specMappings.isNotEmpty()) siteTabDao.getAllTabs().toMutableList() else mutableListOf()
+
             if (specMappings.isNotEmpty()) {
-                val existingTabs = siteTabDao.getAllTabs().toMutableList()
                 var nextTabSort = (existingTabs.maxOfOrNull { it.sortOrder } ?: -1) + 1
 
                 for (specMap in specMappings) {
-                    val effectiveTabId = specMap.tabId.trim().ifBlank { "SPECS" }
-                    val effectiveTabName = specMap.tabDisplayName.trim().ifBlank { effectiveTabId }
-                    if (existingTabs.none { it.tabId.equals(effectiveTabId, ignoreCase = true) }) {
+                    val cleanTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                    val matchingExistingTab = existingTabs.find { it.tabId.equals(cleanTabId, ignoreCase = true) }
+                    val normalizedTabId = (matchingExistingTab?.tabId ?: cleanTabId).trim().uppercase(Locale.US)
+                    val effectiveTabName = specMap.tabDisplayName.trim().ifBlank { normalizedTabId }
+
+                    if (matchingExistingTab == null) {
                         val newTab = SiteTabEntity(
-                            tabId = effectiveTabId,
+                            tabId = normalizedTabId,
                             displayName = effectiveTabName,
                             sortOrder = nextTabSort++,
                             isSystem = false
@@ -277,18 +281,20 @@ class VlookupEngine(
 
                 val existingUniversal = universalFieldDao.getAllUniversalFields().toMutableList()
                 for (specMap in specMappings) {
-                    val effectiveTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                    val cleanTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                    val matchingExistingTab = existingTabs.find { it.tabId.equals(cleanTabId, ignoreCase = true) }
+                    val normalizedTabId = (matchingExistingTab?.tabId ?: cleanTabId).trim().uppercase(Locale.US)
                     val key = specMap.specKey.trim()
                     val group = specMap.specGroup?.trim()?.ifBlank { "EQUIPMENT" } ?: "EQUIPMENT"
                     if (key.isNotEmpty()) {
                         val alreadyExists = existingUniversal.any {
-                            it.tabId.equals(effectiveTabId, ignoreCase = true) && it.fieldKey.equals(key, ignoreCase = true)
+                            it.tabId.equals(normalizedTabId, ignoreCase = true) && it.fieldKey.equals(key, ignoreCase = true)
                         }
                         if (!alreadyExists) {
-                            val nextSort = (existingUniversal.filter { it.tabId.equals(effectiveTabId, ignoreCase = true) }
+                            val nextSort = (existingUniversal.filter { it.tabId.equals(normalizedTabId, ignoreCase = true) }
                                 .maxOfOrNull { it.sortOrder } ?: 0) + 1
                             val uField = UniversalFieldEntity(
-                                tabId = effectiveTabId,
+                                tabId = normalizedTabId,
                                 fieldKey = key,
                                 groupName = group,
                                 defaultValue = null,
@@ -357,9 +363,12 @@ class VlookupEngine(
 
                             val key = specMap.specKey.trim()
                             val group = specMap.specGroup?.trim()?.ifBlank { "EQUIPMENT" } ?: "EQUIPMENT"
-                            val effectiveTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                            val cleanTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                            val matchingExistingTab = existingTabs.find { it.tabId.equals(cleanTabId, ignoreCase = true) }
+                            val normalizedTabId = (matchingExistingTab?.tabId ?: cleanTabId).trim().uppercase(Locale.US)
+
                             val existingField = currentSpecs.find {
-                                it.fieldKey.equals(key, ignoreCase = true) && it.tabId.equals(effectiveTabId, ignoreCase = true)
+                                it.fieldKey.equals(key, ignoreCase = true) && it.tabId.equals(normalizedTabId, ignoreCase = true)
                             }
 
                             if (existingField != null) {
@@ -368,7 +377,12 @@ class VlookupEngine(
                                     OverwritePolicy.FILL_BLANKS_ONLY -> existingField.fieldValue.isNullOrBlank()
                                 }
                                 if (canOverwrite && existingField.fieldValue != rawVal) {
-                                    fieldDao.updateField(existingField.copy(fieldValue = rawVal))
+                                    val updatedField = existingField.copy(fieldValue = rawVal)
+                                    fieldDao.updateField(updatedField)
+                                    val idx = currentSpecs.indexOf(existingField)
+                                    if (idx >= 0) {
+                                        currentSpecs[idx] = updatedField
+                                    }
                                     specsUpdated++
                                     specsChanged = true
                                 }
@@ -380,8 +394,8 @@ class VlookupEngine(
                                     fieldKey = key,
                                     fieldValue = rawVal,
                                     groupName = group,
-                                    sortOrder = (currentSpecs.filter { it.tabId.equals(effectiveTabId, ignoreCase = true) }.maxOfOrNull { it.sortOrder ?: 0 } ?: 0) + 1,
-                                    tabId = effectiveTabId
+                                    sortOrder = (currentSpecs.filter { it.tabId.equals(normalizedTabId, ignoreCase = true) }.maxOfOrNull { it.sortOrder ?: 0 } ?: 0) + 1,
+                                    tabId = normalizedTabId
                                 )
                                 fieldDao.insertField(newField)
                                 currentSpecs.add(newField)
@@ -420,7 +434,9 @@ class VlookupEngine(
                     for ((specIdx, specMap) in specMappings.withIndex()) {
                         val rawVal = row.getOrNull(specMap.columnIndex)?.trim()
                         if (!rawVal.isNullOrEmpty()) {
-                            val effectiveTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                            val cleanTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                            val matchingExistingTab = existingTabs.find { it.tabId.equals(cleanTabId, ignoreCase = true) }
+                            val normalizedTabId = (matchingExistingTab?.tabId ?: cleanTabId).trim().uppercase(Locale.US)
                             newSpecs.add(
                                 SiteFieldEntity(
                                     id = 0L,
@@ -429,7 +445,7 @@ class VlookupEngine(
                                     fieldValue = rawVal,
                                     groupName = specMap.specGroup?.trim()?.ifBlank { "EQUIPMENT" } ?: "EQUIPMENT",
                                     sortOrder = specIdx + 1,
-                                    tabId = effectiveTabId
+                                    tabId = normalizedTabId
                                 )
                             )
                         }

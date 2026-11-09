@@ -942,7 +942,7 @@ private fun ColumnMappingCard(
                         Surface(
                             onClick = { isExpanded = true },
                             shape = RoundedCornerShape(6.dp),
-                            modifier = Modifier.sizeIn(minHeight = 40.dp),
+                            modifier = Modifier.sizeIn(minHeight = 48.dp),
                             border = BorderStroke(
                                 1.dp,
                                 when (mapping.targetField) {

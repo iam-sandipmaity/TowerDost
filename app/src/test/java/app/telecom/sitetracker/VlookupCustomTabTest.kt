@@ -45,6 +45,7 @@ class VlookupCustomTabTest {
         val storedTabs = mutableListOf<SiteTabEntity>().apply { addAll(initialTabs) }
         val storedFields = mutableListOf<SiteFieldEntity>().apply { addAll(initialFields) }
         val storedUniversalFields = mutableListOf<UniversalFieldEntity>().apply { addAll(initialUniversalFields) }
+        val ftsInserts = mutableListOf<app.telecom.sitetracker.data.entity.SiteFts>()
 
         var inTx = false
 
@@ -80,7 +81,12 @@ class VlookupCustomTabTest {
                     Unit
                 }
                 "deleteFts" -> Unit
-                "insertFts" -> Unit
+                "insertFts" -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val list = args[0] as List<app.telecom.sitetracker.data.entity.SiteFts>
+                    ftsInserts.addAll(list)
+                    Unit
+                }
                 else -> null
             }
         } as SiteDao
@@ -585,5 +591,132 @@ class VlookupCustomTabTest {
         val populatedState = defaultState.copy(availableTabs = listOf(customTab))
         assertEquals(1, populatedState.availableTabs.size)
         assertEquals("AUDIT", populatedState.availableTabs.first().tabId)
+    }
+
+    @Test
+    fun testCanonicalTabIdNormalizationCaseInsensitiveAndTrimmed() = runTest {
+        val db = TestDatabase(initialSites = listOf(SiteEntity(sapId = "DEL-101", sapNorm = "DEL101")))
+        val engine = VlookupEngine(db, fakeClock)
+
+        // Column mapping with lowercase and whitespace in tabId
+        val rows = listOf(listOf("DEL-101", "METER_XYZ"))
+        val mappings = listOf(
+            VlookupColumnMapping(columnIndex = 0, sourceHeader = "SAP ID", targetField = TargetField.SAP_ID),
+            VlookupColumnMapping(
+                columnIndex = 1,
+                sourceHeader = "Meter No",
+                targetField = TargetField.CUSTOM_SPEC,
+                specGroup = "METERS",
+                specKey = "METER_NO",
+                tabId = " eb_billing ",
+                tabDisplayName = "EB Billing"
+            )
+        )
+
+        engine.executeMerge(
+            rows = rows,
+            keyIndex = 0,
+            mappings = mappings,
+            mergeStrategy = MergeStrategy.UPDATE_EXISTING_ONLY,
+            overwritePolicy = OverwritePolicy.OVERWRITE_ALL
+        )
+
+        // 1. Verify SiteTabEntity tabId is canonically uppercase and trimmed
+        val createdTab = db.storedTabs.find { it.displayName == "EB Billing" }
+        assertNotNull(createdTab)
+        assertEquals("EB_BILLING", createdTab?.tabId)
+
+        // 2. Verify UniversalFieldEntity tabId is canonically uppercase and trimmed
+        val universalField = db.storedUniversalFields.find { it.fieldKey == "METER_NO" }
+        assertNotNull(universalField)
+        assertEquals("EB_BILLING", universalField?.tabId)
+
+        // 3. Verify SiteFieldEntity tabId is canonically uppercase and trimmed
+        val siteField = db.storedFields.find { it.sapId == "DEL-101" && it.fieldKey == "METER_NO" }
+        assertNotNull(siteField)
+        assertEquals("EB_BILLING", siteField?.tabId)
+    }
+
+    @Test
+    fun testCanonicalTabIdNormalizationMatchesExistingSpecsTab() = runTest {
+        val db = TestDatabase(initialSites = listOf(SiteEntity(sapId = "DEL-101", sapNorm = "DEL101")))
+        val engine = VlookupEngine(db, fakeClock)
+
+        val rows = listOf(listOf("DEL-101", "15KVA"))
+        val mappings = listOf(
+            VlookupColumnMapping(columnIndex = 0, sourceHeader = "SAP ID", targetField = TargetField.SAP_ID),
+            VlookupColumnMapping(
+                columnIndex = 1,
+                sourceHeader = "DG Rating",
+                targetField = TargetField.CUSTOM_SPEC,
+                specGroup = "DG",
+                specKey = "DG_RATING",
+                tabId = " specs ", // lowercase and padded, should match existing SPECS tab
+                tabDisplayName = "Specs"
+            )
+        )
+
+        engine.executeMerge(
+            rows = rows,
+            keyIndex = 0,
+            mappings = mappings,
+            mergeStrategy = MergeStrategy.UPDATE_EXISTING_ONLY,
+            overwritePolicy = OverwritePolicy.OVERWRITE_ALL
+        )
+
+        // SiteFieldEntity must match canonical SPECS tab ID
+        val siteField = db.storedFields.find { it.sapId == "DEL-101" && it.fieldKey == "DG_RATING" }
+        assertNotNull(siteField)
+        assertEquals("SPECS", siteField?.tabId)
+    }
+
+    @Test
+    fun testUpdatingExistingFieldUpdatesInMemorySpecsForFts() = runTest {
+        val existingSite = SiteEntity(
+            sapId = "DEL-101",
+            sapNorm = "DEL101",
+            name = "Connaught Hub"
+        )
+        val existingSpec = SiteFieldEntity(
+            id = 5L,
+            sapId = "DEL-101",
+            fieldKey = "BATTERY_AH",
+            fieldValue = "200AH",
+            groupName = "BATTERY",
+            tabId = "SPECS"
+        )
+        val db = TestDatabase(
+            initialSites = listOf(existingSite),
+            initialFields = listOf(existingSpec)
+        )
+        val engine = VlookupEngine(db, fakeClock)
+
+        val rows = listOf(listOf("DEL-101", "600AH"))
+        val mappings = listOf(
+            VlookupColumnMapping(columnIndex = 0, sourceHeader = "SAP ID", targetField = TargetField.SAP_ID),
+            VlookupColumnMapping(
+                columnIndex = 1,
+                sourceHeader = "Battery Capacity",
+                targetField = TargetField.CUSTOM_SPEC,
+                specGroup = "BATTERY",
+                specKey = "BATTERY_AH",
+                tabId = "SPECS",
+                tabDisplayName = "Specs"
+            )
+        )
+
+        engine.executeMerge(
+            rows = rows,
+            keyIndex = 0,
+            mappings = mappings,
+            mergeStrategy = MergeStrategy.UPDATE_EXISTING_ONLY,
+            overwritePolicy = OverwritePolicy.OVERWRITE_ALL
+        )
+
+        // FTS index must have received the updated 600AH value, not the stale 200AH
+        assertTrue("FTS insert must have occurred", db.ftsInserts.isNotEmpty())
+        val lastFts = db.ftsInserts.last()
+        assertTrue("FTS fieldText must contain updated spec value 600AH", lastFts.fieldText?.contains("600AH") == true)
+        assertFalse("FTS fieldText must not contain stale spec value 200AH", lastFts.fieldText?.contains("200AH") == true)
     }
 }
