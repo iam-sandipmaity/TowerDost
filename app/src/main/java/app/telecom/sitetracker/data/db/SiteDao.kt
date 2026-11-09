@@ -55,8 +55,8 @@ interface SiteDao {
 
     @Query("""
         SELECT DISTINCT s.* FROM sites s
-        JOIN site_search ss ON s.sap_norm = ss.sap_norm
-        WHERE ss MATCH :query AND s.deleted_at IS NULL
+        JOIN site_search ON s.sap_norm = site_search.sap_norm
+        WHERE site_search MATCH :query AND s.deleted_at IS NULL
         LIMIT 100
     """)
     suspend fun searchFts(query: String): List<SiteEntity>
