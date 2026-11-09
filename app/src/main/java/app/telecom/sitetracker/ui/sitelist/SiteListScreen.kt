@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -256,7 +257,7 @@ fun SiteListScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(top = 4.dp, bottom = 88.dp)
                         ) {
-                            items(searchResults, key = { it.site.sapId }) { item ->
+                            itemsIndexed(searchResults, key = { index, item -> "${item.site.sapId}_$index" }) { _, item ->
                                 SiteCard(
                                     site = item.site,
                                     distanceInfo = item.distanceInfo,

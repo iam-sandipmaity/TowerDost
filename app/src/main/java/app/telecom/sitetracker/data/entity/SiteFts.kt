@@ -11,7 +11,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "site_search")
 @Fts4
 data class SiteFts(
-    @PrimaryKey
+    @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "rowid")
     val rowid: Int = 0,
 

@@ -56,25 +56,39 @@ interface SiteDao {
     @Query("""
         SELECT DISTINCT s.* FROM sites s
         JOIN site_search ss ON s.sap_norm = ss.sap_norm
-        WHERE site_search MATCH :query AND s.deleted_at IS NULL
-        LIMIT 50
+        WHERE ss MATCH :query AND s.deleted_at IS NULL
+        LIMIT 100
     """)
     suspend fun searchFts(query: String): List<SiteEntity>
 
     @Query("""
-        SELECT * FROM sites 
-        WHERE deleted_at IS NULL AND (
-            sap_id LIKE '%' || :query || '%' OR 
-            sap_norm LIKE '%' || :query || '%' OR 
-            name LIKE '%' || :query || '%' OR 
-            city LIKE '%' || :query || '%' OR 
-            district LIKE '%' || :query || '%' OR 
-            circle LIKE '%' || :query || '%'
+        SELECT DISTINCT s.* FROM sites s 
+        LEFT JOIN site_fields sf ON s.sap_id = sf.sap_id
+        WHERE s.deleted_at IS NULL AND (
+            s.sap_id LIKE '%' || :query || '%' OR 
+            s.sap_norm LIKE '%' || :query || '%' OR 
+            (:normQuery != '' AND s.sap_norm LIKE '%' || :normQuery || '%') OR 
+            s.name LIKE '%' || :query || '%' OR 
+            s.city LIKE '%' || :query || '%' OR 
+            s.district LIKE '%' || :query || '%' OR 
+            s.circle LIKE '%' || :query || '%' OR
+            s.address LIKE '%' || :query || '%' OR
+            s.technology LIKE '%' || :query || '%' OR
+            s.site_type LIKE '%' || :query || '%' OR
+            sf.field_key LIKE '%' || :query || '%' OR
+            sf.field_value LIKE '%' || :query || '%'
         )
-        ORDER BY sap_id ASC
-        LIMIT 50
+        ORDER BY 
+            CASE 
+                WHEN s.sap_id = :query OR (:normQuery != '' AND s.sap_norm = :normQuery) THEN 1
+                WHEN s.sap_id LIKE :query || '%' OR (:normQuery != '' AND s.sap_norm LIKE :normQuery || '%') THEN 2
+                WHEN s.name LIKE :query || '%' THEN 3
+                ELSE 4
+            END,
+            s.sap_id ASC
+        LIMIT 100
     """)
-    suspend fun searchDirect(query: String): List<SiteEntity>
+    suspend fun searchDirect(query: String, normQuery: String = ""): List<SiteEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertFts(items: List<app.telecom.sitetracker.data.entity.SiteFts>)
