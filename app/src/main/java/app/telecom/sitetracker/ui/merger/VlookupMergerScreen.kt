@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -34,7 +35,6 @@ import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Tune
@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -818,13 +819,12 @@ private fun ColumnMappingCard(
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(10.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Tier 1: Checkbox, Column Header Name, and Status Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1-tap Checkbox to include / skip column
                 Checkbox(
                     checked = isIncluded,
                     onCheckedChange = { onToggleSelected(it) },
@@ -832,193 +832,222 @@ private fun ColumnMappingCard(
                     modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
                 )
 
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(6.dp))
 
-                Column(
+                Text(
+                    text = mapping.sourceHeader,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (isIncluded) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier
                         .weight(1f)
                         .clickable { onToggleSelected(!isIncluded) }
+                )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                if (isIncluded) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = if (mapping.isExistingInDatabase) RFCyan.copy(alpha = 0.15f) else StatusRestoredGreen.copy(alpha = 0.15f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (mapping.isExistingInDatabase) RFCyan.copy(alpha = 0.7f) else StatusRestoredGreen.copy(alpha = 0.7f)
+                        )
+                    ) {
+                        Text(
+                            text = if (mapping.isExistingInDatabase) "EXISTING" else "NEW ATTRIBUTE",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                color = if (mapping.isExistingInDatabase) RFCyan else StatusRestoredGreen
+                            ),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "SKIPPED",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 9.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            // Tier 2: Details & Mapping Target Selector (only shown when included)
+            if (isIncluded) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = mapping.sourceHeader,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isIncluded) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    Spacer(modifier = Modifier.height(3.dp))
-
-                    if (isIncluded) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(4.dp),
-                                color = if (mapping.isExistingInDatabase) RFCyan.copy(alpha = 0.15f) else StatusRestoredGreen.copy(alpha = 0.15f),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (mapping.isExistingInDatabase) RFCyan.copy(alpha = 0.7f) else StatusRestoredGreen.copy(alpha = 0.7f)
-                                )
-                            ) {
-                                Text(
-                                    text = if (mapping.isExistingInDatabase) "EXISTING IN DATA" else "NEW ATTRIBUTE",
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 9.sp,
-                                        color = if (mapping.isExistingInDatabase) RFCyan else StatusRestoredGreen
-                                    ),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                            Text(
-                                text = if (mapping.isExistingInDatabase) "Updates records" else "New spec entry",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                            )
-                        }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
+                        Text(
+                            text = if (mapping.isExistingInDatabase) "Updates existing records" else "New specification entry",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
 
                         if (sampleValues.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "Sample: ${sampleValues.take(2).joinToString(", ")}",
-                                style = MaterialTheme.typography.bodySmall.copy(
+                                style = MaterialTheme.typography.labelSmall.copy(
                                     fontFamily = FontFamily.Monospace,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                                 ),
-                                maxLines = 1
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
-                    } else {
-                        Text(
-                            text = "SKIPPED (NOT MERGED)",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
                     }
-                }
 
-                Spacer(modifier = Modifier.width(8.dp))
-
-                // Target field selector badge / button
-                Box {
-                    Surface(
-                        onClick = { isExpanded = true },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.sizeIn(minHeight = 44.dp),
-                        border = BorderStroke(
-                            1.dp,
-                            when (mapping.targetField) {
-                                TargetField.IGNORE -> MaterialTheme.colorScheme.outlineVariant
-                                TargetField.CUSTOM_SPEC -> RFCyan
-                                else -> TelecomAmber
+                    // Target Field Selector Button with Dropdown
+                    Box {
+                        Surface(
+                            onClick = { isExpanded = true },
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.sizeIn(minHeight = 40.dp),
+                            border = BorderStroke(
+                                1.dp,
+                                when (mapping.targetField) {
+                                    TargetField.IGNORE -> MaterialTheme.colorScheme.outlineVariant
+                                    TargetField.CUSTOM_SPEC -> RFCyan.copy(alpha = 0.8f)
+                                    else -> TelecomAmber.copy(alpha = 0.8f)
+                                }
+                            ),
+                            color = when (mapping.targetField) {
+                                TargetField.IGNORE -> Color.Transparent
+                                TargetField.CUSTOM_SPEC -> RFCyan.copy(alpha = 0.12f)
+                                else -> TelecomAmber.copy(alpha = 0.12f)
                             }
-                        ),
-                        color = when (mapping.targetField) {
-                            TargetField.IGNORE -> Color.Transparent
-                            TargetField.CUSTOM_SPEC -> RFCyan.copy(alpha = 0.15f)
-                            else -> TelecomAmber.copy(alpha = 0.15f)
-                        }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                         ) {
-                            Text(
-                                text = when (mapping.targetField) {
-                                    TargetField.IGNORE -> "Skipped"
-                                    TargetField.CUSTOM_SPEC -> "${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
-                                    else -> mapping.targetField.displayName
-                                },
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = when (mapping.targetField) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .widthIn(max = 200.dp)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = when (mapping.targetField) {
+                                        TargetField.IGNORE -> "Skipped"
+                                        TargetField.CUSTOM_SPEC -> "${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
+                                        else -> mapping.targetField.displayName
+                                    },
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = when (mapping.targetField) {
+                                            TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
+                                            TargetField.CUSTOM_SPEC -> RFCyan
+                                            else -> TelecomAmber
+                                        }
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowDropDown,
+                                    contentDescription = "Select target field",
+                                    tint = when (mapping.targetField) {
                                         TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
                                         TargetField.CUSTOM_SPEC -> RFCyan
                                         else -> TelecomAmber
+                                    },
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = isExpanded,
+                            onDismissRequest = { isExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Ignore Column") },
+                                onClick = {
+                                    onTargetChanged(TargetField.IGNORE, null, null)
+                                    isExpanded = false
+                                }
+                            )
+                            HorizontalDivider()
+                            Text(
+                                text = "CORE SITE ATTRIBUTES",
+                                style = MaterialTheme.typography.labelSmall.copy(color = TelecomAmber),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
+                            listOf(
+                                TargetField.NAME,
+                                TargetField.LAT,
+                                TargetField.LNG,
+                                TargetField.CIRCLE,
+                                TargetField.CITY,
+                                TargetField.DISTRICT,
+                                TargetField.TECHNOLOGY,
+                                TargetField.SITE_TYPE,
+                                TargetField.STATUS,
+                                TargetField.ADDRESS,
+                                TargetField.NOTES
+                            ).forEach { field ->
+                                DropdownMenuItem(
+                                    text = { Text(field.displayName) },
+                                    onClick = {
+                                        onTargetChanged(field, null, null)
+                                        isExpanded = false
                                     }
                                 )
-                            )
-                            Spacer(modifier = Modifier.width(2.dp))
-                            Icon(
-                                imageVector = Icons.Default.ArrowDropDown,
-                                contentDescription = "Select target field",
-                                tint = when (mapping.targetField) {
-                                    TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    TargetField.CUSTOM_SPEC -> RFCyan
-                                    else -> TelecomAmber
-                                },
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                    }
-
-                    DropdownMenu(
-                        expanded = isExpanded,
-                        onDismissRequest = { isExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Ignore Column") },
-                            onClick = {
-                                onTargetChanged(TargetField.IGNORE, null, null)
-                                isExpanded = false
                             }
-                        )
-                        HorizontalDivider()
-                        Text(
-                            text = "CORE SITE ATTRIBUTES",
-                            style = MaterialTheme.typography.labelSmall.copy(color = TelecomAmber),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                        )
-                        listOf(
-                            TargetField.NAME,
-                            TargetField.LAT,
-                            TargetField.LNG,
-                            TargetField.CIRCLE,
-                            TargetField.CITY,
-                            TargetField.DISTRICT,
-                            TargetField.TECHNOLOGY,
-                            TargetField.SITE_TYPE,
-                            TargetField.STATUS,
-                            TargetField.ADDRESS,
-                            TargetField.NOTES
-                        ).forEach { field ->
-                            DropdownMenuItem(
-                                text = { Text(field.displayName) },
-                                onClick = {
-                                    onTargetChanged(field, null, null)
-                                    isExpanded = false
-                                }
+                            HorizontalDivider()
+                            Text(
+                                text = "EQUIPMENT SPECIFICATIONS",
+                                style = MaterialTheme.typography.labelSmall.copy(color = RFCyan),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             )
-                        }
-                        HorizontalDivider()
-                        Text(
-                            text = "EQUIPMENT SPECIFICATIONS",
-                            style = MaterialTheme.typography.labelSmall.copy(color = RFCyan),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                        )
-                        listOf(
-                            "POWER",
-                            "BATTERY",
-                            "DG",
-                            "RAN",
-                            "TRANSMISSION",
-                            "SAFETY",
-                            "ENVIRONMENT",
-                            "SECURITY",
-                            "CIVIL"
-                        ).forEach { group ->
-                            DropdownMenuItem(
-                                text = { Text("$group Specification") },
-                                onClick = {
-                                    onTargetChanged(TargetField.CUSTOM_SPEC, group, mapping.sourceHeader)
-                                    isExpanded = false
-                                }
-                            )
+                            listOf(
+                                "POWER",
+                                "BATTERY",
+                                "DG",
+                                "RAN",
+                                "TRANSMISSION",
+                                "SAFETY",
+                                "ENVIRONMENT",
+                                "SECURITY",
+                                "CIVIL"
+                            ).forEach { group ->
+                                DropdownMenuItem(
+                                    text = { Text("$group Specification") },
+                                    onClick = {
+                                        onTargetChanged(TargetField.CUSTOM_SPEC, group, mapping.sourceHeader)
+                                        isExpanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }

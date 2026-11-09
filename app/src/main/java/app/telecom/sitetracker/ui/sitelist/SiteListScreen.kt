@@ -114,6 +114,7 @@ fun SiteListScreen(
     val filterState by viewModel.filterState.collectAsStateWithLifecycle()
     val activeFilters by viewModel.activeFilters.collectAsStateWithLifecycle()
     val availableDimensions by viewModel.availableDimensions.collectAsStateWithLifecycle()
+    val filterMatchMode by viewModel.filterMatchMode.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showFilterDialog by remember { mutableStateOf(false) }
@@ -142,10 +143,10 @@ fun SiteListScreen(
             EnterpriseTopBar(
                 title = stringResource(R.string.site_list_title),
                 subtitle = when {
-                    activeFilters.isNotEmpty() && isNearMeActive && isSearchActive -> "${searchResults.size} matches • ${activeFilters.size} filter(s) • Nearest First (GPS)"
-                    activeFilters.isNotEmpty() && isNearMeActive -> "${searchResults.size} matches • ${activeFilters.size} filter(s) • Nearest First (GPS)"
-                    activeFilters.isNotEmpty() && isSearchActive -> "${searchResults.size} matches • ${activeFilters.size} filter(s)"
-                    activeFilters.isNotEmpty() -> "${searchResults.size} matches • ${activeFilters.size} filter(s)"
+                    activeFilters.isNotEmpty() && isNearMeActive && isSearchActive -> "${searchResults.size} matches • ${activeFilters.size} filter(s) (${filterMatchMode.shortName}) • Nearest First (GPS)"
+                    activeFilters.isNotEmpty() && isNearMeActive -> "${searchResults.size} matches • ${activeFilters.size} filter(s) (${filterMatchMode.shortName}) • Nearest First (GPS)"
+                    activeFilters.isNotEmpty() && isSearchActive -> "${searchResults.size} matches • ${activeFilters.size} filter(s) (${filterMatchMode.shortName})"
+                    activeFilters.isNotEmpty() -> "${searchResults.size} matches • ${activeFilters.size} filter(s) (${filterMatchMode.shortName})"
                     isNearMeActive && isSearchActive -> "${searchResults.size} matches • Nearest First (GPS)"
                     isNearMeActive -> "${searchResults.size} nearby towers (GPS)"
                     isSearchActive -> "${searchResults.size} matches"
@@ -286,6 +287,43 @@ fun SiteListScreen(
                                     else TelecomAmber
                                 )
                             )
+                        }
+                    }
+                }
+
+                // Match Mode Toggle (ALL vs ANY) when 2+ filters are active
+                if (activeFilters.size >= 2) {
+                    item(key = "filter_match_mode_toggle") {
+                        Surface(
+                            onClick = { viewModel.toggleFilterMatchMode() },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (filterMatchMode == FilterMatchMode.MATCH_ALL)
+                                TelecomAmber.copy(alpha = 0.15f)
+                            else
+                                RFCyan.copy(alpha = 0.15f),
+                            border = BorderStroke(
+                                1.dp,
+                                if (filterMatchMode == FilterMatchMode.MATCH_ALL)
+                                    TelecomAmber.copy(alpha = 0.7f)
+                                else
+                                    RFCyan.copy(alpha = 0.7f)
+                            ),
+                            modifier = Modifier.sizeIn(minHeight = 36.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = if (filterMatchMode == FilterMatchMode.MATCH_ALL) "Match: ALL (AND)" else "Match: ANY (OR)",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp,
+                                        color = if (filterMatchMode == FilterMatchMode.MATCH_ALL) TelecomAmber else RFCyan
+                                    )
+                                )
+                            }
                         }
                     }
                 }
@@ -469,6 +507,9 @@ fun SiteListScreen(
     if (showFilterDialog) {
         DynamicFilterDialog(
             dimensions = availableDimensions,
+            matchMode = filterMatchMode,
+            activeFilterCount = activeFilters.size,
+            onToggleMatchMode = { viewModel.toggleFilterMatchMode() },
             onAddFilter = { dim, valItem ->
                 viewModel.addFilter(dim, valItem)
             },
@@ -743,6 +784,9 @@ private fun Double.format(digits: Int): String = String.format(java.util.Locale.
 @Composable
 private fun DynamicFilterDialog(
     dimensions: List<FilterDimension>,
+    matchMode: FilterMatchMode,
+    activeFilterCount: Int,
+    onToggleMatchMode: () -> Unit,
     onAddFilter: (FilterDimension, String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -785,6 +829,35 @@ private fun DynamicFilterDialog(
             if (selectedDimension == null) {
                 // Step 1: Choose Dimension
                 Column(modifier = Modifier.fillMaxWidth()) {
+                    if (activeFilterCount >= 1) {
+                        Surface(
+                            onClick = onToggleMatchMode,
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (matchMode == FilterMatchMode.MATCH_ALL) TelecomAmber.copy(alpha = 0.12f) else RFCyan.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, if (matchMode == FilterMatchMode.MATCH_ALL) TelecomAmber.copy(alpha = 0.6f) else RFCyan.copy(alpha = 0.6f)),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Multiple Filter Logic:",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                )
+                                Text(
+                                    text = if (matchMode == FilterMatchMode.MATCH_ALL) "Match ALL (AND) ⇄" else "Match ANY (OR) ⇄",
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (matchMode == FilterMatchMode.MATCH_ALL) TelecomAmber else RFCyan
+                                    )
+                                )
+                            }
+                        }
+                    }
+
                     Text(
                         text = "Choose a database attribute or specification:",
                         style = MaterialTheme.typography.bodySmall,

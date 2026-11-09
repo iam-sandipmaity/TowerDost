@@ -4,6 +4,7 @@ import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.ui.sitelist.ActiveFilter
 import app.telecom.sitetracker.ui.sitelist.FilterDimension
+import app.telecom.sitetracker.ui.sitelist.FilterMatchMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -119,5 +120,37 @@ class DynamicFilterTest {
         assertTrue(matchesAllFilters(site1, specsSite1, filters))
         // Site 2 matches circle and DG, but fails technology (4G != 5G)
         assertFalse(matchesAllFilters(site2, specsSite2, filters))
+    }
+
+    @Test
+    fun testFilterMatchModeAllVsAny() {
+        val site1 = SiteEntity(sapId = "WB-01", sapNorm = "WB01", circle = "West Bengal", technology = "5G")
+        val site2 = SiteEntity(sapId = "WB-02", sapNorm = "WB02", circle = "West Bengal", technology = "4G")
+        val site3 = SiteEntity(sapId = "DL-01", sapNorm = "DL01", circle = "Delhi", technology = "5G")
+        val site4 = SiteEntity(sapId = "BR-01", sapNorm = "BR01", circle = "Bihar", technology = "2G")
+
+        val filters = listOf(
+            ActiveFilter(dimensionKey = "circle", displayName = "Circle", selectedValue = "West Bengal", isCoreField = true),
+            ActiveFilter(dimensionKey = "technology", displayName = "Technology", selectedValue = "5G", isCoreField = true)
+        )
+
+        fun evaluateMatch(site: SiteEntity, mode: FilterMatchMode): Boolean {
+            return when (mode) {
+                FilterMatchMode.MATCH_ALL -> filters.all { matchesFilter(site, emptyList(), it) }
+                FilterMatchMode.MATCH_ANY -> filters.any { matchesFilter(site, emptyList(), it) }
+            }
+        }
+
+        // Under MATCH_ALL (AND): only site1 matches both West Bengal AND 5G
+        assertTrue(evaluateMatch(site1, FilterMatchMode.MATCH_ALL))
+        assertFalse(evaluateMatch(site2, FilterMatchMode.MATCH_ALL))
+        assertFalse(evaluateMatch(site3, FilterMatchMode.MATCH_ALL))
+        assertFalse(evaluateMatch(site4, FilterMatchMode.MATCH_ALL))
+
+        // Under MATCH_ANY (OR): site1, site2, and site3 match at least one filter; site4 matches none
+        assertTrue(evaluateMatch(site1, FilterMatchMode.MATCH_ANY))
+        assertTrue(evaluateMatch(site2, FilterMatchMode.MATCH_ANY))
+        assertTrue(evaluateMatch(site3, FilterMatchMode.MATCH_ANY))
+        assertFalse(evaluateMatch(site4, FilterMatchMode.MATCH_ANY))
     }
 }

@@ -16,6 +16,14 @@ data class FilterDimension(
 )
 
 /**
+ * Controls whether active dynamic filters are combined with AND (MATCH_ALL) or OR (MATCH_ANY) logic.
+ */
+enum class FilterMatchMode(val displayName: String, val shortName: String) {
+    MATCH_ALL("Match All (AND)", "ALL"),
+    MATCH_ANY("Match Any (OR)", "ANY")
+}
+
+/**
  * An active filter applied by the user on the Site Directory.
  * Up to 4 active filters can be concurrently applied.
  */

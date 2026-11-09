@@ -63,6 +63,9 @@ class SiteListViewModel(
     private val _activeFilters = MutableStateFlow<List<ActiveFilter>>(emptyList())
     val activeFilters: StateFlow<List<ActiveFilter>> = _activeFilters.asStateFlow()
 
+    private val _filterMatchMode = MutableStateFlow(FilterMatchMode.MATCH_ALL)
+    val filterMatchMode: StateFlow<FilterMatchMode> = _filterMatchMode.asStateFlow()
+
     private val _availableDimensions = MutableStateFlow<List<FilterDimension>>(emptyList())
     val availableDimensions: StateFlow<List<FilterDimension>> = _availableDimensions.asStateFlow()
 
@@ -122,6 +125,20 @@ class SiteListViewModel(
         executeSearchOrNearMe()
     }
 
+    fun toggleFilterMatchMode() {
+        _filterMatchMode.update { current ->
+            if (current == FilterMatchMode.MATCH_ALL) FilterMatchMode.MATCH_ANY else FilterMatchMode.MATCH_ALL
+        }
+        executeSearchOrNearMe()
+    }
+
+    fun setFilterMatchMode(mode: FilterMatchMode) {
+        if (_filterMatchMode.value != mode) {
+            _filterMatchMode.value = mode
+            executeSearchOrNearMe()
+        }
+    }
+
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
         executeSearchOrNearMe()
@@ -179,12 +196,20 @@ class SiteListViewModel(
                     else -> siteRepository.getAllSitesList()
                 }
 
-                // 2. Conjunction filtering across all active filters
+                // 2. Conjunction or Disjunction filtering across active filters
                 var matchingSites = baseSites
-                for (filter in filters) {
-                    if (filter.isCoreField) {
-                        val targetVal = filter.selectedValue.trim()
-                        matchingSites = matchingSites.filter { site ->
+                if (filters.isNotEmpty()) {
+                    val mode = _filterMatchMode.value
+                    val specSapIds = mutableMapOf<String, Set<String>>()
+                    for (filter in filters) {
+                        if (!filter.isCoreField) {
+                            specSapIds[filter.id] = siteRepository.getSapIdsMatchingSpec(filter.dimensionKey, filter.selectedValue).toSet()
+                        }
+                    }
+
+                    val filterEvaluator: (SiteEntity, ActiveFilter) -> Boolean = { site, filter ->
+                        if (filter.isCoreField) {
+                            val targetVal = filter.selectedValue.trim()
                             val v = when (filter.dimensionKey.lowercase()) {
                                 "circle" -> site.circle
                                 "city" -> site.city
@@ -195,10 +220,19 @@ class SiteListViewModel(
                                 else -> null
                             }
                             v != null && v.trim().equals(targetVal, ignoreCase = true)
+                        } else {
+                            val validIds = specSapIds[filter.id] ?: emptySet()
+                            validIds.contains(site.sapId)
                         }
-                    } else {
-                        val validSapIds = siteRepository.getSapIdsMatchingSpec(filter.dimensionKey, filter.selectedValue).toSet()
-                        matchingSites = matchingSites.filter { site -> validSapIds.contains(site.sapId) }
+                    }
+
+                    matchingSites = when (mode) {
+                        FilterMatchMode.MATCH_ALL -> matchingSites.filter { site ->
+                            filters.all { filter -> filterEvaluator(site, filter) }
+                        }
+                        FilterMatchMode.MATCH_ANY -> matchingSites.filter { site ->
+                            filters.any { filter -> filterEvaluator(site, filter) }
+                        }
                     }
                 }
 
