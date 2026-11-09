@@ -60,6 +60,15 @@ interface FieldDao {
     @Query("SELECT COALESCE(NULLIF(TRIM(group_name), ''), 'General Specifications') AS group_name, field_key, MIN(sort_order) AS min_sort FROM site_fields WHERE field_key IS NOT NULL AND TRIM(field_key) != '' GROUP BY UPPER(COALESCE(NULLIF(TRIM(group_name), ''), 'General Specifications')), UPPER(field_key) ORDER BY min_sort ASC, group_name ASC, field_key ASC")
     suspend fun getDistinctSpecsFromSites(): List<DistinctFieldSpec>
 
+    @Query("DELETE FROM site_fields WHERE sap_id = :sapId AND tab_id = :tabId")
+    suspend fun deleteFieldsForSiteAndTab(sapId: String, tabId: String)
+
+    @Transaction
+    suspend fun replaceFieldsForSiteAndTab(sapId: String, tabId: String, fields: List<SiteFieldEntity>) {
+        deleteFieldsForSiteAndTab(sapId, tabId)
+        insertFields(fields)
+    }
+
     @Query("DELETE FROM site_fields WHERE sap_id = :sapId")
     suspend fun deleteFieldsForSite(sapId: String)
 

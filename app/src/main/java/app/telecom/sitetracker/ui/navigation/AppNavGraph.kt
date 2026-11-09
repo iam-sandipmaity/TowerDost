@@ -152,7 +152,8 @@ fun AppNavGraph(
                     sapId = sapId,
                     siteRepository = app.siteRepository,
                     incidentRepository = app.incidentRepository,
-                    outageRepository = app.outageRepository
+                    outageRepository = app.outageRepository,
+                    backupManager = app.backupManager
                 )
             }
             SiteDetailScreen(

@@ -19,6 +19,8 @@ class SiteTrackerApp : Application() {
 
     var clock: AppClock = SystemAppClock()
 
+    val backupManager by lazy { app.telecom.sitetracker.data.backup.BackupManager(database, clock) }
+
     lateinit var siteRepository: SiteRepository
         private set
 

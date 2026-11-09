@@ -368,12 +368,18 @@ class SiteRepository(private val db: AppDatabase) {
     }
 
     suspend fun replaceSiteSpecs(sapId: String, fields: List<SiteFieldEntity>) {
-        fieldDao.replaceFieldsForSite(sapId, fields)
+        replaceSiteSpecsForTab(sapId, "SPECS", fields)
+    }
+
+    suspend fun replaceSiteSpecsForTab(sapId: String, tabId: String, fields: List<SiteFieldEntity>) {
+        val normalizedTab = tabId.trim().uppercase(Locale.US)
+        fieldDao.replaceFieldsForSiteAndTab(sapId, normalizedTab, fields.map { it.copy(tabId = normalizedTab) })
         val site = siteDao.getSiteBySapId(sapId)
         if (site != null) {
             siteDao.updateSite(site.copy(updatedAt = System.currentTimeMillis()))
             try {
-                val fieldText = fields.joinToString(" ") { "${it.fieldKey} ${it.fieldValue ?: ""}" }
+                val allSiteFields = fieldDao.getFieldsForSite(sapId)
+                val fieldText = allSiteFields.joinToString(" ") { "${it.fieldKey} ${it.fieldValue ?: ""}" }
                 siteDao.deleteFts(site.sapNorm)
                 siteDao.insertFts(
                     listOf(
@@ -387,6 +393,10 @@ class SiteRepository(private val db: AppDatabase) {
                 )
             } catch (_: Exception) {}
         }
+    }
+
+    suspend fun countDistinctSitesForTab(tabId: String): Int {
+        return fieldDao.countSitesWithTab(tabId.trim().uppercase(Locale.US))
     }
 
     suspend fun deleteSiteSpec(fieldId: Long, sapId: String) {
