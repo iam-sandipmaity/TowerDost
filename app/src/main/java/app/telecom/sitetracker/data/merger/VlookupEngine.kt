@@ -21,6 +21,12 @@ class VlookupEngine(
     private val fieldDao = db.fieldDao()
 
     companion object {
+        private val SERIAL_ALIASES = listOf(
+            "sr no", "sr_no", "srno", "sl no", "sl_no", "slno",
+            "serial no", "serial_no", "serialno",
+            "s no", "s_no", "sno", "row no", "row_no", "rowno", "sn"
+        )
+
         private val KEY_ALIASES = listOf(
             "sap id", "sap_id", "sapid", "sap code", "site id", "site_id", "sitecode",
             "site code", "tower id", "tower_id", "tower code", "tower_code", "site no", "site_no", "sap"
@@ -29,7 +35,17 @@ class VlookupEngine(
         fun detectKeyColumn(headers: List<String>): Int {
             for ((index, header) in headers.withIndex()) {
                 val norm = ColumnMapper.normalizeHeader(header)
+                if (SERIAL_ALIASES.any { norm == it || norm.contains(it) }) {
+                    continue
+                }
                 if (KEY_ALIASES.any { norm == it || norm.contains(it) }) {
+                    return index
+                }
+            }
+            // Fallback: pick the first non-serial column, or 0 if all are serial
+            for ((index, header) in headers.withIndex()) {
+                val norm = ColumnMapper.normalizeHeader(header)
+                if (!SERIAL_ALIASES.any { norm == it || norm.contains(it) }) {
                     return index
                 }
             }
@@ -57,6 +73,15 @@ class VlookupEngine(
                             columnIndex = index,
                             sourceHeader = header,
                             targetField = standardMatch
+                        )
+                    )
+                } else if (standardMatch == TargetField.IGNORE) {
+                    list.add(
+                        VlookupColumnMapping(
+                            columnIndex = index,
+                            sourceHeader = header,
+                            targetField = TargetField.IGNORE,
+                            previousTarget = TargetField.CUSTOM_SPEC
                         )
                     )
                 } else {

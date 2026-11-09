@@ -47,7 +47,12 @@ object ColumnMapper {
     private val ALIASES: Map<TargetField, List<String>> = mapOf(
         TargetField.SAP_ID to listOf(
             "sap id", "sap_id", "site id", "site_id", "site code", "sitecode",
-            "sapid", "tower id", "site_no", "site no", "sap", "sr no"
+            "sapid", "tower id", "site_no", "site no", "sap"
+        ),
+        TargetField.IGNORE to listOf(
+            "sr no", "sr_no", "srno", "sl no", "sl_no", "slno",
+            "serial no", "serial_no", "serialno",
+            "s no", "s_no", "sno", "row no", "row_no", "rowno", "sn"
         ),
         TargetField.NAME to listOf(
             "site name", "sitename", "name", "tower name", "location", "site_name"
@@ -196,11 +201,13 @@ object ColumnMapper {
 
             val matched = matchField(header)
             // Allow only one mapping per standard field (first match wins, except IGNORE/CUSTOM)
-            val finalTarget = if (matched != null && !assigned.contains(matched)) {
-                assigned.add(matched)
-                matched
-            } else {
-                TargetField.CUSTOM_SPEC
+            val finalTarget = when {
+                matched == TargetField.IGNORE -> TargetField.IGNORE
+                matched != null && !assigned.contains(matched) -> {
+                    assigned.add(matched)
+                    matched
+                }
+                else -> TargetField.CUSTOM_SPEC
             }
 
             val group = inferSpecGroup(header, parent)
@@ -211,7 +218,8 @@ object ColumnMapper {
                     sourceHeader = displayHeader,
                     targetField = finalTarget,
                     specKey = displayHeader,
-                    specGroup = group
+                    specGroup = group,
+                    previousTarget = if (finalTarget != TargetField.IGNORE) finalTarget else TargetField.CUSTOM_SPEC
                 )
             )
         }

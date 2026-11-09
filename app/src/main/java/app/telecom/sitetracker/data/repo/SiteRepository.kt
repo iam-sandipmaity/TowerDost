@@ -4,10 +4,13 @@ import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import app.telecom.sitetracker.data.db.AppDatabase
+import app.telecom.sitetracker.data.db.PopulatedCoreFields
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.entity.SiteFts
 import app.telecom.sitetracker.data.entity.UniversalFieldEntity
+import app.telecom.sitetracker.data.import.TargetField
+import app.telecom.sitetracker.ui.sitelist.FilterDimension
 import app.telecom.sitetracker.util.Geo
 import java.util.Locale
 import kotlinx.coroutines.flow.Flow
@@ -41,6 +44,118 @@ class SiteRepository(private val db: AppDatabase) {
     fun countActiveSites(): Flow<Int> = siteDao.countActiveSites()
 
     suspend fun getAllSitesList(): List<SiteEntity> = siteDao.getAllActiveSitesList()
+
+    suspend fun getPopulatedCoreFieldTargets(): Set<TargetField> {
+        val summary = siteDao.getPopulatedCoreFields() ?: PopulatedCoreFields()
+        val populated = mutableSetOf<TargetField>()
+        if (summary.hasName > 0) populated.add(TargetField.NAME)
+        if (summary.hasCoordinates > 0) {
+            populated.add(TargetField.LAT)
+            populated.add(TargetField.LNG)
+        }
+        if (summary.hasCircle > 0) populated.add(TargetField.CIRCLE)
+        if (summary.hasRegion > 0) populated.add(TargetField.REGION)
+        if (summary.hasState > 0) populated.add(TargetField.STATE)
+        if (summary.hasDistrict > 0) populated.add(TargetField.DISTRICT)
+        if (summary.hasCity > 0) populated.add(TargetField.CITY)
+        if (summary.hasTechnology > 0) populated.add(TargetField.TECHNOLOGY)
+        if (summary.hasSiteType > 0) populated.add(TargetField.SITE_TYPE)
+        if (summary.hasStatus > 0) populated.add(TargetField.STATUS)
+        if (summary.hasAddress > 0) populated.add(TargetField.ADDRESS)
+        if (summary.hasTags > 0) populated.add(TargetField.TAGS)
+        if (summary.hasNotes > 0) populated.add(TargetField.NOTES)
+        return populated
+    }
+
+    suspend fun getPopulatedSpecKeys(): Set<String> {
+        return fieldDao.getDistinctSpecsFromSites().map { it.fieldKey.trim().uppercase(Locale.US) }.toSet()
+    }
+
+    suspend fun getSapIdsMatchingSpec(fieldKey: String, fieldValue: String): List<String> =
+        fieldDao.getSapIdsMatchingSpec(fieldKey, fieldValue)
+
+    suspend fun getAvailableFilterDimensions(): List<FilterDimension> {
+        val list = mutableListOf<FilterDimension>()
+        val populatedCore = getPopulatedCoreFieldTargets()
+
+        if (populatedCore.contains(TargetField.CIRCLE)) {
+            list.add(
+                FilterDimension(
+                    key = "circle",
+                    displayName = "Circle",
+                    isCoreField = true,
+                    availableValues = siteDao.getDistinctCircles()
+                )
+            )
+        }
+        if (populatedCore.contains(TargetField.CITY)) {
+            list.add(
+                FilterDimension(
+                    key = "city",
+                    displayName = "City / JC",
+                    isCoreField = true,
+                    availableValues = siteDao.getDistinctCities()
+                )
+            )
+        }
+        if (populatedCore.contains(TargetField.DISTRICT)) {
+            list.add(
+                FilterDimension(
+                    key = "district",
+                    displayName = "District",
+                    isCoreField = true,
+                    availableValues = siteDao.getDistinctDistricts()
+                )
+            )
+        }
+        if (populatedCore.contains(TargetField.TECHNOLOGY)) {
+            list.add(
+                FilterDimension(
+                    key = "technology",
+                    displayName = "Technology",
+                    isCoreField = true,
+                    availableValues = siteDao.getDistinctTechnologies()
+                )
+            )
+        }
+        if (populatedCore.contains(TargetField.SITE_TYPE)) {
+            list.add(
+                FilterDimension(
+                    key = "site_type",
+                    displayName = "Site Type",
+                    isCoreField = true,
+                    availableValues = siteDao.getDistinctSiteTypes()
+                )
+            )
+        }
+        if (populatedCore.contains(TargetField.STATUS)) {
+            list.add(
+                FilterDimension(
+                    key = "status",
+                    displayName = "Status",
+                    isCoreField = true,
+                    availableValues = siteDao.getDistinctStatuses()
+                )
+            )
+        }
+
+        // Add equipment specs from site_fields
+        val specs = fieldDao.getDistinctSpecsFromSites()
+        for (spec in specs) {
+            val values = fieldDao.getDistinctValuesForSpec(spec.fieldKey)
+            list.add(
+                FilterDimension(
+                    key = spec.fieldKey,
+                    displayName = spec.fieldKey,
+                    isCoreField = false,
+                    groupName = spec.groupName,
+                    availableValues = values
+                )
+            )
+        }
+
+        return list
+    }
 
     fun getPagedSites(): Flow<PagingData<SiteEntity>> {
         return Pager(

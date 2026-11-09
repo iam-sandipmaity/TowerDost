@@ -110,4 +110,30 @@ class ColumnMapperTest {
         assertEquals(TargetField.IGNORE, updated[3].targetField)
         assertEquals(TargetField.IGNORE, updated[4].targetField)
     }
+
+    @Test
+    fun testSrNoAndSerialAliasesMatchIgnore() {
+        assertEquals(TargetField.IGNORE, ColumnMapper.matchField("Sr No"))
+        assertEquals(TargetField.IGNORE, ColumnMapper.matchField("sr no"))
+        assertEquals(TargetField.IGNORE, ColumnMapper.matchField("Sr. No."))
+        assertEquals(TargetField.IGNORE, ColumnMapper.matchField("Serial No"))
+        assertEquals(TargetField.IGNORE, ColumnMapper.matchField("Sl No"))
+        assertEquals(TargetField.IGNORE, ColumnMapper.matchField("SL No."))
+        assertEquals(TargetField.IGNORE, ColumnMapper.matchField("Row No"))
+        assertEquals(TargetField.IGNORE, ColumnMapper.matchField("S.No"))
+    }
+
+    @Test
+    fun testGenerateInitialMappingsIgnoresSrNoAndPreservesSapId() {
+        val headers = listOf("Sr No", "SAP ID", "Site Name")
+        val mappings = ColumnMapper.generateInitialMappings(headers)
+
+        assertEquals(3, mappings.size)
+        // Column 0 ("Sr No") should be IGNORE, not SAP_ID
+        assertEquals(TargetField.IGNORE, mappings[0].targetField)
+        // Column 1 ("SAP ID") must be SAP_ID, NOT demoted to CUSTOM_SPEC
+        assertEquals(TargetField.SAP_ID, mappings[1].targetField)
+        // Column 2 ("Site Name") must be NAME
+        assertEquals(TargetField.NAME, mappings[2].targetField)
+    }
 }

@@ -32,7 +32,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.AltRoute
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Tune
@@ -837,52 +839,65 @@ private fun ColumnMappingCard(
                         .weight(1f)
                         .clickable { onToggleSelected(!isIncluded) }
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text(
-                            text = mapping.sourceHeader,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (isIncluded) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (isIncluded) {
+                    Text(
+                        text = mapping.sourceHeader,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isIncluded) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isIncluded) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    if (isIncluded) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = if (mapping.isExistingInDatabase) RFCyan.copy(alpha = 0.15f) else StatusRestoredGreen.copy(alpha = 0.15f),
                                 border = BorderStroke(
                                     1.dp,
-                                    if (mapping.isExistingInDatabase) RFCyan.copy(alpha = 0.6f) else StatusRestoredGreen.copy(alpha = 0.6f)
+                                    if (mapping.isExistingInDatabase) RFCyan.copy(alpha = 0.7f) else StatusRestoredGreen.copy(alpha = 0.7f)
                                 )
                             ) {
                                 Text(
-                                    text = if (mapping.isExistingInDatabase) "EXISTING" else "NEW",
+                                    text = if (mapping.isExistingInDatabase) "EXISTING IN DATA" else "NEW ATTRIBUTE",
                                     style = MaterialTheme.typography.labelSmall.copy(
                                         fontFamily = FontFamily.Monospace,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 9.sp,
                                         color = if (mapping.isExistingInDatabase) RFCyan else StatusRestoredGreen
                                     ),
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
+                            Text(
+                                text = if (mapping.isExistingInDatabase) "Updates records" else "New spec entry",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            )
                         }
-                    }
-                    if (!isIncluded) {
+
+                        if (sampleValues.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Sample: ${sampleValues.take(2).joinToString(", ")}",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                maxLines = 1
+                            )
+                        }
+                    } else {
                         Text(
                             text = "SKIPPED (NOT MERGED)",
                             style = MaterialTheme.typography.labelSmall,
                             fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    } else if (sampleValues.isNotEmpty()) {
-                        Text(
-                            text = "Sample: ${sampleValues.take(2).joinToString(", ")}",
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         )
                     }
                 }
@@ -894,6 +909,7 @@ private fun ColumnMappingCard(
                     Surface(
                         onClick = { isExpanded = true },
                         shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.sizeIn(minHeight = 44.dp),
                         border = BorderStroke(
                             1.dp,
                             when (mapping.targetField) {
@@ -908,22 +924,37 @@ private fun ColumnMappingCard(
                             else -> TelecomAmber.copy(alpha = 0.15f)
                         }
                     ) {
-                        Text(
-                            text = when (mapping.targetField) {
-                                TargetField.IGNORE -> "Skipped"
-                                TargetField.CUSTOM_SPEC -> "${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
-                                else -> mapping.targetField.displayName
-                            },
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = when (mapping.targetField) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = when (mapping.targetField) {
+                                    TargetField.IGNORE -> "Skipped"
+                                    TargetField.CUSTOM_SPEC -> "${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
+                                    else -> mapping.targetField.displayName
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = when (mapping.targetField) {
+                                        TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        TargetField.CUSTOM_SPEC -> RFCyan
+                                        else -> TelecomAmber
+                                    }
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Select target field",
+                                tint = when (mapping.targetField) {
                                     TargetField.IGNORE -> MaterialTheme.colorScheme.onSurfaceVariant
                                     TargetField.CUSTOM_SPEC -> RFCyan
                                     else -> TelecomAmber
-                                }
-                            ),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
+                                },
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
 
                     DropdownMenu(

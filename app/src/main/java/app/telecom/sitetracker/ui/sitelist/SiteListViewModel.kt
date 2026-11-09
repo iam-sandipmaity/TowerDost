@@ -60,12 +60,67 @@ class SiteListViewModel(
     private val _userMessage = MutableStateFlow<String?>(null)
     val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
 
+    private val _activeFilters = MutableStateFlow<List<ActiveFilter>>(emptyList())
+    val activeFilters: StateFlow<List<ActiveFilter>> = _activeFilters.asStateFlow()
+
+    private val _availableDimensions = MutableStateFlow<List<FilterDimension>>(emptyList())
+    val availableDimensions: StateFlow<List<FilterDimension>> = _availableDimensions.asStateFlow()
+
     val pagedSites: Flow<PagingData<SiteEntity>> = siteRepository.getPagedSites()
         .cachedIn(viewModelScope)
 
     val activeSitesCount: Flow<Int> = siteRepository.countActiveSites()
 
     private var searchJob: Job? = null
+
+    init {
+        loadFilterDimensions()
+    }
+
+    fun loadFilterDimensions() {
+        viewModelScope.launch {
+            try {
+                _availableDimensions.value = siteRepository.getAvailableFilterDimensions()
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun addFilter(dimension: FilterDimension, selectedValue: String): Boolean {
+        val current = _activeFilters.value
+        if (current.size >= 4) {
+            _userMessage.value = "Maximum 4 filters allowed at once."
+            return false
+        }
+        val trimmedVal = selectedValue.trim()
+        if (trimmedVal.isEmpty()) return false
+
+        val existingIndex = current.indexOfFirst { it.dimensionKey.equals(dimension.key, ignoreCase = true) }
+        val updated = current.toMutableList()
+        val newFilter = ActiveFilter(
+            dimensionKey = dimension.key,
+            displayName = dimension.displayName,
+            selectedValue = trimmedVal,
+            isCoreField = dimension.isCoreField
+        )
+        if (existingIndex >= 0) {
+            updated[existingIndex] = newFilter
+        } else {
+            updated.add(newFilter)
+        }
+        _activeFilters.value = updated
+        executeSearchOrNearMe()
+        return true
+    }
+
+    fun removeFilter(filterId: String) {
+        _activeFilters.update { list -> list.filterNot { it.id == filterId } }
+        executeSearchOrNearMe()
+    }
+
+    fun clearAllFilters() {
+        _activeFilters.value = emptyList()
+        executeSearchOrNearMe()
+    }
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
@@ -101,9 +156,10 @@ class SiteListViewModel(
         val query = _searchQuery.value.trim()
         val nearMe = _isNearMeActive.value
         val coords = _userCoordinates.value
+        val filters = _activeFilters.value
 
-        // If neither query nor near me is active -> empty search results (shows master paged directory)
-        if (query.isEmpty() && !nearMe) {
+        // If neither query nor near me nor dynamic filters active -> empty search results (shows master paged directory)
+        if (query.isEmpty() && !nearMe && filters.isEmpty()) {
             _searchResults.value = emptyList()
             _isSearching.value = false
             return
@@ -116,35 +172,54 @@ class SiteListViewModel(
             }
 
             try {
-                if (query.isNotEmpty()) {
-                    // Find sites matching the text query
-                    val matches = siteRepository.searchSites(query)
-                    if (nearMe && coords != null) {
-                        // Calculate distance from current GPS and sort matching sites closest to farthest
-                        val (refLat, refLng) = coords
-                        val withDist = matches.map { site ->
-                            if (site.lat != null && site.lng != null) {
-                                val dist = Geo.haversineDistanceKm(refLat, refLng, site.lat, site.lng)
-                                val fmt = Geo.formatDistanceAndBearing(refLat, refLng, site.lat, site.lng)
-                                SiteSearchResult(site = site, distanceInfo = fmt, distanceKm = dist)
-                            } else {
-                                SiteSearchResult(site = site, distanceInfo = null, distanceKm = Double.MAX_VALUE)
+                // 1. Base site candidates
+                val baseSites = when {
+                    query.isNotEmpty() -> siteRepository.searchSites(query)
+                    nearMe && coords != null -> siteRepository.searchNearby(coords.first, coords.second).map { it.site }
+                    else -> siteRepository.getAllSitesList()
+                }
+
+                // 2. Conjunction filtering across all active filters
+                var matchingSites = baseSites
+                for (filter in filters) {
+                    if (filter.isCoreField) {
+                        val targetVal = filter.selectedValue.trim()
+                        matchingSites = matchingSites.filter { site ->
+                            val v = when (filter.dimensionKey.lowercase()) {
+                                "circle" -> site.circle
+                                "city" -> site.city
+                                "district" -> site.district
+                                "technology" -> site.technology
+                                "site_type" -> site.siteType
+                                "status" -> site.status
+                                else -> null
                             }
-                        }.sortedBy { it.distanceKm }
-                        _searchResults.value = withDist
+                            v != null && v.trim().equals(targetVal, ignoreCase = true)
+                        }
                     } else {
-                        _searchResults.value = matches.map { SiteSearchResult(site = it, distanceInfo = null) }
+                        val validSapIds = siteRepository.getSapIdsMatchingSpec(filter.dimensionKey, filter.selectedValue).toSet()
+                        matchingSites = matchingSites.filter { site -> validSapIds.contains(site.sapId) }
                     }
-                } else if (nearMe && coords != null) {
-                    // Query is blank, but Near Me is active: show all nearby towers by proximity
+                }
+
+                // 3. Distance calculation and sorting if Near Me is active
+                if (nearMe && coords != null) {
                     val (refLat, refLng) = coords
-                    val nearby = siteRepository.searchNearby(refLat, refLng)
-                    _searchResults.value = nearby.map {
-                        SiteSearchResult(site = it.site, distanceInfo = it.formattedDistance, distanceKm = it.distanceKm)
+                    val withDist = matchingSites.map { site ->
+                        if (site.lat != null && site.lng != null) {
+                            val dist = Geo.haversineDistanceKm(refLat, refLng, site.lat, site.lng)
+                            val fmt = Geo.formatDistanceAndBearing(refLat, refLng, site.lat, site.lng)
+                            SiteSearchResult(site = site, distanceInfo = fmt, distanceKm = dist)
+                        } else {
+                            SiteSearchResult(site = site, distanceInfo = null, distanceKm = Double.MAX_VALUE)
+                        }
+                    }.sortedBy { it.distanceKm }
+                    _searchResults.value = withDist
+                    if (withDist.isEmpty() && query.isEmpty()) {
+                        _userMessage.value = "No nearby sites matching selected criteria found."
                     }
-                    if (nearby.isEmpty()) {
-                        _userMessage.value = "No nearby sites with GPS coordinates found."
-                    }
+                } else {
+                    _searchResults.value = matchingSites.map { SiteSearchResult(site = it, distanceInfo = null) }
                 }
             } catch (e: Exception) {
                 _userMessage.value = "Search error: ${e.message}"

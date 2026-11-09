@@ -6,6 +6,7 @@ import app.telecom.sitetracker.data.import.TargetField
 import app.telecom.sitetracker.data.merger.MergeStrategy
 import app.telecom.sitetracker.data.merger.OverwritePolicy
 import app.telecom.sitetracker.data.merger.VlookupEngine
+import app.telecom.sitetracker.ui.merger.VlookupMergerViewModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -31,6 +32,30 @@ class VlookupMergerTest {
         val headers4 = listOf("Tower Code", "Status")
         val keyIndex4 = VlookupEngine.detectKeyColumn(headers4)
         assertEquals(0, keyIndex4)
+
+        // Headers where Sr No is first but no explicit SAP ID: fallback should skip Sr No
+        val headers5 = listOf("Sr No", "Circle", "Status")
+        val keyIndex5 = VlookupEngine.detectKeyColumn(headers5)
+        assertEquals(1, keyIndex5)
+    }
+
+    @Test
+    fun testAutoMapColumnsIgnoresSrNo() {
+        val headers = listOf("Sr No", "SAP ID", "Circle", "SMPS Capacity")
+        val mappings = VlookupEngine.autoMapColumns(headers, keyIndex = 1)
+        assertEquals(4, mappings.size)
+
+        // Sr No should be IGNORE
+        assertEquals(TargetField.IGNORE, mappings[0].targetField)
+
+        // SAP ID is key
+        assertEquals(TargetField.SAP_ID, mappings[1].targetField)
+
+        // Circle is standard field
+        assertEquals(TargetField.CIRCLE, mappings[2].targetField)
+
+        // SMPS Capacity is custom spec
+        assertEquals(TargetField.CUSTOM_SPEC, mappings[3].targetField)
     }
 
     @Test
@@ -213,36 +238,56 @@ class VlookupMergerTest {
 
     @Test
     fun testExistingVsNewFieldIdentification() {
+        val populatedCore = setOf(TargetField.NAME, TargetField.LAT, TargetField.LNG, TargetField.CIRCLE)
         val existingDbSpecs = setOf("DG MAKE", "BATTERY AH", "RECTIFIER RATING")
 
-        fun checkIsExisting(target: TargetField, specKey: String?): Boolean {
-            return when (target) {
-                TargetField.CUSTOM_SPEC -> {
-                    val k = specKey?.trim()?.uppercase(java.util.Locale.US) ?: ""
-                    existingDbSpecs.contains(k)
-                }
-                TargetField.SAP_ID, TargetField.IGNORE -> false
-                else -> true // Core schema attributes
-            }
-        }
+        // Populated core fields return true
+        assertTrue(VlookupMergerViewModel.checkIsExistingInDb(TargetField.NAME, null, populatedCore, existingDbSpecs))
+        assertTrue(VlookupMergerViewModel.checkIsExistingInDb(TargetField.LAT, null, populatedCore, existingDbSpecs))
+        assertTrue(VlookupMergerViewModel.checkIsExistingInDb(TargetField.LNG, null, populatedCore, existingDbSpecs))
+        assertTrue(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CIRCLE, null, populatedCore, existingDbSpecs))
 
-        // Core fields are always existing in master site schema
-        assertTrue(checkIsExisting(TargetField.NAME, null))
-        assertTrue(checkIsExisting(TargetField.LAT, null))
-        assertTrue(checkIsExisting(TargetField.LNG, null))
-        assertTrue(checkIsExisting(TargetField.CIRCLE, null))
+        // Unpopulated core fields return false (NEW ATTRIBUTE)
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CITY, null, populatedCore, existingDbSpecs))
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.DISTRICT, null, populatedCore, existingDbSpecs))
 
         // Known custom specs from DB
-        assertTrue(checkIsExisting(TargetField.CUSTOM_SPEC, "DG Make"))
-        assertTrue(checkIsExisting(TargetField.CUSTOM_SPEC, "Battery Ah"))
-        assertTrue(checkIsExisting(TargetField.CUSTOM_SPEC, "RECTIFIER RATING"))
+        assertTrue(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CUSTOM_SPEC, "DG Make", populatedCore, existingDbSpecs))
+        assertTrue(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CUSTOM_SPEC, "Battery Ah", populatedCore, existingDbSpecs))
+        assertTrue(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CUSTOM_SPEC, "RECTIFIER RATING", populatedCore, existingDbSpecs))
 
         // Brand new custom specs
-        assertFalse(checkIsExisting(TargetField.CUSTOM_SPEC, "Solar Panel Wattage"))
-        assertFalse(checkIsExisting(TargetField.CUSTOM_SPEC, "Wind Turbine Model"))
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CUSTOM_SPEC, "Solar Panel Wattage", populatedCore, existingDbSpecs))
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CUSTOM_SPEC, "Wind Turbine Model", populatedCore, existingDbSpecs))
 
         // Ignored or key
-        assertFalse(checkIsExisting(TargetField.IGNORE, "DG Make"))
-        assertFalse(checkIsExisting(TargetField.SAP_ID, "SAP ID"))
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.IGNORE, "DG Make", populatedCore, existingDbSpecs))
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.SAP_ID, "SAP ID", populatedCore, existingDbSpecs))
+    }
+
+    @Test
+    fun testCheckIsExistingInDbWithEmptyCoreFields() {
+        // When user only imported SAP IDs, core fields have not been populated
+        val emptyCore = emptySet<TargetField>()
+        val existingSpecs = setOf("DG CAPACITY")
+
+        // When core attributes are empty in DB, NAME/LAT/LNG/CIRCLE must be NEW (false)
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.NAME, null, emptyCore, existingSpecs))
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.LAT, null, emptyCore, existingSpecs))
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CIRCLE, null, emptyCore, existingSpecs))
+
+        // Populated spec returns true
+        assertTrue(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CUSTOM_SPEC, "DG CAPACITY", emptyCore, existingSpecs))
+        // Unpopulated spec returns false
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CUSTOM_SPEC, "SOLAR MPPT", emptyCore, existingSpecs))
+
+        // SAP_ID and IGNORE always return false
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.SAP_ID, null, emptyCore, existingSpecs))
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.IGNORE, null, emptyCore, existingSpecs))
+
+        // When Circle is populated, it returns true
+        val circlePopulated = setOf(TargetField.CIRCLE)
+        assertTrue(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CIRCLE, null, circlePopulated, existingSpecs))
+        assertFalse(VlookupMergerViewModel.checkIsExistingInDb(TargetField.CITY, null, circlePopulated, existingSpecs))
     }
 }

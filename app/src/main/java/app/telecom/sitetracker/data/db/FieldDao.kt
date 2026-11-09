@@ -65,4 +65,10 @@ interface FieldDao {
         deleteFieldsForSite(sapId)
         insertFields(fields)
     }
+
+    @Query("SELECT DISTINCT field_value FROM site_fields WHERE LOWER(field_key) = LOWER(:fieldKey) AND field_value IS NOT NULL AND TRIM(field_value) != '' ORDER BY field_value ASC")
+    suspend fun getDistinctValuesForSpec(fieldKey: String): List<String>
+
+    @Query("SELECT sap_id FROM site_fields WHERE LOWER(field_key) = LOWER(:fieldKey) AND LOWER(TRIM(field_value)) = LOWER(TRIM(:fieldValue))")
+    suspend fun getSapIdsMatchingSpec(fieldKey: String, fieldValue: String): List<String>
 }

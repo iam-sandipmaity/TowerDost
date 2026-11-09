@@ -69,17 +69,54 @@ class VlookupMergerViewModel(
     private var stagedFile: File? = null
     private var allRows: List<List<String>> = emptyList()
     private val mergerEngine = VlookupEngine(db, clock)
+    private var populatedCoreFields: Set<TargetField> = emptySet()
     private var existingSpecKeys: Set<String> = emptySet()
 
-    private fun checkIsExistingInDb(target: TargetField, specKey: String?, existingKeys: Set<String>): Boolean {
-        return when (target) {
-            TargetField.CUSTOM_SPEC -> {
-                val k = specKey?.trim()?.uppercase(java.util.Locale.US) ?: ""
-                existingKeys.contains(k)
+    companion object {
+        fun checkIsExistingInDb(
+            target: TargetField,
+            specKey: String?,
+            populatedCore: Set<TargetField>,
+            existingKeys: Set<String>
+        ): Boolean {
+            return when (target) {
+                TargetField.CUSTOM_SPEC -> {
+                    val k = specKey?.trim()?.uppercase(java.util.Locale.US) ?: ""
+                    existingKeys.contains(k)
+                }
+                TargetField.SAP_ID, TargetField.IGNORE -> false
+                else -> populatedCore.contains(target)
             }
-            TargetField.SAP_ID, TargetField.IGNORE -> false
-            else -> true // Core fields (NAME, LAT, LNG, etc.) belong to master site schema
         }
+    }
+
+    private fun checkIsExistingInDb(target: TargetField, specKey: String?): Boolean {
+        return checkIsExistingInDb(target, specKey, populatedCoreFields, existingSpecKeys)
+    }
+
+    private suspend fun refreshPopulatedDatabaseAttributes() {
+        val coreSummary = db.siteDao().getPopulatedCoreFields() ?: app.telecom.sitetracker.data.db.PopulatedCoreFields()
+        val populatedCore = mutableSetOf<TargetField>()
+        if (coreSummary.hasName > 0) populatedCore.add(TargetField.NAME)
+        if (coreSummary.hasCoordinates > 0) {
+            populatedCore.add(TargetField.LAT)
+            populatedCore.add(TargetField.LNG)
+        }
+        if (coreSummary.hasCircle > 0) populatedCore.add(TargetField.CIRCLE)
+        if (coreSummary.hasRegion > 0) populatedCore.add(TargetField.REGION)
+        if (coreSummary.hasState > 0) populatedCore.add(TargetField.STATE)
+        if (coreSummary.hasDistrict > 0) populatedCore.add(TargetField.DISTRICT)
+        if (coreSummary.hasCity > 0) populatedCore.add(TargetField.CITY)
+        if (coreSummary.hasTechnology > 0) populatedCore.add(TargetField.TECHNOLOGY)
+        if (coreSummary.hasSiteType > 0) populatedCore.add(TargetField.SITE_TYPE)
+        if (coreSummary.hasStatus > 0) populatedCore.add(TargetField.STATUS)
+        if (coreSummary.hasAddress > 0) populatedCore.add(TargetField.ADDRESS)
+        if (coreSummary.hasTags > 0) populatedCore.add(TargetField.TAGS)
+        if (coreSummary.hasNotes > 0) populatedCore.add(TargetField.NOTES)
+        populatedCoreFields = populatedCore
+
+        val distinctSpecs = db.fieldDao().getDistinctSpecsFromSites()
+        existingSpecKeys = distinctSpecs.map { it.fieldKey.trim().uppercase(java.util.Locale.US) }.toSet()
     }
 
     fun onFileSelected(uri: Uri, displayName: String?, fileSize: Long) {
@@ -212,12 +249,10 @@ class VlookupMergerViewModel(
         val detectedKey = VlookupEngine.detectKeyColumn(headers)
         val initialMappings = VlookupEngine.autoMapColumns(headers, detectedKey)
 
-        val distinctSpecs = db.fieldDao().getDistinctSpecsFromSites()
-        val keys = distinctSpecs.map { it.fieldKey.trim().uppercase(java.util.Locale.US) }.toSet()
-        existingSpecKeys = keys
+        refreshPopulatedDatabaseAttributes()
 
         for (m in initialMappings) {
-            m.isExistingInDatabase = checkIsExistingInDb(m.targetField, m.specKey, keys)
+            m.isExistingInDatabase = checkIsExistingInDb(m.targetField, m.specKey)
         }
 
         _uiState.update {
@@ -256,12 +291,10 @@ class VlookupMergerViewModel(
         val detectedKey = VlookupEngine.detectKeyColumn(headers)
         val initialMappings = VlookupEngine.autoMapColumns(headers, detectedKey)
 
-        val distinctSpecs = db.fieldDao().getDistinctSpecsFromSites()
-        val keys = distinctSpecs.map { it.fieldKey.trim().uppercase(java.util.Locale.US) }.toSet()
-        existingSpecKeys = keys
+        refreshPopulatedDatabaseAttributes()
 
         for (m in initialMappings) {
-            m.isExistingInDatabase = checkIsExistingInDb(m.targetField, m.specKey, keys)
+            m.isExistingInDatabase = checkIsExistingInDb(m.targetField, m.specKey)
         }
 
         _uiState.update {
@@ -279,6 +312,9 @@ class VlookupMergerViewModel(
     fun onKeyColumnSelected(index: Int) {
         val headers = _uiState.value.headers
         val remapped = VlookupEngine.autoMapColumns(headers, index)
+        for (m in remapped) {
+            m.isExistingInDatabase = checkIsExistingInDb(m.targetField, m.specKey)
+        }
         _uiState.update {
             it.copy(
                 keyColumnIndex = index,
@@ -301,7 +337,7 @@ class VlookupMergerViewModel(
                 if (mapping.columnIndex == columnIndex) {
                     val prev = if (target != TargetField.IGNORE) target else mapping.previousTarget
                     val effectiveKey = specKey ?: mapping.specKey
-                    val isExisting = checkIsExistingInDb(target, effectiveKey, existingSpecKeys)
+                    val isExisting = checkIsExistingInDb(target, effectiveKey)
                     mapping.copy(
                         targetField = target,
                         specGroup = specGroup ?: mapping.specGroup,
@@ -321,7 +357,7 @@ class VlookupMergerViewModel(
                 if (mapping.columnIndex == columnIndex) {
                     if (isIncluded) {
                         val restored = if (mapping.previousTarget != TargetField.IGNORE) mapping.previousTarget else TargetField.CUSTOM_SPEC
-                        val isExisting = checkIsExistingInDb(restored, mapping.specKey, existingSpecKeys)
+                        val isExisting = checkIsExistingInDb(restored, mapping.specKey)
                         mapping.copy(
                             targetField = restored,
                             isExistingInDatabase = isExisting
@@ -342,7 +378,7 @@ class VlookupMergerViewModel(
             val updated = state.columnMappings.map { mapping ->
                 if (mapping.columnIndex != keyCol && mapping.targetField == TargetField.IGNORE) {
                     val restored = if (mapping.previousTarget != TargetField.IGNORE) mapping.previousTarget else TargetField.CUSTOM_SPEC
-                    val isExisting = checkIsExistingInDb(restored, mapping.specKey, existingSpecKeys)
+                    val isExisting = checkIsExistingInDb(restored, mapping.specKey)
                     mapping.copy(
                         targetField = restored,
                         isExistingInDatabase = isExisting
