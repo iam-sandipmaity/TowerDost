@@ -69,7 +69,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -333,7 +335,11 @@ fun SiteDetailScreen(
                 // Pinned Telemetry Header Banner
                 SiteHeaderBanner(
                     site = site,
-                    distanceInfo = uiState.distanceInfo
+                    distanceInfo = uiState.distanceInfo,
+                    onCopy = { label, value ->
+                        copyToClipboard(context, label, value)
+                        scope.launch { snackbarHostState.showSnackbar("Copied $label to clipboard") }
+                    }
                 )
 
                 // Segmented Tabs: 0 = Specs, 1 = Site Logs, 2 = Overview
@@ -387,7 +393,14 @@ fun SiteDetailScreen(
                         onStartEdit = { viewModel.startEditingOverview() },
                         onCancelEdit = { viewModel.cancelEditingOverview() },
                         onDraftChange = { transform -> viewModel.updateOverviewDraft(transform) },
-                        onSaveClick = { viewModel.requestSaveOverview() }
+                        onSaveClick = { viewModel.requestSaveOverview() },
+                        onCopy = { label, value ->
+                            copyToClipboard(context, label, value)
+                            scope.launch { snackbarHostState.showSnackbar("Copied $label to clipboard") }
+                        },
+                        onNavigateGps = { lat, lng, label ->
+                            launchNavigation(context, lat, lng, label)
+                        }
                     )
                 }
             }
@@ -540,7 +553,8 @@ fun SiteDetailScreen(
 @Composable
 private fun SiteHeaderBanner(
     site: SiteEntity,
-    distanceInfo: String? = null
+    distanceInfo: String? = null,
+    onCopy: (String, String) -> Unit = { _, _ -> }
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
@@ -557,18 +571,34 @@ private fun SiteHeaderBanner(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = site.sapId,
-                        style = SapIdStyle.copy(
-                            fontSize = 20.sp,
-                            color = TelecomAmber
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onCopy("SAP ID", site.sapId) }
+                    ) {
+                        Text(
+                            text = site.sapId,
+                            style = SapIdStyle.copy(
+                                fontSize = 20.sp,
+                                color = TelecomAmber
+                            )
                         )
-                    )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy SAP ID",
+                            tint = TelecomAmber.copy(alpha = 0.5f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
 
                     if (!site.city.isNullOrBlank() || !site.district.isNullOrBlank()) {
+                        val locText = listOfNotNull(site.city, site.district).joinToString(" • ")
                         StatusDotBadge(
-                            text = listOfNotNull(site.city, site.district).joinToString(" • "),
-                            color = RFCyan
+                            text = locText,
+                            color = RFCyan,
+                            modifier = Modifier.clickable { onCopy("Location", locText) }
                         )
                     }
                 }
@@ -579,7 +609,10 @@ private fun SiteHeaderBanner(
                         text = site.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onCopy("Site Name", site.name) }
                     )
                 }
 
@@ -589,7 +622,10 @@ private fun SiteHeaderBanner(
                         text = site.address,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2
+                        maxLines = 2,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onCopy("Address", site.address) }
                     )
                 }
 
@@ -604,7 +640,10 @@ private fun SiteHeaderBanner(
                             style = MetricMonoStyle.copy(
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            ),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onCopy("GPS Coordinates", "${site.lat}, ${site.lng}") }
                         )
                         if (!distanceInfo.isNullOrBlank()) {
                             Surface(
@@ -1281,7 +1320,9 @@ private fun OverviewTab(
     onStartEdit: () -> Unit,
     onCancelEdit: () -> Unit,
     onDraftChange: ((SiteEntity) -> SiteEntity) -> Unit,
-    onSaveClick: () -> Unit
+    onSaveClick: () -> Unit,
+    onCopy: (String, String) -> Unit,
+    onNavigateGps: (Double, Double, String) -> Unit
 ) {
     if (isEditing) {
         Column(
@@ -1495,39 +1536,66 @@ private fun OverviewTab(
                         }
                     }
 
-                    OutlinedButton(
-                        onClick = onStartEdit,
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(8.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (isEditMode) "Edit Details" else "Unlock to Edit", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        OutlinedButton(
+                            onClick = {
+                                val summary = buildSiteSummary(site)
+                                onCopy("Site Card", summary)
+                            },
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Copy Card", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        OutlinedButton(
+                            onClick = onStartEdit,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(if (isEditMode) "Edit Details" else "Unlock to Edit", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            OverviewRow("Site Name", site.name ?: "—")
-            OverviewRow("Circle", site.circle ?: "—")
-            OverviewRow("Region", site.region ?: "—")
-            OverviewRow("District", site.district ?: "—")
-            OverviewRow("City / JC", site.city ?: "—")
-            OverviewRow("State", site.state ?: "—")
-            OverviewRow("Technology", site.technology ?: "—")
-            OverviewRow("Site Type", site.siteType ?: "—")
-            OverviewRow("Address", site.address ?: "—")
+            OverviewRow("Site Name", site.name ?: "—", onCopy = onCopy)
+            OverviewRow("Circle", site.circle ?: "—", onCopy = onCopy)
+            OverviewRow("Region", site.region ?: "—", onCopy = onCopy)
+            OverviewRow("District", site.district ?: "—", onCopy = onCopy)
+            OverviewRow("City / JC", site.city ?: "—", onCopy = onCopy)
+            OverviewRow("State", site.state ?: "—", onCopy = onCopy)
+            OverviewRow("Technology", site.technology ?: "—", onCopy = onCopy)
+            OverviewRow("Site Type", site.siteType ?: "—", onCopy = onCopy)
+            OverviewRow("Address", site.address ?: "—", onCopy = onCopy)
             if (site.lat != null && site.lng != null) {
-                OverviewRow("GPS Coordinates", "${site.lat.format(5)}, ${site.lng.format(5)}")
+                val coords = "${site.lat.format(5)}, ${site.lng.format(5)}"
+                val rawCoords = "${site.lat}, ${site.lng}"
+                OverviewRow(
+                    label = "GPS Coordinates",
+                    value = coords,
+                    onCopy = { l, _ -> onCopy(l, rawCoords) },
+                    onAction = { onNavigateGps(site.lat, site.lng, site.sapId) },
+                    actionIcon = Icons.Default.NearMe,
+                    actionDescription = "Navigate to site"
+                )
             }
-            OverviewRow("Tags / Scope", site.tags ?: "—")
-            OverviewRow("Source File", site.sourceFile ?: "—")
+            OverviewRow("Tags / Scope", site.tags ?: "—", onCopy = onCopy)
+            OverviewRow("Source File", site.sourceFile ?: "—", onCopy = onCopy)
             if (site.updatedAt != null) {
-                OverviewRow("Last Updated", Dates.formatDateTime(site.updatedAt))
+                OverviewRow("Last Updated", Dates.formatDateTime(site.updatedAt), onCopy = onCopy)
             }
             if (!site.notes.isNullOrBlank()) {
-                OverviewRow("Remarks", site.notes)
+                OverviewRow("Remarks", site.notes, onCopy = onCopy)
             }
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -1535,31 +1603,101 @@ private fun OverviewTab(
 }
 
 @Composable
-private fun OverviewRow(label: String, value: String) {
-    Row(
+private fun OverviewRow(
+    label: String,
+    value: String,
+    onCopy: ((label: String, value: String) -> Unit)? = null,
+    onAction: (() -> Unit)? = null,
+    actionIcon: ImageVector? = null,
+    actionDescription: String? = null
+) {
+    val canCopy = onCopy != null && value != "—" && value.isNotBlank()
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Top
+            .then(
+                if (canCopy) Modifier.clickable { onCopy(label, value) }
+                else Modifier
+            )
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.width(130.dp)
-        )
-        Text(
-            text = value,
-            style = MetricMonoStyle.copy(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            ),
-            modifier = Modifier.weight(1f)
-        )
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.width(125.dp)
+                )
+
+                Text(
+                    text = value,
+                    style = MetricMonoStyle.copy(
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    if (onAction != null && actionIcon != null) {
+                        IconButton(
+                            onClick = onAction,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = actionIcon,
+                                contentDescription = actionDescription,
+                                tint = RFCyan,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+
+                    if (canCopy) {
+                        IconButton(
+                            onClick = { onCopy(label, value) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = "Copy $label",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+        }
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 1.dp)
+}
+
+private fun buildSiteSummary(site: SiteEntity): String {
+    val sb = StringBuilder()
+    sb.appendLine("📍 [TowerDost Site Card]")
+    sb.appendLine("SAP ID: ${site.sapId}")
+    if (!site.name.isNullOrBlank()) sb.appendLine("Name: ${site.name}")
+    val locParts = listOfNotNull(site.circle, site.district, site.city, site.state).filter { it.isNotBlank() }
+    if (locParts.isNotEmpty()) sb.appendLine("Location: ${locParts.joinToString(" • ")}")
+    if (!site.technology.isNullOrBlank()) sb.appendLine("Tech: ${site.technology}")
+    if (!site.siteType.isNullOrBlank()) sb.appendLine("Type: ${site.siteType}")
+    if (!site.status.isNullOrBlank()) sb.appendLine("Status: ${site.status}")
+    if (site.lat != null && site.lng != null) sb.appendLine("GPS: ${site.lat.format(5)}, ${site.lng.format(5)}")
+    if (!site.address.isNullOrBlank()) sb.appendLine("Address: ${site.address}")
+    if (!site.notes.isNullOrBlank()) sb.appendLine("Remarks: ${site.notes}")
+    return sb.toString().trimEnd()
 }
 
 private fun launchNavigation(context: Context, lat: Double, lng: Double, label: String) {
