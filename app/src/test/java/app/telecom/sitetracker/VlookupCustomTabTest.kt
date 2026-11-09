@@ -719,4 +719,67 @@ class VlookupCustomTabTest {
         assertTrue("FTS fieldText must contain updated spec value 600AH", lastFts.fieldText?.contains("600AH") == true)
         assertFalse("FTS fieldText must not contain stale spec value 200AH", lastFts.fieldText?.contains("200AH") == true)
     }
+
+    @Test
+    fun testAutoMapColumnsAssignsOverviewTabToCoreFields() {
+        val headers = listOf("SAP ID", "Site Name", "Latitude", "Solar Panel KW")
+        val mappings = VlookupEngine.autoMapColumns(headers, keyIndex = 0)
+
+        assertEquals("OVERVIEW", mappings[1].tabId)
+        assertEquals("Overview", mappings[1].tabDisplayName)
+        assertEquals(TargetField.NAME, mappings[1].targetField)
+
+        assertEquals("OVERVIEW", mappings[2].tabId)
+        assertEquals("Overview", mappings[2].tabDisplayName)
+        assertEquals(TargetField.LAT, mappings[2].targetField)
+
+        assertEquals("SPECS", mappings[3].tabId)
+        assertEquals("Specs", mappings[3].tabDisplayName)
+        assertEquals(TargetField.CUSTOM_SPEC, mappings[3].targetField)
+    }
+
+    @Test
+    fun testTwoStepTabAndColumnTargetSelection() {
+        var mapping = VlookupColumnMapping(
+            columnIndex = 1,
+            sourceHeader = "Site Name",
+            targetField = TargetField.NAME,
+            tabId = "OVERVIEW",
+            tabDisplayName = "Overview"
+        )
+
+        // 1. Switch to Specs tab
+        mapping = mapping.copy(
+            targetField = TargetField.CUSTOM_SPEC,
+            specGroup = "POWER",
+            tabId = "SPECS",
+            tabDisplayName = "Specs"
+        )
+        assertEquals("SPECS", mapping.tabId)
+        assertEquals("POWER", mapping.specGroup)
+        assertEquals(TargetField.CUSTOM_SPEC, mapping.targetField)
+
+        // 2. Switch to Custom Tab
+        mapping = mapping.copy(
+            targetField = TargetField.CUSTOM_SPEC,
+            specGroup = "GENERAL",
+            tabId = "TENANT_INFO",
+            tabDisplayName = "Tenant Info"
+        )
+        assertEquals("TENANT_INFO", mapping.tabId)
+        assertEquals("Tenant Info", mapping.tabDisplayName)
+        assertEquals(TargetField.CUSTOM_SPEC, mapping.targetField)
+
+        // 3. Switch back to Overview
+        mapping = mapping.copy(
+            targetField = TargetField.NAME,
+            specGroup = null,
+            tabId = "OVERVIEW",
+            tabDisplayName = "Overview"
+        )
+        assertEquals("OVERVIEW", mapping.tabId)
+        assertEquals("Overview", mapping.tabDisplayName)
+        assertEquals(TargetField.NAME, mapping.targetField)
+        assertEquals(null, mapping.specGroup)
+    }
 }

@@ -371,7 +371,7 @@ class VlookupMergerViewModel(
                     val isExisting = checkIsExistingInDb(target, effectiveKey)
                     mapping.copy(
                         targetField = target,
-                        specGroup = specGroup ?: mapping.specGroup,
+                        specGroup = if (target == TargetField.CUSTOM_SPEC) (specGroup ?: mapping.specGroup ?: "GENERAL") else null,
                         specKey = effectiveKey,
                         previousTarget = prev,
                         isExistingInDatabase = isExisting,

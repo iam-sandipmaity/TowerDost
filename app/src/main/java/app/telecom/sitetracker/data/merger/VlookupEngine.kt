@@ -76,7 +76,9 @@ class VlookupEngine(
                         VlookupColumnMapping(
                             columnIndex = index,
                             sourceHeader = header,
-                            targetField = standardMatch
+                            targetField = standardMatch,
+                            tabId = "OVERVIEW",
+                            tabDisplayName = "Overview"
                         )
                     )
                 } else if (standardMatch == TargetField.IGNORE) {
