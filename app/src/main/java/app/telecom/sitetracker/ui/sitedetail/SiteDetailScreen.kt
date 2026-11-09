@@ -1042,7 +1042,7 @@ private fun SpecsTab(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Tap Edit Specs to modify technical data",
+                                text = "Global Template Order • Tap Template to reorder",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant

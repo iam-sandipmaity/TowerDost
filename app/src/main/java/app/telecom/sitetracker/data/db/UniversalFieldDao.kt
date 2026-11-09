@@ -11,10 +11,10 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface UniversalFieldDao {
 
-    @Query("SELECT * FROM universal_fields ORDER BY group_name ASC, sort_order ASC, field_key ASC")
+    @Query("SELECT * FROM universal_fields ORDER BY sort_order ASC, group_name ASC, field_key ASC")
     fun observeAllUniversalFields(): Flow<List<UniversalFieldEntity>>
 
-    @Query("SELECT * FROM universal_fields ORDER BY group_name ASC, sort_order ASC, field_key ASC")
+    @Query("SELECT * FROM universal_fields ORDER BY sort_order ASC, group_name ASC, field_key ASC")
     suspend fun getAllUniversalFields(): List<UniversalFieldEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)

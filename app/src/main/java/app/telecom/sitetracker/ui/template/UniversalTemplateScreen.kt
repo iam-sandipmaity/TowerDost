@@ -17,16 +17,25 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -59,6 +68,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -96,6 +106,18 @@ fun UniversalTemplateScreen(
                 subtitle = "Global equipment blueprint for all sites",
                 onBack = onNavigateBack,
                 actions = {
+                    if (uiState.groupedFields.isNotEmpty()) {
+                        IconButton(
+                            onClick = { viewModel.toggleReorderMode() },
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SwapVert,
+                                contentDescription = if (uiState.isReorderMode) "Done Reordering" else "Reorder Specs & Categories",
+                                tint = if (uiState.isReorderMode) TelecomAmber else RFCyan
+                            )
+                        }
+                    }
                     if (uiState.siteSpecsAvailableCount > 0) {
                         IconButton(
                             onClick = { viewModel.requestSyncFromSites() },
@@ -215,6 +237,43 @@ fun UniversalTemplateScreen(
                         placeholder = "Filter specifications...",
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+
+                if (uiState.isReorderMode) {
+                    Surface(
+                        color = TelecomAmber.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(1.dp, TelecomAmber.copy(alpha = 0.6f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.SwapVert, contentDescription = null, tint = TelecomAmber, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Reorder Mode: Tap arrows or Move to position specs globally",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    fontSize = 11.sp,
+                                    color = TelecomAmber
+                                )
+                            }
+                            TextButton(
+                                onClick = { viewModel.toggleReorderMode() },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                            ) {
+                                Text("Done", fontWeight = FontWeight.Bold, color = TelecomAmber, fontSize = 12.sp)
+                            }
+                        }
+                    }
                 }
 
                 val filteredGroups = remember(uiState.groupedFields, uiState.searchQuery) {
@@ -360,6 +419,30 @@ fun UniversalTemplateScreen(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
+                                            IconButton(
+                                                onClick = { viewModel.moveSectionUp(groupName) },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.KeyboardArrowUp,
+                                                    contentDescription = "Move category $groupName Up",
+                                                    tint = TelecomAmber,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+
+                                            IconButton(
+                                                onClick = { viewModel.moveSectionDown(groupName) },
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                                    contentDescription = "Move category $groupName Down",
+                                                    tint = TelecomAmber,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+
                                             Surface(
                                                 shape = RoundedCornerShape(4.dp),
                                                 color = MaterialTheme.colorScheme.surface
@@ -405,9 +488,14 @@ fun UniversalTemplateScreen(
                             itemsIndexed(
                                 items = fields,
                                 key = { index, field -> "template_spec_${groupIndex}_${field.fieldKey}_$index" }
-                            ) { _, field ->
+                            ) { index, field ->
                                 EnterpriseTemplateSpecRow(
                                     field = field,
+                                    positionIndex = index,
+                                    isReorderMode = uiState.isReorderMode,
+                                    onMoveUp = { viewModel.moveFieldUp(field) },
+                                    onMoveDown = { viewModel.moveFieldDown(field) },
+                                    onMoveMenu = { viewModel.startMoveField(field) },
                                     onEdit = { viewModel.startEditField(field) },
                                     onDelete = { viewModel.requestDeleteField(field) }
                                 )
@@ -545,11 +633,29 @@ fun UniversalTemplateScreen(
             }
         )
     }
+
+    uiState.fieldToMove?.let { field ->
+        MoveFieldDialog(
+            field = field,
+            allSections = uiState.groupedFields.keys.toList(),
+            onDismiss = { viewModel.dismissMoveField() },
+            onMoveUp = { viewModel.moveFieldUp(field) },
+            onMoveDown = { viewModel.moveFieldDown(field) },
+            onMoveToTop = { viewModel.moveFieldToTop(field) },
+            onMoveToBottom = { viewModel.moveFieldToBottom(field) },
+            onMoveToSection = { targetSection -> viewModel.moveFieldToSection(field, targetSection) }
+        )
+    }
 }
 
 @Composable
 private fun EnterpriseTemplateSpecRow(
     field: UniversalFieldEntity,
+    positionIndex: Int,
+    isReorderMode: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onMoveMenu: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -557,59 +663,159 @@ private fun EnterpriseTemplateSpecRow(
         color = MaterialTheme.colorScheme.surface,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onEdit)
+            .clickable(onClick = if (isReorderMode) onMoveMenu else onEdit)
     ) {
         Column {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 11.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = field.fieldKey,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1.2f)
-                )
-
-                Text(
-                    text = field.defaultValue ?: "—",
-                    style = MetricMonoStyle.copy(
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-
+            if (isReorderMode) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(
-                        onClick = onEdit,
-                        modifier = Modifier.size(32.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit ${field.fieldKey}",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
+                            imageVector = Icons.Default.DragHandle,
+                            contentDescription = "Position Handle",
+                            tint = RFCyan.copy(alpha = 0.8f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = RFCyan.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, RFCyan.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "#${positionIndex + 1}",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    color = RFCyan
+                                ),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = field.fieldKey,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(32.dp)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteOutline,
-                            contentDescription = "Delete ${field.fieldKey}",
-                            tint = TagIssueColor.copy(alpha = 0.8f),
-                            modifier = Modifier.size(16.dp)
-                        )
+                        IconButton(
+                            onClick = onMoveUp,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowUpward,
+                                contentDescription = "Move Up",
+                                tint = TelecomAmber,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onMoveDown,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowDownward,
+                                contentDescription = "Move Down",
+                                tint = TelecomAmber,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onMoveMenu,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SwapVert,
+                                contentDescription = "Position / Move",
+                                tint = RFCyan,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 11.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = field.fieldKey,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1.2f)
+                    )
+
+                    Text(
+                        text = field.defaultValue ?: "—",
+                        style = MetricMonoStyle.copy(
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        IconButton(
+                            onClick = onMoveMenu,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.SwapVert,
+                                contentDescription = "Reorder ${field.fieldKey}",
+                                tint = TelecomAmber,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onEdit,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit ${field.fieldKey}",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = onDelete,
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = "Delete ${field.fieldKey}",
+                                tint = TagIssueColor.copy(alpha = 0.8f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -619,6 +825,167 @@ private fun EnterpriseTemplateSpecRow(
             )
         }
     }
+}
+
+@Composable
+private fun MoveFieldDialog(
+    field: UniversalFieldEntity,
+    allSections: List<String>,
+    onDismiss: () -> Unit,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onMoveToTop: () -> Unit,
+    onMoveToBottom: () -> Unit,
+    onMoveToSection: (String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text("Reorder & Position Specification")
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text(
+                            text = field.fieldKey,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = RFCyan
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Current Section: ${field.groupName.uppercase()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Text(
+                    text = "REORDER POSITION",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = TelecomAmber
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            onMoveToTop()
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.VerticalAlignTop, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Top", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            onMoveUp()
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Up", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            onMoveDown()
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Down", fontSize = 12.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            onMoveToBottom()
+                            onDismiss()
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(Icons.Default.VerticalAlignBottom, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Bottom", fontSize = 12.sp)
+                    }
+                }
+
+                val otherSections = allSections.filter { !it.equals(field.groupName, ignoreCase = true) }
+                if (otherSections.isNotEmpty()) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                    Text(
+                        text = "MOVE TO ANOTHER SECTION",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = TelecomAmber
+                    )
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(130.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(otherSections) { targetSec ->
+                            Surface(
+                                onClick = {
+                                    onMoveToSection(targetSec)
+                                    onDismiss()
+                                },
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = targetSec.uppercase(),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Move here →",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = RFCyan
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 @Composable

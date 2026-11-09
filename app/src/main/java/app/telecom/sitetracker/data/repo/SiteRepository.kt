@@ -468,6 +468,10 @@ class SiteRepository(private val db: AppDatabase) {
         universalFieldDao.insertOrUpdateField(field)
     }
 
+    suspend fun saveUniversalFields(fields: List<UniversalFieldEntity>) {
+        universalFieldDao.insertOrUpdateFields(fields)
+    }
+
     suspend fun updateUniversalField(oldFieldKey: String, updatedField: UniversalFieldEntity) {
         if (!oldFieldKey.equals(updatedField.fieldKey, ignoreCase = true)) {
             universalFieldDao.deleteField(oldFieldKey)

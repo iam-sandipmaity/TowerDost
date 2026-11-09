@@ -48,3 +48,9 @@ description: High-contrast, high-sunlight utility palette designed for harsh out
 - **Card Radius:** 10dp (Restrained, industrial corner radius)
 - **Button Radius:** 8dp
 - **Elevation:** Flat with 1dp crisp hairline border (`border(1.dp, MaterialTheme.colorScheme.outlineVariant)`) instead of heavy blurry drop shadows that wash out in sunlight.
+
+## Reordering & Hierarchy Controls
+
+- **Tactile Up/Down Targets:** 40–48dp touch targets with high-visibility amber and cyan accents.
+- **Monospace Position Indicators:** Pure tabular `#1`, `#2` badges for clear ordinal awareness.
+- **2-Tier Stacked Layouts:** Elimination of horizontal crowding on mobile screens; action controls and description texts are stacked into distinct visual tiers.

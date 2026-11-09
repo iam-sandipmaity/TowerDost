@@ -34,6 +34,8 @@ Success is measured by:
 4. **Telecom Root-Cause Catalogue:** Standardized classification (EB Failure, Battery Low, DG No Fuel, OFC Cut, Card Fault, Severe Weather, Tenant Outage).
 5. **Availability & MTTR Insights:** Root-cause Pareto chart, monthly calendar downtime heatmap, and site availability % calculation.
 6. **Data Portability:** 1-tap CSV export of active register and site inventory; encrypted offline JSON/ZIP database backup and restore.
+7. **Universal Blueprint & Global Spec Reordering:** Global specification template manager with tactile and hover reordering controls (Move Up/Down, Top/Bottom, Move to Category). All site spec tabs automatically synchronize to this global layout in real-time.
+8. **Dynamic Spec Filtering & VLOOKUP Engine:** Up to 4 active dynamic filters with `Match All (AND)` and `Match Any (OR)` modes, plus offline spreadsheet column merging.
 
 ## Brand Commitments
 

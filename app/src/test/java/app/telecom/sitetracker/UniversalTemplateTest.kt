@@ -28,6 +28,8 @@ class UniversalTemplateTest {
         assertNull(state.confirmDeleteSection)
         assertFalse(state.confirmClearAll)
         assertFalse(state.confirmSyncFromSites)
+        assertFalse(state.isReorderMode)
+        assertNull(state.fieldToMove)
     }
 
     @Test

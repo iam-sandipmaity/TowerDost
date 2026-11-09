@@ -6,7 +6,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose%20%2B%20Material%203-0A0E17?style=flat&logo=jetpackcompose&logoColor=4285F4)](https://developer.android.com/jetpack/compose)
 [![Room Database](https://img.shields.io/badge/Database-Room%202.6%20%2B%20SQLite%20FTS4-0A0E17?style=flat&logo=sqlite&logoColor=003B57)](https://developer.android.com/training/data-storage/room)
 [![Offline Security](https://img.shields.io/badge/Network-Zero%20Internet%20Permission-10B981?style=flat&logo=shield&logoColor=white)](#offline-only-guarantee)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-44%20Passing-10B981?style=flat)](app/src/test)
+[![Tests](https://img.shields.io/badge/Unit%20Tests-118%20Passing-10B981?style=flat)](app/src/test)
 
 ---
 
@@ -45,7 +45,21 @@ In intense outdoor conditions—monsoons, remote rural deadzones, intense tropic
   - Technical specs feature an intentional modal editor with warning notices and two-step permanent deletion guards.
 - **Custom Equipment Specs:** Add custom fields on-the-fly to adapt to any network expansion.
 
-### 3. Real-Time Outage & Activity Logger
+### 3. Universal Specs Template with Global Drag/Hover Reordering
+- **Global Blueprint Definition:** Manage master equipment templates and categories (Power, Battery, DG, RAN, Transmission, Environment, Civil) inherited across all sites.
+- **Global Tactile & Hover Reordering:**
+  - Move any specification or entire category up or down to place critical attributes exactly where engineers need them.
+  - Dedicated **Reorder Mode** with large 48dp tactile Up/Down arrows and monospace position badges (`#1`, `#2`, `#3`).
+  - **Quick Move & Position Dialog:** 1-tap `Move to Top`, `Move to Bottom`, or instant migration to another category.
+  - **Global Synchronization:** Changes made in the Universal Template immediately dictate the display order on the **Specifications Page** across all 10,000+ towers in real-time.
+- **Smart Spec Synchronization:** Auto-extracts distinct equipment columns from imported spreadsheets without injecting fake placeholders.
+
+### 4. Dynamic Multi-Spec Filtering & VLOOKUP Merger
+- **Configurable Dynamic Filters:** Filter sites by up to 4 arbitrary core or equipment attributes (e.g., Circle, DG Rating, SMPS Make).
+- **Conjunction / Disjunction Matching Mode:** 1-tap toggle between `Match All (AND)` (must satisfy every active filter) and `Match Any (OR)` (matches if at least one filter applies).
+- **Offline VLOOKUP Sheet Merger:** Non-destructive batch merging of external spreadsheets against existing tower records using SAP ID or Tower Name matching keys. Intelligent 2-tier stacked mapping interface with sample previews.
+
+### 5. Real-Time Outage & Activity Logger
 - **Flexible Logging Categories:**
   - `⚠️ Issue / Outage`: Severe network-impacting faults with downtime tracking.
   - `🔧 Routine Maintenance`: Preventive servicing, DG maintenance, SMPS module replacements.
@@ -54,17 +68,17 @@ In intense outdoor conditions—monsoons, remote rural deadzones, intense tropic
 - **Customizable Timestamps:** Log past events accurately after returning from zero-connectivity remote regions.
 - **Root-Cause Classification:** Standardized categorization across Power (EB/DG/Battery), Transmission (OFC cut/MW fail), RAN/Hardware, and Environmental.
 
-### 4. Day-by-Day Down Register & SLA Tracking
+### 6. Day-by-Day Down Register & SLA Tracking
 - **Clipped Downtime Hours Calculation:** Accurately attributes outage durations that cross midnight boundaries into exact daily clipped hours.
 - **Daily Calendar Navigation:** Review any past day's outage list, active down sites, and restoration times.
 - **Reason Code Catalog:** Telecom-standard categories (EB Failure, Battery Depleted, DG Auto-Start Failure, OFC Fiber Cut, Card Fault, Severe Weather).
 
-### 5. Downtime Insights & Repeat Failure Detector
+### 7. Downtime Insights & Repeat Failure Detector
 - **Repeat Fault Warning:** Automatically highlights chronic sites that experience 3+ failures in a rolling 30-day window.
 - **Actionable Equipment Recommendations:** Generates contextual diagnostic checklists before engineer dispatch based on historical failure modes.
 - **MTTR & Availability Analytics:** Root-cause distribution and downtime trends.
 
-### 6. Full Data Portability & Local CSV Export
+### 8. Full Data Portability & Local CSV Export
 - **Dynamic Master Export:** Generates standard CSV spreadsheets including core site properties **and dynamically indexed equipment specification columns**.
 - **Single-Site Audit Export:** Produces a comprehensive CSV report containing Overview, Technical Specs, and historical Incident / Maintenance logs for a single site.
 - **Zero-Cloud Peer Sharing:** Shares reports via standard Android Share sheet (Bluetooth, USB, SD Card, Wi-Fi Direct, Messaging) without servers.

@@ -614,8 +614,39 @@ class SiteDetailViewModel(
                 }
                 val phone = phoneField?.fieldValue?.filter { it.isDigit() || it == '+' }
 
-                // Group specs by groupName
-                val grouped = activeFields.groupBy { it.groupName?.ifBlank { "General Specifications" } ?: "General Specifications" }
+                // Build global ranking from universal blueprint template
+                val groupRank = universalFields.map { it.groupName.trim().uppercase(java.util.Locale.US) }
+                    .distinct()
+                    .mapIndexed { idx, grp -> grp to idx }
+                    .toMap()
+
+                val fieldRank = universalFields.mapIndexed { idx, u ->
+                    (u.groupName.trim().uppercase(java.util.Locale.US) to u.fieldKey.trim().uppercase(java.util.Locale.US)) to idx
+                }.toMap()
+
+                val keyOnlyRank = universalFields.mapIndexed { idx, u ->
+                    u.fieldKey.trim().uppercase(java.util.Locale.US) to idx
+                }.toMap()
+
+                // Group specs by groupName preserving template hierarchy
+                val rawGrouped = activeFields.groupBy { it.groupName?.trim()?.ifBlank { "General Specifications" } ?: "General Specifications" }
+
+                // Sort section categories according to universal template
+                val sortedGroupEntries = rawGrouped.entries.sortedWith(
+                    compareBy { (grp, _) -> groupRank[grp.uppercase(java.util.Locale.US)] ?: Int.MAX_VALUE }
+                )
+
+                // Sort fields within each category according to universal template
+                val grouped = sortedGroupEntries.associate { (grp, fieldsList) ->
+                    val sortedFields = fieldsList.sortedWith(
+                        compareBy(
+                            { field -> fieldRank[grp.uppercase(java.util.Locale.US) to field.fieldKey.trim().uppercase(java.util.Locale.US)] ?: keyOnlyRank[field.fieldKey.trim().uppercase(java.util.Locale.US)] ?: (Int.MAX_VALUE - 1000 + (field.sortOrder ?: 0)) },
+                            { it.sortOrder ?: 0 },
+                            { it.fieldKey }
+                        )
+                    )
+                    grp to sortedFields
+                }
 
                 _uiState.update {
                     it.copy(

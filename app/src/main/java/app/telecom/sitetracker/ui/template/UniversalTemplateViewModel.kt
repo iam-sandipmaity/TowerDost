@@ -28,7 +28,9 @@ data class UniversalTemplateUiState(
     val confirmDeleteField: UniversalFieldEntity? = null,
     val confirmDeleteSection: String? = null,
     val confirmClearAll: Boolean = false,
-    val confirmSyncFromSites: Boolean = false
+    val confirmSyncFromSites: Boolean = false,
+    val isReorderMode: Boolean = false,
+    val fieldToMove: UniversalFieldEntity? = null
 )
 
 class UniversalTemplateViewModel(
@@ -363,6 +365,152 @@ class UniversalTemplateViewModel(
                         errorMessage = "Failed to clear template: ${e.localizedMessage}"
                     )
                 }
+            }
+        }
+    }
+
+    fun toggleReorderMode() {
+        _uiState.update { it.copy(isReorderMode = !it.isReorderMode) }
+    }
+
+    fun startMoveField(field: UniversalFieldEntity) {
+        _uiState.update { it.copy(fieldToMove = field) }
+    }
+
+    fun dismissMoveField() {
+        _uiState.update { it.copy(fieldToMove = null) }
+    }
+
+    fun moveFieldUp(field: UniversalFieldEntity) {
+        val groups = _uiState.value.groupedFields.mapValues { it.value.toMutableList() }.toMutableMap()
+        val grpKey = field.groupName.uppercase(Locale.US)
+        val list = groups[grpKey] ?: return
+        val secIndex = list.indexOfFirst { it.fieldKey == field.fieldKey }
+
+        if (secIndex > 0) {
+            // Swap within section
+            val prev = list[secIndex - 1]
+            list[secIndex - 1] = field
+            list[secIndex] = prev
+            persistGroups(groups)
+        } else {
+            // Move into previous section at the bottom
+            val allGroupKeys = groups.keys.toList()
+            val grpIndex = allGroupKeys.indexOf(grpKey)
+            if (grpIndex > 0) {
+                val prevGrpKey = allGroupKeys[grpIndex - 1]
+                list.removeAt(secIndex)
+                val moved = field.copy(groupName = prevGrpKey)
+                groups[prevGrpKey]?.add(moved)
+                persistGroups(groups)
+            }
+        }
+    }
+
+    fun moveFieldDown(field: UniversalFieldEntity) {
+        val groups = _uiState.value.groupedFields.mapValues { it.value.toMutableList() }.toMutableMap()
+        val grpKey = field.groupName.uppercase(Locale.US)
+        val list = groups[grpKey] ?: return
+        val secIndex = list.indexOfFirst { it.fieldKey == field.fieldKey }
+
+        if (secIndex >= 0 && secIndex < list.size - 1) {
+            // Swap within section
+            val next = list[secIndex + 1]
+            list[secIndex + 1] = field
+            list[secIndex] = next
+            persistGroups(groups)
+        } else if (secIndex == list.size - 1) {
+            // Move into next section at the top
+            val allGroupKeys = groups.keys.toList()
+            val grpIndex = allGroupKeys.indexOf(grpKey)
+            if (grpIndex < allGroupKeys.size - 1) {
+                val nextGrpKey = allGroupKeys[grpIndex + 1]
+                list.removeAt(secIndex)
+                val moved = field.copy(groupName = nextGrpKey)
+                groups[nextGrpKey]?.add(0, moved)
+                persistGroups(groups)
+            }
+        }
+    }
+
+    fun moveFieldToTop(field: UniversalFieldEntity) {
+        val groups = _uiState.value.groupedFields.mapValues { it.value.toMutableList() }.toMutableMap()
+        val grpKey = field.groupName.uppercase(Locale.US)
+        val list = groups[grpKey] ?: return
+        val secIndex = list.indexOfFirst { it.fieldKey == field.fieldKey }
+        if (secIndex > 0) {
+            list.removeAt(secIndex)
+            list.add(0, field)
+            persistGroups(groups)
+        }
+    }
+
+    fun moveFieldToBottom(field: UniversalFieldEntity) {
+        val groups = _uiState.value.groupedFields.mapValues { it.value.toMutableList() }.toMutableMap()
+        val grpKey = field.groupName.uppercase(Locale.US)
+        val list = groups[grpKey] ?: return
+        val secIndex = list.indexOfFirst { it.fieldKey == field.fieldKey }
+        if (secIndex >= 0 && secIndex < list.size - 1) {
+            list.removeAt(secIndex)
+            list.add(field)
+            persistGroups(groups)
+        }
+    }
+
+    fun moveFieldToSection(field: UniversalFieldEntity, targetSection: String) {
+        val trimmedTarget = targetSection.trim().uppercase(Locale.US)
+        if (trimmedTarget.isBlank() || trimmedTarget == field.groupName.uppercase(Locale.US)) return
+        val groups = _uiState.value.groupedFields.mapValues { it.value.toMutableList() }.toMutableMap()
+        val srcKey = field.groupName.uppercase(Locale.US)
+        groups[srcKey]?.removeAll { it.fieldKey == field.fieldKey }
+        val moved = field.copy(groupName = trimmedTarget)
+        groups.getOrPut(trimmedTarget) { mutableListOf() }.add(moved)
+        persistGroups(groups)
+    }
+
+    fun moveSectionUp(groupName: String) {
+        val grpKey = groupName.trim().uppercase(Locale.US)
+        val groupKeys = _uiState.value.groupedFields.keys.toMutableList()
+        val index = groupKeys.indexOf(grpKey)
+        if (index > 0) {
+            val prevKey = groupKeys[index - 1]
+            groupKeys[index - 1] = grpKey
+            groupKeys[index] = prevKey
+            val newGroups = LinkedHashMap<String, List<UniversalFieldEntity>>()
+            for (key in groupKeys) {
+                _uiState.value.groupedFields[key]?.let { newGroups[key] = it }
+            }
+            persistGroups(newGroups)
+        }
+    }
+
+    fun moveSectionDown(groupName: String) {
+        val grpKey = groupName.trim().uppercase(Locale.US)
+        val groupKeys = _uiState.value.groupedFields.keys.toMutableList()
+        val index = groupKeys.indexOf(grpKey)
+        if (index >= 0 && index < groupKeys.size - 1) {
+            val nextKey = groupKeys[index + 1]
+            groupKeys[index + 1] = grpKey
+            groupKeys[index] = nextKey
+            val newGroups = LinkedHashMap<String, List<UniversalFieldEntity>>()
+            for (key in groupKeys) {
+                _uiState.value.groupedFields[key]?.let { newGroups[key] = it }
+            }
+            persistGroups(newGroups)
+        }
+    }
+
+    private fun persistGroups(groups: Map<String, List<UniversalFieldEntity>>) {
+        val filtered = groups.filterValues { it.isNotEmpty() }
+        val flattened = filtered.values.flatten()
+        val normalized = flattened.mapIndexed { idx, item ->
+            item.copy(sortOrder = idx + 1)
+        }
+        viewModelScope.launch {
+            try {
+                siteRepository.saveUniversalFields(normalized)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(errorMessage = "Failed to update spec order: ${e.localizedMessage}") }
             }
         }
     }
