@@ -5,6 +5,8 @@ import app.telecom.sitetracker.data.db.AppDatabase
 import app.telecom.sitetracker.data.entity.SiteEntity
 import app.telecom.sitetracker.data.entity.SiteFieldEntity
 import app.telecom.sitetracker.data.entity.SiteFts
+import app.telecom.sitetracker.data.entity.SiteTabEntity
+import app.telecom.sitetracker.data.entity.UniversalFieldEntity
 import app.telecom.sitetracker.data.import.ColumnMapper
 import app.telecom.sitetracker.data.import.TargetField
 import app.telecom.sitetracker.util.AppClock
@@ -19,6 +21,8 @@ class VlookupEngine(
 ) {
     private val siteDao = db.siteDao()
     private val fieldDao = db.fieldDao()
+    private val siteTabDao = db.siteTabDao()
+    private val universalFieldDao = db.universalFieldDao()
 
     companion object {
         private val SERIAL_ALIASES = listOf(
@@ -153,7 +157,10 @@ class VlookupEngine(
                     if (incomingVal.isNullOrEmpty()) continue
 
                     val fieldName = when (mapping.targetField) {
-                        TargetField.CUSTOM_SPEC -> "${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
+                        TargetField.CUSTOM_SPEC -> {
+                            val tabPrefix = if (mapping.tabId != "SPECS" && mapping.tabDisplayName.isNotBlank()) "[${mapping.tabDisplayName}] " else ""
+                            "$tabPrefix${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
+                        }
                         else -> mapping.targetField.displayName
                     }
 
@@ -192,7 +199,10 @@ class VlookupEngine(
                         val incomingVal = row.getOrNull(mapping.columnIndex)?.trim()
                         if (!incomingVal.isNullOrEmpty()) {
                             val fieldName = when (mapping.targetField) {
-                                TargetField.CUSTOM_SPEC -> "${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
+                                TargetField.CUSTOM_SPEC -> {
+                                    val tabPrefix = if (mapping.tabId != "SPECS" && mapping.tabDisplayName.isNotBlank()) "[${mapping.tabDisplayName}] " else ""
+                                    "$tabPrefix${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
+                                }
                                 else -> mapping.targetField.displayName
                             }
                             rowDiffs.add(FieldDiff(fieldName = fieldName, oldValue = null, newValue = incomingVal))
@@ -245,6 +255,52 @@ class VlookupEngine(
             val existingSites = siteDao.getAllActiveSitesList()
             val siteByNorm = existingSites.associateBy { it.sapNorm }.toMutableMap()
 
+            val specMappings = activeMappings.filter { it.targetField == TargetField.CUSTOM_SPEC }
+            if (specMappings.isNotEmpty()) {
+                val existingTabs = siteTabDao.getAllTabs().toMutableList()
+                var nextTabSort = (existingTabs.maxOfOrNull { it.sortOrder } ?: -1) + 1
+
+                for (specMap in specMappings) {
+                    val effectiveTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                    val effectiveTabName = specMap.tabDisplayName.trim().ifBlank { effectiveTabId }
+                    if (existingTabs.none { it.tabId.equals(effectiveTabId, ignoreCase = true) }) {
+                        val newTab = SiteTabEntity(
+                            tabId = effectiveTabId,
+                            displayName = effectiveTabName,
+                            sortOrder = nextTabSort++,
+                            isSystem = false
+                        )
+                        siteTabDao.insertTab(newTab)
+                        existingTabs.add(newTab)
+                    }
+                }
+
+                val existingUniversal = universalFieldDao.getAllUniversalFields().toMutableList()
+                for (specMap in specMappings) {
+                    val effectiveTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                    val key = specMap.specKey.trim()
+                    val group = specMap.specGroup?.trim()?.ifBlank { "EQUIPMENT" } ?: "EQUIPMENT"
+                    if (key.isNotEmpty()) {
+                        val alreadyExists = existingUniversal.any {
+                            it.tabId.equals(effectiveTabId, ignoreCase = true) && it.fieldKey.equals(key, ignoreCase = true)
+                        }
+                        if (!alreadyExists) {
+                            val nextSort = (existingUniversal.filter { it.tabId.equals(effectiveTabId, ignoreCase = true) }
+                                .maxOfOrNull { it.sortOrder } ?: 0) + 1
+                            val uField = UniversalFieldEntity(
+                                tabId = effectiveTabId,
+                                fieldKey = key,
+                                groupName = group,
+                                defaultValue = null,
+                                sortOrder = nextSort
+                            )
+                            universalFieldDao.insertOrUpdateField(uField)
+                            existingUniversal.add(uField)
+                        }
+                    }
+                }
+            }
+
             for (row in rows) {
                 processedCount++
                 if (processedCount % 50 == 0) {
@@ -291,7 +347,6 @@ class VlookupEngine(
                     }
 
                     // Specs / Custom Fields
-                    val specMappings = activeMappings.filter { it.targetField == TargetField.CUSTOM_SPEC }
                     if (specMappings.isNotEmpty()) {
                         val currentSpecs = fieldDao.getFieldsForSite(sapId).toMutableList()
                         var specsChanged = false
@@ -301,8 +356,11 @@ class VlookupEngine(
                             if (rawVal.isNullOrEmpty()) continue
 
                             val key = specMap.specKey.trim()
-                            val group = specMap.specGroup?.trim() ?: "EQUIPMENT"
-                            val existingField = currentSpecs.find { it.fieldKey.equals(key, ignoreCase = true) }
+                            val group = specMap.specGroup?.trim()?.ifBlank { "EQUIPMENT" } ?: "EQUIPMENT"
+                            val effectiveTabId = specMap.tabId.trim().ifBlank { "SPECS" }
+                            val existingField = currentSpecs.find {
+                                it.fieldKey.equals(key, ignoreCase = true) && it.tabId.equals(effectiveTabId, ignoreCase = true)
+                            }
 
                             if (existingField != null) {
                                 val canOverwrite = when (overwritePolicy) {
@@ -322,7 +380,8 @@ class VlookupEngine(
                                     fieldKey = key,
                                     fieldValue = rawVal,
                                     groupName = group,
-                                    sortOrder = (currentSpecs.maxOfOrNull { it.sortOrder ?: 0 } ?: 0) + 1
+                                    sortOrder = (currentSpecs.filter { it.tabId.equals(effectiveTabId, ignoreCase = true) }.maxOfOrNull { it.sortOrder ?: 0 } ?: 0) + 1,
+                                    tabId = effectiveTabId
                                 )
                                 fieldDao.insertField(newField)
                                 currentSpecs.add(newField)
@@ -357,19 +416,20 @@ class VlookupEngine(
                     sitesCreated++
 
                     // Insert specs
-                    val specMappings = activeMappings.filter { it.targetField == TargetField.CUSTOM_SPEC }
                     val newSpecs = mutableListOf<SiteFieldEntity>()
                     for ((specIdx, specMap) in specMappings.withIndex()) {
                         val rawVal = row.getOrNull(specMap.columnIndex)?.trim()
                         if (!rawVal.isNullOrEmpty()) {
+                            val effectiveTabId = specMap.tabId.trim().ifBlank { "SPECS" }
                             newSpecs.add(
                                 SiteFieldEntity(
                                     id = 0L,
                                     sapId = rawKey,
                                     fieldKey = specMap.specKey.trim(),
                                     fieldValue = rawVal,
-                                    groupName = specMap.specGroup?.trim() ?: "EQUIPMENT",
-                                    sortOrder = specIdx + 1
+                                    groupName = specMap.specGroup?.trim()?.ifBlank { "EQUIPMENT" } ?: "EQUIPMENT",
+                                    sortOrder = specIdx + 1,
+                                    tabId = effectiveTabId
                                 )
                             )
                         }

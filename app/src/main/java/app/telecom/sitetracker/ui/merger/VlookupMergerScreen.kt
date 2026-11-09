@@ -82,6 +82,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.telecom.sitetracker.data.entity.SiteTabEntity
 import app.telecom.sitetracker.data.import.TargetField
 import app.telecom.sitetracker.data.merger.MergeStrategy
 import app.telecom.sitetracker.data.merger.OverwritePolicy
@@ -193,8 +194,11 @@ fun VlookupMergerScreen(
                     VlookupStep.MAP_COLUMNS -> {
                         StepMapColumns(
                             uiState = uiState,
-                            onUpdateTarget = { col, target, group, key ->
-                                viewModel.updateColumnTarget(col, target, group, key)
+                            onUpdateTarget = { col, target, group, key, tabId, tabDisplayName ->
+                                viewModel.updateColumnTarget(col, target, group, key, tabId, tabDisplayName)
+                            },
+                            onCreateNewTab = { col, tabName, sectionName ->
+                                viewModel.createNewTabAndMap(col, tabName, sectionName)
                             },
                             onToggleColumn = { col, isIncluded ->
                                 viewModel.toggleColumnSelection(col, isIncluded)
@@ -572,7 +576,8 @@ private fun StepSelectKeyColumn(
 @Composable
 private fun StepMapColumns(
     uiState: VlookupMergerUiState,
-    onUpdateTarget: (Int, TargetField, String?, String?) -> Unit,
+    onUpdateTarget: (Int, TargetField, String?, String?, String, String) -> Unit,
+    onCreateNewTab: (Int, String, String?) -> Unit,
     onToggleColumn: (Int, Boolean) -> Unit,
     onSelectAll: () -> Unit,
     onDeselectAll: () -> Unit,
@@ -770,9 +775,13 @@ private fun StepMapColumns(
                 ColumnMappingCard(
                     mapping = mapping,
                     sampleValues = uiState.sampleRows.mapNotNull { it.getOrNull(mapping.columnIndex) }.filter { it.isNotBlank() },
+                    availableTabs = uiState.availableTabs,
                     onToggleSelected = { isIncluded -> onToggleColumn(mapping.columnIndex, isIncluded) },
-                    onTargetChanged = { target, group, key ->
-                        onUpdateTarget(mapping.columnIndex, target, group, key)
+                    onTargetChanged = { target, group, key, tabId, tabDisplayName ->
+                        onUpdateTarget(mapping.columnIndex, target, group, key, tabId, tabDisplayName)
+                    },
+                    onCreateNewTab = { tabName, sectionName ->
+                        onCreateNewTab(mapping.columnIndex, tabName, sectionName)
                     }
                 )
             }
@@ -800,11 +809,14 @@ private fun StepMapColumns(
 private fun ColumnMappingCard(
     mapping: VlookupColumnMapping,
     sampleValues: List<String>,
+    availableTabs: List<SiteTabEntity>,
     onToggleSelected: (Boolean) -> Unit,
-    onTargetChanged: (TargetField, String?, String?) -> Unit
+    onTargetChanged: (TargetField, String?, String?, String, String) -> Unit,
+    onCreateNewTab: (String, String?) -> Unit
 ) {
     val isIncluded = mapping.targetField != TargetField.IGNORE
     var isExpanded by remember { mutableStateOf(false) }
+    var showCreateTabDialog by remember { mutableStateOf(false) }
 
     Card(
         colors = CardDefaults.cardColors(
@@ -954,7 +966,11 @@ private fun ColumnMappingCard(
                                 Text(
                                     text = when (mapping.targetField) {
                                         TargetField.IGNORE -> "Skipped"
-                                        TargetField.CUSTOM_SPEC -> "${mapping.specGroup ?: "SPEC"} • ${mapping.specKey}"
+                                        TargetField.CUSTOM_SPEC -> {
+                                            val tabName = if (mapping.tabDisplayName.isNotBlank()) mapping.tabDisplayName else "Specs"
+                                            val section = mapping.specGroup?.ifBlank { "SPEC" } ?: "SPEC"
+                                            "[$tabName • $section] ${mapping.specKey}"
+                                        }
                                         else -> mapping.targetField.displayName
                                     },
                                     style = MaterialTheme.typography.labelSmall.copy(
@@ -992,14 +1008,14 @@ private fun ColumnMappingCard(
                             DropdownMenuItem(
                                 text = { Text("Ignore Column") },
                                 onClick = {
-                                    onTargetChanged(TargetField.IGNORE, null, null)
+                                    onTargetChanged(TargetField.IGNORE, null, null, "SPECS", "Specs")
                                     isExpanded = false
                                 }
                             )
                             HorizontalDivider()
                             Text(
                                 text = "CORE SITE ATTRIBUTES",
-                                style = MaterialTheme.typography.labelSmall.copy(color = TelecomAmber),
+                                style = MaterialTheme.typography.labelSmall.copy(color = TelecomAmber, fontWeight = FontWeight.Bold),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             )
                             listOf(
@@ -1018,16 +1034,21 @@ private fun ColumnMappingCard(
                                 DropdownMenuItem(
                                     text = { Text(field.displayName) },
                                     onClick = {
-                                        onTargetChanged(field, null, null)
+                                        onTargetChanged(field, null, null, "SPECS", "Specs")
                                         isExpanded = false
                                     }
                                 )
                             }
                             HorizontalDivider()
                             Text(
-                                text = "EQUIPMENT SPECIFICATIONS",
-                                style = MaterialTheme.typography.labelSmall.copy(color = RFCyan),
+                                text = "SITE TABS & SPECIFICATIONS",
+                                style = MaterialTheme.typography.labelSmall.copy(color = RFCyan, fontWeight = FontWeight.Bold),
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                            )
+                            Text(
+                                text = "Specs Tab",
+                                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp),
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
                             )
                             listOf(
                                 "POWER",
@@ -1041,13 +1062,118 @@ private fun ColumnMappingCard(
                                 "CIVIL"
                             ).forEach { group ->
                                 DropdownMenuItem(
-                                    text = { Text("$group Specification") },
+                                    text = { Text("[Specs] $group") },
                                     onClick = {
-                                        onTargetChanged(TargetField.CUSTOM_SPEC, group, mapping.sourceHeader)
+                                        onTargetChanged(TargetField.CUSTOM_SPEC, group, mapping.sourceHeader, "SPECS", "Specs")
                                         isExpanded = false
                                     }
                                 )
                             }
+
+                            val customTabs = availableTabs.filter { !it.isSystem && it.tabId != "SPECS" && it.tabId != "LOGS" && it.tabId != "OVERVIEW" }
+                            if (customTabs.isNotEmpty()) {
+                                HorizontalDivider()
+                                Text(
+                                    text = "Custom Site Tabs",
+                                    style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                                )
+                                customTabs.forEach { tab ->
+                                    DropdownMenuItem(
+                                        text = { Text("[${tab.displayName}] General") },
+                                        onClick = {
+                                            onTargetChanged(TargetField.CUSTOM_SPEC, "GENERAL", mapping.sourceHeader, tab.tabId, tab.displayName)
+                                            isExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        "+ CREATE NEW TAB...",
+                                        color = TelecomAmber,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                onClick = {
+                                    isExpanded = false
+                                    showCreateTabDialog = true
+                                }
+                            )
+                        }
+
+                        if (showCreateTabDialog) {
+                            var newTabName by remember { mutableStateOf("") }
+                            var newSectionName by remember { mutableStateOf("") }
+
+                            AlertDialog(
+                                onDismissRequest = { showCreateTabDialog = false },
+                                title = {
+                                    Text(
+                                        text = "Create New Site Tab",
+                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                },
+                                text = {
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "Add a new dynamic tab to TowerDost. Incoming values for '${mapping.sourceHeader}' will be assigned to this tab.",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        OutlinedTextField(
+                                            value = newTabName,
+                                            onValueChange = { newTabName = it },
+                                            label = { Text("Tab Name (e.g. EB BILLING)") },
+                                            placeholder = { Text("EB BILLING") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        OutlinedTextField(
+                                            value = newSectionName,
+                                            onValueChange = { newSectionName = it },
+                                            label = { Text("Section / Group (Optional)") },
+                                            placeholder = { Text("GENERAL") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                },
+                                confirmButton = {
+                                    Button(
+                                        onClick = {
+                                            if (newTabName.isNotBlank()) {
+                                                onCreateNewTab(newTabName.trim(), newSectionName.trim().ifBlank { null })
+                                                showCreateTabDialog = false
+                                            }
+                                        },
+                                        enabled = newTabName.isNotBlank(),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = TelecomAmber,
+                                            contentColor = Color(0xFF0F172A)
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.height(48.dp)
+                                    ) {
+                                        Text("Create & Map", fontWeight = FontWeight.Bold)
+                                    }
+                                },
+                                dismissButton = {
+                                    TextButton(
+                                        onClick = { showCreateTabDialog = false },
+                                        modifier = Modifier.height(48.dp)
+                                    ) {
+                                        Text("Cancel")
+                                    }
+                                }
+                            )
                         }
                     }
                 }
