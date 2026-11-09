@@ -207,6 +207,38 @@ class SiteRepository(private val db: AppDatabase) {
                 combined[site.sapId] = site
             }
         }
+
+        // 3. Robust tokenized matching: If multiple words were provided (e.g. "Kolkata Hub")
+        // or if direct/FTS returned empty results, perform case-insensitive token conjunction
+        // across all active sites so no candidate is missed due to token order or unindexed specs.
+        val tokens = trimmed.lowercase().split(Regex("[^a-zA-Z0-9]+")).filter { it.isNotBlank() }
+        if (tokens.isNotEmpty()) {
+            val allActive = try {
+                siteDao.getAllActiveSitesList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val lowerTrimmed = trimmed.lowercase()
+            for (site in allActive) {
+                if (combined.containsKey(site.sapId)) continue
+                val nameLower = site.name?.lowercase() ?: ""
+                val sapLower = site.sapId.lowercase()
+                val cityLower = site.city?.lowercase() ?: ""
+                val distLower = site.district?.lowercase() ?: ""
+                val circleLower = site.circle?.lowercase() ?: ""
+                val addrLower = site.address?.lowercase() ?: ""
+                val techLower = site.technology?.lowercase() ?: ""
+                val typeLower = site.siteType?.lowercase() ?: ""
+                val statusLower = site.status?.lowercase() ?: ""
+
+                val haystack = "$sapLower ${site.sapNorm.lowercase()} $nameLower $cityLower $distLower $circleLower $addrLower $techLower $typeLower $statusLower"
+
+                if (haystack.contains(lowerTrimmed) || tokens.all { token -> haystack.contains(token) }) {
+                    combined[site.sapId] = site
+                }
+            }
+        }
+
         return combined.values.toList()
     }
 
