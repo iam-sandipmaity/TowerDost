@@ -10,10 +10,15 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Tag to release (e.g. v1.1.0). Leave empty if not creating a release.'
+        description: 'Tag to release (e.g. v1.2.0). Leave empty to use version from build.gradle.kts'
         required: false
         default: ''
         type: string
+      force_release:
+        description: 'Force release even if tag/release already exists on GitHub'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -61,27 +66,68 @@ jobs:
           name: TowerDost-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Package Release APK
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+      - name: Determine Release Eligibility
+        id: release_check
         run: |
-          TAG="${{ github.ref_name }}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.release_tag }}" ]; then
-            TAG="${{ inputs.release_tag }}"
+          APP_VERSION=$(grep 'versionName = ' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+          echo "Detected app version from build.gradle.kts: ${APP_VERSION}"
+
+          SHOULD_RELEASE="false"
+          RELEASE_TAG=""
+          FORCE="${{ inputs.force_release }}"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ inputs.release_tag }}" ]; then
+              RELEASE_TAG="${{ inputs.release_tag }}"
+            else
+              RELEASE_TAG="v${APP_VERSION}"
+            fi
+            echo "Workflow dispatch triggered with tag: ${RELEASE_TAG}"
+            SHOULD_RELEASE="true"
+          elif [ "${{ startsWith(github.ref, 'refs/tags/v') }}" = "true" ]; then
+            RELEASE_TAG="${{ github.ref_name }}"
+            echo "Tag push triggered with tag: ${RELEASE_TAG}"
+            SHOULD_RELEASE="true"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TARGET_TAG="v${APP_VERSION}"
+            echo "Push to main detected. Checking if GitHub Release ${TARGET_TAG} exists..."
+            STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/tags/${TARGET_TAG}")
+
+            echo "GitHub API release check for ${TARGET_TAG} returned HTTP status: ${STATUS_CODE}"
+            if [ "$STATUS_CODE" = "404" ] || [ "$FORCE" = "true" ]; then
+              echo "Release ${TARGET_TAG} is eligible for publishing!"
+              RELEASE_TAG="${TARGET_TAG}"
+              SHOULD_RELEASE="true"
+            else
+              echo "Release ${TARGET_TAG} already published. Skipping auto-release."
+            fi
           fi
+
+          echo "should_release=${SHOULD_RELEASE}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Package Release APK
+        if: steps.release_check.outputs.should_release == 'true'
+        run: |
+          TAG="${{ steps.release_check.outputs.release_tag }}"
           cp app/build/outputs/apk/debug/app-debug.apk "TowerDost-${TAG}.apk"
-          echo "RELEASE_TAG=${TAG}" >> "$GITHUB_ENV"
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+        if: steps.release_check.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: Release ${{ env.RELEASE_TAG }}
+          tag_name: ${{ steps.release_check.outputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          name: Release ${{ steps.release_check.outputs.release_tag }}
           files: |
-            TowerDost-${{ env.RELEASE_TAG }}.apk
+            TowerDost-${{ steps.release_check.outputs.release_tag }}.apk
             app/build/outputs/apk/debug/app-debug.apk
           generate_release_notes: true
           draft: false
           prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
